@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { computePosterLayout } from "@/lib/layout/botanical";
 import { usePosterLayout } from "./usePosterLayout";
+import { MemberPicker } from "./MemberPicker";
+import { relationship } from "@/lib/relationship";
 import { branchHeads, clearestPaper, rankBranches, smallestClearPaper, type BranchOption } from "@/lib/layout/branches";
 import { generationColor } from "@/lib/layout/palette";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
@@ -146,11 +148,25 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const [trace, setTrace] = useState(true);
   // A poster too dense for its paper is replaced by its options, unless asked for
   const [showDense, setShowDense] = useState(false);
+  // How the selected person is related to another, chosen on their panel:
+  // the path between them is what the poster highlights meanwhile.
+  const [relativeId, setRelativeId] = useState<string | null>(null);
+  useEffect(() => setRelativeId(null), [selectedId]);
+  const kinship = useMemo(
+    () => (selected && relativeId && relativeId !== selected.id ? relationship(tree.members, tree.marriages, selected.id, relativeId) : null),
+    [selected, relativeId, tree.members, tree.marriages],
+  );
   const lineageIds = useMemo(() => {
+    if (kinship?.path.length) {
+      const on = new Set(kinship.path);
+      // (and a spouse's box on the way, where a child grows from it)
+      for (const s of layout?.spouses ?? []) if (on.has(s.partnerId) && s.childIds.some((c) => on.has(c))) on.add(s.id);
+      return on;
+    }
     if (!selected || !trace) return undefined;
     const { ancestors, descendants } = lineagePath(tree.members, tree.lineage, selected.id);
     return new Set([...ancestors, ...descendants]);
-  }, [selected, trace, tree.members, tree.lineage]);
+  }, [selected, trace, tree.members, tree.lineage, kinship, layout?.spouses]);
 
   const select = useCallback((id: string) => setPanel({ kind: "edit", id }), []);
 
@@ -736,6 +752,45 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 }
                 onRemoveMarriage={(id) => void mutate(() => repo.deleteMarriage(id), { label: "Remove marriage" })}
               />
+              <section className="space-y-2 rounded-md border border-parchment-200 p-3 text-sm" aria-label="Relationship">
+                <h4 className="section-title">Relationship</h4>
+                <MemberPicker
+                  label={`How is ${selected.name} related to…`}
+                  members={tree.members}
+                  value={relativeId}
+                  onChange={setRelativeId}
+                  excludeIds={new Set([selected.id])}
+                  placeholder="Search anyone in the family…"
+                />
+                {kinship && relativeId && (
+                  <div className="space-y-2 rounded-md bg-parchment-50 p-2">
+                    <p className="font-naskh text-lg leading-snug text-bark-900" dir="rtl">{kinship.arabic}</p>
+                    <p className="text-xs text-bark-500">{kinship.english}</p>
+                    {kinship.path.length > 1 && (
+                      <ol className="flex flex-wrap items-center gap-1 text-xs" dir="rtl" aria-label="The path between them">
+                        {kinship.path.map((id, i) => {
+                          const m = tree.members.find((x) => x.id === id);
+                          const shared = kinship.common.includes(id);
+                          return (
+                            <li key={id} className="flex items-center gap-1">
+                              {i > 0 && <span className="text-bark-400">{i <= kinship.up ? "↑" : "↓"}</span>}
+                              <button type="button" onClick={() => select(id)}
+                                className={`rounded-full border px-2 py-0.5 font-naskh text-sm ${shared ? "border-gilt-500 bg-parchment-100 font-bold" : "border-parchment-300 bg-white"}`}
+                                title={shared ? "Their nearest shared ancestor" : undefined}>
+                                {m?.name}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
+                    <div className="flex items-center gap-2">
+                      {kinship.path.length > 1 && <span className="text-xs text-bark-500">The path is lit on the poster.</span>}
+                      <button type="button" className="btn-ghost ms-auto px-2 py-0.5 text-xs" onClick={() => setRelativeId(null)}>Clear</button>
+                    </div>
+                  </div>
+                )}
+              </section>
               <details className="rounded-md border border-parchment-200 p-3" open>
                 <summary className="cursor-pointer text-sm font-semibold text-bark-700">Details</summary>
                 <div className="mt-3">

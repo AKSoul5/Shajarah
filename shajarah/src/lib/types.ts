@@ -71,6 +71,10 @@ export interface PosterTheme {
   nodeRim: string;
   /** "بسم الله الرحمن الرحيم" header. */
   bismillah: boolean;
+  /** The frame artwork's finish: "full" as made, or "soft" (the gold and the paper's texture quieter, so the tree comes first). */
+  frameFinish?: "full" | "soft";
+  /** A faint wash of each main branch's colour behind it, so a whole lineage can be followed at a glance. */
+  branchTint?: boolean;
   /** A small edition line under the title ("طبعة ١٤٤٨ هـ / ٢٠٢٦ م"), from the family's last update. */
   edition?: boolean;
   /** Corner medallion with Al-Hujurat 49:13. */

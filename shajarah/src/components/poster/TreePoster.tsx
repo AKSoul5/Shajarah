@@ -168,7 +168,8 @@ export const TreePoster = memo(
         {/* Paper, then either the frame artwork or a fine gold rule */}
         <rect width={W} height={H} fill={pal.mono ? "#ffffff" : PAPER} />
         {artwork ? (
-          <image href={frameSrc!} x={0} y={0} width={W} height={H} preserveAspectRatio="none" />
+          // (softer: the paper shows through the gold and its texture)
+          <image href={frameSrc!} x={0} y={0} width={W} height={H} preserveAspectRatio="none" opacity={theme.frameFinish === "soft" ? 0.6 : 1} />
         ) : (
           <RuleFrame W={W} H={H} pal={pal} />
         )}
@@ -183,6 +184,7 @@ export const TreePoster = memo(
 
         {/* A faint wash behind the canopy gives a sparse tree its shape */}
         {layout.canopy && !pal.mono && <path d={layout.canopy} fill="#efe3c3" opacity={0.35} />}
+        {theme.branchTint && theme.branchColors && !pal.mono && <BranchTints layout={layout} pal={pal} />}
 
         {/* Ground and roots */}
         {layout.soil ? (
@@ -771,6 +773,50 @@ function FitText({ max, ...props }: SVGProps<SVGTextElement> & { max?: number })
     };
   }, [max, props.children, props.fontSize, props.fontFamily, props.fontWeight]);
   return <text ref={ref} {...props} />;
+}
+
+/**
+ * A faint, soft wash of each main branch's colour behind its lines and
+ * names, so a whole lineage can be followed at a glance. It starts at the
+ * first generation (the lines out of the canopy base, where every branch
+ * meets, are left plain) and is blurred so it has no edge of its own.
+ */
+function BranchTints({ layout, pal }: { layout: PosterLayout; pal: Palette }) {
+  const baseId = layout.base?.member.id;
+  const sizes = layout.nodes.map((n) => n.fontSize).sort((a, b) => a - b);
+  const fs = sizes[sizes.length >> 1] ?? layout.width * 0.008;
+  const groups = new Map<number, { lines: string[]; dots: { x: number; y: number; r: number }[] }>();
+  const at = (i: number) => {
+    if (!groups.has(i)) groups.set(i, { lines: [], dots: [] });
+    return groups.get(i)!;
+  };
+  for (const e of layout.edges) {
+    if (e.lineage == null || e.parentId === baseId || e.points.length < 2) continue;
+    at(e.lineage).lines.push(e.points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "));
+  }
+  for (const n of layout.nodes) {
+    if (n.lineage == null) continue;
+    at(n.lineage).dots.push({ x: n.x, y: n.y, r: Math.max(n.w, n.h) / 2 + fs * 0.9 });
+  }
+  return (
+    <g aria-hidden>
+      <defs>
+        <filter id="sh-tint-blur" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur stdDeviation={(fs * 1.6).toFixed(1)} />
+        </filter>
+      </defs>
+      {[...groups].map(([lineage, g]) => (
+        <g key={lineage} opacity={0.11} filter="url(#sh-tint-blur)">
+          <g fill="none" stroke={pal.branch(lineage)} strokeWidth={fs * 3.4} strokeLinecap="round" strokeLinejoin="round">
+            {g.lines.map((pts, i) => <polyline key={i} points={pts} />)}
+          </g>
+          <g fill={pal.branch(lineage)}>
+            {g.dots.map((d, i) => <circle key={i} cx={d.x.toFixed(1)} cy={d.y.toFixed(1)} r={d.r.toFixed(1)} />)}
+          </g>
+        </g>
+      ))}
+    </g>
+  );
 }
 
 /** Basmala, the calligraphic title, subtitle and a fine divider. */

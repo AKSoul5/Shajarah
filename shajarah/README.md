@@ -761,6 +761,11 @@ Ornaments are toggled under **Style → Ornaments**:
 - the Canva gold-foil frame;
 - daughters as gold capsules;
 - the basmala ﷽;
+- a faint wash of each main branch's colour behind it (off unless chosen),
+  so a whole lineage can be followed at a glance; it starts at the first
+  generation and is blurred so it has no edge of its own;
+- the frame's finish: **Full gold**, or **Softer** (the paper shows
+  through the gold and its texture, so the tree comes first);
 - the edition line under the title, "طبعة ١٤٤٨ هـ / ٢٠٢٦ م": the year of
   the family's last change, so each printing says when it was made;
 - Al-Hujurat 49:13;
@@ -1221,6 +1226,23 @@ never lost.
   *husband*, not at the very top as generation 1.
 - **A branch poster's banner** ("Showing only the branch of …") sits under
   the poster when it is fitted, not over its foundation.
+
+## How two people are related
+
+On anyone's panel, **Relationship** asks for a second person and says how
+they are related, in Arabic and English. It goes through the nearest
+ancestor they share, by fathers and by mothers:
+
+- **Names:** brothers and sisters, full or by one parent ("حامد أخو أحمد
+  لأبيه"). Uncles and aunts by the side they are on (عمّ، عمّة، خال،
+  خالة). Cousins by the parent they come through ("دينا بنت عمّة أحمد").
+  Also nephews and nieces, a sibling's grandchildren, great-uncles ("عوض
+  عمّ والد أحمد"), parents, grandparents, descendants and spouses.
+- **Further relations:** named through the shared ancestor, with how far
+  each is from them ("second cousin once removed").
+- **The path:** shown on the panel, the shared ancestor marked. Each name
+  opens that person. The path is lit on the poster until you press
+  **Clear** (src/lib/relationship.ts, tests/relationship.test.ts).
 
 ## The order of brothers and sisters
 

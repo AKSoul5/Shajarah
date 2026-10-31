@@ -40,6 +40,8 @@ export const themeSchema = z
     nodeRim: hexColor,
     bismillah: z.boolean(),
     edition: z.boolean(),
+    branchTint: z.boolean(),
+    frameFinish: z.enum(["full", "soft"]),
     verse: z.boolean(),
     hadith: z.boolean(),
     frame: z.boolean(),

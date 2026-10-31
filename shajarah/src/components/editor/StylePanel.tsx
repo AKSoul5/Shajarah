@@ -155,6 +155,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 ["frame", "Gold-foil frame & parchment (Canva artwork)"],
                 ["femaleCapsule", "Daughters as gold capsules"],
                 ["branchColors", "Colour each main branch (lineage colours)"],
+                ["branchTint", "A faint wash behind each main branch"],
                 ["bismillah", "Basmala header ﷽"],
                 ["edition", "Edition year under the title (طبعة …)"],
                 ["verse", "Verse medallion (الحجرات ١٣)"],
@@ -166,6 +167,15 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 {label}
               </label>
             ))}
+            {theme.frame && frameAvailable && (
+              <label className="flex items-center justify-between text-sm" title="Softer: the gold ornament and the paper's texture quieter, so the tree comes first">
+                Frame finish
+                <select className="input w-48" value={theme.frameFinish ?? "full"} onChange={(e) => onChange({ frameFinish: e.target.value as PosterTheme["frameFinish"] })}>
+                  <option value="full">Full gold</option>
+                  <option value="soft">Softer</option>
+                </select>
+              </label>
+            )}
             {theme.frame && !frameAvailable && (
               <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
                 Frame artwork not found. Save the Canva frame as{" "}
