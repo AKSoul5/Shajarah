@@ -1,8 +1,9 @@
-# react-dhxenaid
+# Shajarah · شجرة
 
-[Edit in StackBlitz next generation editor ⚡️](https://stackblitz.com/~/github.com/AKSoul5/react-dhxenaid)
-## Shajarah — family tree poster generator
+A print-ready botanical nasab poster from a family's names: a Next.js +
+Prisma app, with a Windows desktop version that updates itself from this
+repository's releases.
 
-The [`shajarah/`](shajarah/) directory holds a separate Next.js + Prisma app
-that turns family data into a print-ready botanical nasab poster. See
-[`shajarah/README.md`](shajarah/README.md) for setup.
+Everything is in [`shajarah/`](shajarah/); see
+[`shajarah/README.md`](shajarah/README.md) for setup, features and the
+desktop app.
