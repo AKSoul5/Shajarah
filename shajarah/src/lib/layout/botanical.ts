@@ -902,9 +902,8 @@ function layoutAttempt(
   const place = framePlacement(W, H, framed);
   const contentTop = H * (opts.headerBand ?? 0.095);
   // the footer (key, the counts' cards, the credit) takes ~5 lines of
-  // W·0.012 text above footerY, and a clear line of paper between the
-  // foundation and the key (they once touched)
-  const contentBottom = place.footerY - W * 0.068;
+  // W·0.012 text above footerY
+  const contentBottom = place.footerY - W * 0.062;
   const unitMm = (opts.paperWidthMm ?? 420) / W;
   const minTextMm = opts.minTextMm ?? 3.2;
   const minFont = minTextMm / unitMm;

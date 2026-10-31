@@ -935,7 +935,9 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   const { width: W, rtl, stats, generationsPresent, generationOffset } = layout;
   const fs = W * 0.012;
   // key, the cards, then the credit on footerY
-  const y = layout.frame.footerY - fs * 4.6;
+  // (set a little low, the cards and credit closer under it: a clear line
+  // of paper between the key and the foundation above, which once touched)
+  const y = layout.frame.footerY - fs * 4.15;
   const sw = fs * 1.9; // swatch width
   const satin = theme.metallic && !pal.mono;
   const pill = (x: number, fill: string, stroke: string) => (
@@ -1020,7 +1022,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   const cards: [string, number][] = rtl
     ? [["المجموع", stats.total], ["الذكور", stats.males], ["الإناث", stats.females], ["أجيال النسب", stats.generations]]
     : [["People", stats.total], ["Males", stats.males], ["Females", stats.females], ["Generations", stats.generations]];
-  const cardW = fs * 4.4, cardH = fs * 1.95, cardGap = fs * 0.7, cardY = layout.frame.footerY - fs * 2.25;
+  const cardW = fs * 4.4, cardH = fs * 1.95, cardGap = fs * 0.7, cardY = layout.frame.footerY - fs * 2.05;
   const cardsW = cards.length * cardW + (cards.length - 1) * cardGap;
   const ink = pal.mono ? "#111" : "#5a4630";
   const gold = pal.mono ? "#111" : GOLD;
