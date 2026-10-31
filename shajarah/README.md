@@ -74,6 +74,12 @@ installed and runs its smoke test. If that fails the new release is
 deleted again, so no copy updates to it. (Copies older than 1.0.7 have no
 updater: install 1.0.7 once by hand.)
 
+The project's home is **github.com/AKSoul5/Shajarah**, and releases come
+from there. Up to 1.0.31 they came from the earlier repository
+(AKSoul5/react-dhxenaid). Its last release, 1.0.32, is the bridge:
+copies installed from there update to it, and from then on look for
+updates in Shajarah.
+
 To build it yourself:
 
 ```bash

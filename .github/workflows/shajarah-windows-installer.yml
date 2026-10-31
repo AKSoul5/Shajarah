@@ -11,7 +11,7 @@ name: Shajarah Windows installer
 on:
   workflow_dispatch:
   push:
-    branches: [claude/shajarah-family-tree-app-vp01qo]
+    branches: [main, claude/shajarah-family-tree-app-vp01qo]
     paths:
       - "shajarah/**"
       - ".github/workflows/shajarah-windows-installer.yml"

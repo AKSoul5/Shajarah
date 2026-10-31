@@ -1,7 +1,7 @@
 {
   "name": "shajarah-desktop",
   "productName": "Shajarah",
-  "version": "1.0.31",
+  "version": "1.0.32",
   "description": "Shajarah family tree posters",
   "author": "Shajarah",
   "private": true,
@@ -82,7 +82,7 @@
     "publish": {
       "provider": "github",
       "owner": "AKSoul5",
-      "repo": "react-dhxenaid",
+      "repo": "Shajarah",
       "releaseType": "release"
     }
   }
