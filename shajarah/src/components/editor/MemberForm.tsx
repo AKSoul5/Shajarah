@@ -5,6 +5,7 @@ import { nasab, siblingsInOrder } from "@/lib/genealogy";
 import type { Gender, MemberDTO, TreeDTO } from "@/lib/types";
 import type { CreateMemberInput } from "@/lib/validation";
 import { MemberPicker } from "./MemberPicker";
+import { useConfirm } from "../ConfirmDialog";
 
 export interface MemberDraft {
   name: string;
@@ -57,6 +58,7 @@ interface Props {
 }
 
 export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel, onDelete, onMove, attachments }: Props) {
+  const { dialog, ask } = useConfirm();
   const [d, setD] = useState<MemberDraft>(member ? toDraft(member) : (initialDraft ?? emptyDraft()));
   useEffect(() => {
     setD(member ? toDraft(member) : (initialDraft ?? emptyDraft()));
@@ -100,13 +102,15 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
           <div>
             <span id={id("gender")} className="mb-1 block text-xs font-medium text-bark-700">Gender</span>
             <div className="flex overflow-hidden rounded-md border border-parchment-300" role="group" aria-labelledby={id("gender")}>
-              {(["MALE", "FEMALE"] as const).map((g) => (
+              {/* (unknown: as a GEDCOM file may give it, until it is known) */}
+              {(["MALE", "FEMALE", "UNKNOWN"] as const).map((g) => (
                 <button
                   key={g} type="button" aria-pressed={d.gender === g}
-                  className={`px-3 py-1.5 text-sm ${d.gender === g ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700"}`}
+                  title={g === "UNKNOWN" ? "Not known yet" : undefined}
+                  className={`px-2.5 py-1.5 text-sm ${d.gender === g ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700"}`}
                   onClick={() => set("gender", g)}
                 >
-                  {g === "MALE" ? "Male" : "Female"}
+                  {g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : "Unknown"}
                 </button>
               ))}
             </div>
@@ -168,8 +172,13 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
               type="button"
               className="btn-danger ms-auto"
               disabled={busy}
-              onClick={() => {
-                if (confirm(`Delete ${member ? nasab(tree.members, member.id, 2) : "this member"}? Their children stay in the tree without this parent.`)) onDelete();
+              onClick={async () => {
+                const ok = await ask({
+                  title: `Delete ${member ? nasab(tree.members, member.id, 2) : "this member"}?`,
+                  message: "Their children stay in the family without this parent. You can undo this.",
+                  confirm: "Delete", danger: true,
+                });
+                if (ok) onDelete();
               }}
             >
               Delete
@@ -178,6 +187,7 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
         </div>
       </form>
       {attachments}
+      {dialog}
     </>
   );
 }

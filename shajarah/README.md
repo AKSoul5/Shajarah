@@ -1234,6 +1234,17 @@ never lost.
   that person). A nasab finds one person: «أحمد بن سالم».
 - **Choosing someone in the list** (or on a relationship's path) brings
   them into view on the poster.
+- **Deleting someone, or deleting or merging a source,** asks in the app's
+  own dialog (Cancel has the focus; Enter confirms, Escape cancels), and
+  every one of them can be undone.
+- **The member list** shows 400 people at a time and says so when there
+  are more ("Showing 400 of 1,247: search to find anyone else"); a search
+  that finds no one says so, with a way to clear it.
+- **Gender** can be left **Unknown** (as a GEDCOM file may give it).
+- **A tiled PDF** shows how far it has got ("Sheet 7 of 25…").
+- **Easier on the eyes:** no faint grey text (every label is at least
+  5:1 on its background), and with "reduce motion" set on the computer,
+  nothing pulses or slides.
 - **Right-click a name on the poster** for its menu: open, trace their
   line, how they are related to someone, add a child, centre this branch,
   show a daughter's family, a poster of this branch, hide from the poster,

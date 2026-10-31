@@ -131,7 +131,7 @@ export function TreeCards({ trees: initialTrees }: { trees: TreeSummary[] }) {
                 <button
                   type="button"
                   className={`rounded-md px-1.5 py-0.5 text-base leading-none outline-none transition focus-visible:ring-2 focus-visible:ring-gilt-500 ${
-                    t.pinned ? "text-gilt-600" : "text-gray-300 hover:text-gilt-600"
+                    t.pinned ? "text-gilt-600" : "text-bark-400 hover:text-gilt-600"
                   }`}
                   aria-pressed={t.pinned}
                   aria-label={`${t.pinned ? "Unpin" : "Pin"} ${t.name}`}
@@ -142,7 +142,7 @@ export function TreeCards({ trees: initialTrees }: { trees: TreeSummary[] }) {
                 </button>
                 <button
                   type="button"
-                  className="rounded-md px-1.5 py-0.5 text-xs text-gray-400 outline-none transition hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-red-400"
+                  className="rounded-md px-1.5 py-0.5 text-xs text-bark-400 outline-none transition hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-red-400"
                   aria-label={`Delete ${t.name}`}
                   onClick={() => setConfirming(t.id)}
                 >

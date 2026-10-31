@@ -22,6 +22,7 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
   const [sheet, setSheet] = useState<SheetSize>("A3");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false), !!busy);
   // (a PNG or PDF is one browser canvas: very large papers at a lower resolution)
   const rasterDpi = Math.min(dpi, maxDpi(paper));
@@ -37,11 +38,12 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
       if (kind === "svg") await exportSvg(svg, filename, paper);
       if (kind === "png") await exportPng(svg, filename, paper, dpi);
       if (kind === "pdf") await exportPdf(svg, filename, paper, dpi);
-      if (kind === "tiles") await exportTiledPdf(svg, filename, paper, sheet, dpi);
+      if (kind === "tiles") await exportTiledPdf(svg, filename, paper, sheet, dpi, (done, total) => setProgress({ done, total }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
+      setProgress(null);
     }
   };
 
@@ -86,7 +88,7 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
           </div>
           <div className="flex items-center gap-2 border-t border-parchment-200 pt-3">
             <button type="button" className="btn-outline flex-1 justify-between" disabled={!!busy} onClick={() => run("tiles")}>
-              <span className="whitespace-nowrap">Tiled PDF</span><span className="text-xs text-gray-500">{busy === "tiles" ? "Rendering…" : `${paper} on ${(tiles.rows * tiles.cols).toLocaleString()} ${sheet} sheets`}</span>
+              <span className="whitespace-nowrap">Tiled PDF</span><span className="text-xs text-gray-500">{busy === "tiles" ? (progress ? `Sheet ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : "Rendering…") : `${paper} on ${(tiles.rows * tiles.cols).toLocaleString()} ${sheet} sheets`}</span>
             </button>
             <select className="input w-20" value={sheet} onChange={(e) => setSheet(e.target.value as SheetSize)} aria-label="Sheet size">
               {Object.keys(SHEET_SIZES).map((k) => <option key={k} value={k}>{k}</option>)}

@@ -7,6 +7,7 @@ import { likelyDuplicates, planMergeSources, sourceUsage } from "@/lib/sources";
 import type { SourceDTO, TreeDTO } from "@/lib/types";
 import type { CreateSourceInput, UpdateSourceInput } from "@/lib/validation";
 import { MediaList, NewSourceDialog, eventLabel, type MediaListProps } from "./MemberAttachments";
+import { useConfirm } from "../ConfirmDialog";
 
 interface Props {
   tree: TreeDTO;
@@ -165,30 +166,30 @@ function SourceDetail({ tree, busy, source, onUpdate, onDelete, onMerge, onRemov
   const [into, setInto] = useState("");
   useEffect(() => setInto(dupes[0]?.id ?? ""), [dupes]);
 
-  const merge = () => {
+  const { dialog, ask } = useConfirm();
+  const merge = async () => {
     const target = tree.sources.find((x) => x.id === into);
     if (!target) return;
     const m = planMergeSources(tree, source.id, target.id);
     const dropped = m.dropCitationIds.length + m.dropMediaIds.length;
     const msg =
-      `Merge ${named(source)} into ${named(target)}?\n\n` +
       `${plural(m.moveCitations.length, "citation")} and ${plural(m.moveMedia.length, "file")} move to the source you keep.` +
       (dropped ? ` ${plural(dropped, "repeat")} it already has ${dropped === 1 ? "is" : "are"} dropped.` : "") +
       `\n${named(source)} is then removed. You can undo this.`;
-    if (confirm(msg)) void onMerge(source.id, target.id).then(() => onSelect(target.id));
+    if (await ask({ title: `Merge ${named(source)} into ${named(target)}?`, message: msg, confirm: "Merge" })) void onMerge(source.id, target.id).then(() => onSelect(target.id));
   };
-  const remove = () => {
+  const remove = async () => {
     const msg =
-      `Delete ${named(source)}?\n\n` +
       (citations.length || files.length
         ? `Its ${plural(citations.length, "citation")} and ${plural(files.length, "file link")} are removed too. The people stay.`
         : "It is not cited anywhere.") +
       " You can undo this.";
-    if (confirm(msg)) void onDelete(source.id).then(() => onSelect(null));
+    if (await ask({ title: `Delete ${named(source)}?`, message: msg, confirm: "Delete", danger: true })) void onDelete(source.id).then(() => onSelect(null));
   };
 
   return (
     <article className="mx-auto max-w-3xl space-y-6" aria-labelledby={id("h")}>
+      {dialog}
       <header>
         <h2 id={id("h")} className="text-xl font-bold text-bark-800"><bdi>{source.title}</bdi></h2>
         {source.author && <p className="text-sm text-gray-600"><bdi>{source.author}</bdi></p>}
@@ -258,7 +259,7 @@ function SourceDetail({ tree, busy, source, onUpdate, onDelete, onMerge, onRemov
                       </button>
                     ) : "?"}
                   </td>
-                  <td className="px-3 py-1.5">{eventLabel(c.eventType) ?? <span className="text-gray-400">in general</span>}</td>
+                  <td className="px-3 py-1.5">{eventLabel(c.eventType) ?? <span className="text-bark-400">in general</span>}</td>
                   <td className="px-3 py-1.5"><bdi>{c.page ?? ""}</bdi></td>
                   <td className="px-1">
                     <button type="button" className="btn-ghost px-1 text-xs" disabled={busy} aria-label={`Remove citation for ${member?.name ?? "this person"}`} onClick={() => onRemoveCitation(c.id)}>

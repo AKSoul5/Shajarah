@@ -320,13 +320,18 @@ export function tileGrid(paper: PaperSize, sheet: SheetSize) {
   return { P, S, margin, overlap, tileW, tileH, cols, rows };
 }
 
-export async function exportTiledPdf(svg: SVGSVGElement, filename: string, paper: PaperSize, sheet: SheetSize, dpi: number) {
+export async function exportTiledPdf(
+  svg: SVGSVGElement, filename: string, paper: PaperSize, sheet: SheetSize, dpi: number,
+  /** Called after each sheet (and once before the first), so a long export can show how far it is. */
+  onProgress?: (done: number, total: number) => void,
+) {
   // (each sheet's part is drawn on its own, so any paper prints at full resolution)
   const [{ jsPDF }, poster] = await Promise.all([import("jspdf"), loadPoster(svg, paper)]);
   try {
     const { P, S, margin, overlap, tileW, tileH, cols, rows } = tileGrid(paper, sheet);
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [S.w, S.h], compress: true });
     pdf.setProperties({ title: `${filename} (${paper} on ${rows}×${cols} ${sheet} sheets)`, creator: "Shajarah" });
+    onProgress?.(0, rows * cols);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (r || c) pdf.addPage([S.w, S.h], "portrait");
@@ -344,6 +349,11 @@ export async function exportTiledPdf(svg: SVGSVGElement, filename: string, paper
         }
         pdf.setFontSize(7);
         pdf.text(`${filename} · ${paper} · row ${r + 1}/${rows}, column ${c + 1}/${cols} · overlap ${overlap} mm`, margin, S.h - 4);
+        if (onProgress) {
+          onProgress(r * cols + c + 1, rows * cols);
+          // (a moment for the page to show it)
+          await new Promise((done) => setTimeout(done, 0));
+        }
       }
     }
     download(pdf.output("blob"), `${filename}-${paper}-tiled-${sheet}.pdf`);

@@ -111,8 +111,8 @@ export function PosterViewport({ width, height, reserveBottom = 0, focusOn = nul
         {children}
       </div>
       <div className="absolute bottom-4 end-4 flex flex-col overflow-hidden rounded-md border border-parchment-300 bg-white/90 shadow">
-        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1.4)} title="Zoom in (or Ctrl + scroll)">＋</button>
-        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1 / 1.4)} title="Zoom out (or Ctrl + scroll)">－</button>
+        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1.4)} title="Zoom in (or Ctrl + scroll)" aria-label="Zoom in">+</button>
+        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1 / 1.4)} title="Zoom out (or Ctrl + scroll)" aria-label="Zoom out">−</button>
         <button type="button" className="px-3 py-1.5 text-xs hover:bg-parchment-100" onClick={fit} title="Fit to screen">Fit</button>
       </div>
     </div>

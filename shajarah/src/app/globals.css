@@ -70,3 +70,13 @@
     @apply mb-1.5 text-xs font-semibold uppercase tracking-wide text-bark-500;
   }
 }
+
+/* Someone who asks their system for less motion gets none here. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

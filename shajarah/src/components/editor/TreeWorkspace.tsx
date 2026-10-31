@@ -533,7 +533,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     const list = q
       ? tree.members.filter((m) => normalizeName(nasab(tree.members, m.id, 3)).includes(q) || normalizeName(m.laqab ?? "").includes(q))
       : tree.members;
-    return [...list].sort((a, b) => listGeneration(a) - listGeneration(b) || a.birthOrder - b.birthOrder).slice(0, 400);
+    return [...list].sort((a, b) => listGeneration(a) - listGeneration(b) || a.birthOrder - b.birthOrder);
   }, [tree.members, query, listGeneration]);
 
   return (
@@ -668,7 +668,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     Start with the eldest known ancestor — the root of the trunk.
                   </li>
                 )}
-                {filtered.map((m) => (
+                {query.trim() && filtered.length === 0 && (
+                  <li className="p-6 text-center text-sm text-bark-500">
+                    No one in the family matches «<bdi>{query.trim()}</bdi>».{" "}
+                    <button type="button" className="underline hover:text-bark-900" onClick={() => setQuery("")}>Clear the search</button>
+                  </li>
+                )}
+                {filtered.slice(0, LIST_LIMIT).map((m) => (
                   <li key={m.id}>
                     <button
                       type="button"
@@ -677,12 +683,18 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     >
                       <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: generationColor(m.generation).fill }} />
                       <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
-                      <span className="whitespace-nowrap text-xs text-gray-400" title={marriedIn.has(m.id) ? "Married into the family" : undefined}>
+                      <span className="whitespace-nowrap text-xs text-bark-400" title={marriedIn.has(m.id) ? "Married into the family" : undefined}>
                         {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
                       </span>
                     </button>
                   </li>
                 ))}
+                {filtered.length > LIST_LIMIT && (
+                  // (a long list stays quick: the rest are a search away)
+                  <li className="p-3 text-center text-xs text-bark-500">
+                    Showing {LIST_LIMIT} of {filtered.length.toLocaleString()}. Search above to find anyone else.
+                  </li>
+                )}
               </ul>
             </>
           )}
@@ -1108,7 +1120,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             />
           ) : !layout ? (
             <div className="flex h-full items-center justify-center" role="status">
-              <p className="animate-pulse font-naskh text-xl text-bark-500" dir="rtl">تنمو الشجرة…</p>
+              <p className="font-naskh text-xl text-bark-500 motion-safe:animate-pulse" dir="rtl">تنمو الشجرة…</p>
             </div>
           ) : (
             <>
@@ -1218,6 +1230,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     </div>
   );
 }
+
+/** The most people the member list shows at once (search finds the rest). */
+const LIST_LIMIT = 400;
 
 /** ASCII-only file name: some browsers drop non-Latin download names. */
 function exportName(name: string) {
