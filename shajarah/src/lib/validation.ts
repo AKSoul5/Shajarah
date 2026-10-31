@@ -39,6 +39,7 @@ export const themeSchema = z
     soilStyle: z.enum(["column", "spine", "banner", "pedestal", "paragraph"]),
     nodeRim: hexColor,
     bismillah: z.boolean(),
+    edition: z.boolean(),
     verse: z.boolean(),
     hadith: z.boolean(),
     frame: z.boolean(),

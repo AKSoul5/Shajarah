@@ -156,12 +156,13 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 ["femaleCapsule", "Daughters as gold capsules"],
                 ["branchColors", "Colour each main branch (lineage colours)"],
                 ["bismillah", "Basmala header ﷽"],
+                ["edition", "Edition year under the title (طبعة …)"],
                 ["verse", "Verse medallion (الحجرات ١٣)"],
                 ["hadith", "Hadith medallion (تعلموا من أنسابكم)"],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={theme[key]} onChange={(e) => onChange({ [key]: e.target.checked })} />
+                <input type="checkbox" checked={!!theme[key]} onChange={(e) => onChange({ [key]: e.target.checked })} />
                 {label}
               </label>
             ))}

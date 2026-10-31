@@ -303,7 +303,8 @@ export interface PosterLayout {
   generationOffset: number;
   /** Generations present on crown / side-branch tags (for the legend). */
   generationsPresent: number[];
-  stats: { total: number; males: number; females: number; placed: number; unplaced: number };
+  /** generations: how many the family on the poster spans (its oldest ancestor to its youngest). */
+  stats: { total: number; males: number; females: number; generations: number; placed: number; unplaced: number };
   /** The people on the poster's list who are not drawn on it (stats.unplaced of them), for the editor to show. */
   unplacedIds?: string[];
   /** The foundation keeps every name and so takes more than its share of the page (shortening it would give the canopy room). */
@@ -844,6 +845,7 @@ function layoutAttempt(
     total: counted.length,
     males: counted.filter((m) => m.gender === "MALE").length,
     females: counted.filter((m) => m.gender === "FEMALE").length,
+    generations: new Set(counted.map((m) => m.generation)).size,
     placed: 0,
     unplaced: 0,
   };
@@ -856,8 +858,9 @@ function layoutAttempt(
   const margin = W * (framed ? 0.1 : 0.05);
   const place = framePlacement(W, H, framed);
   const contentTop = H * (opts.headerBand ?? 0.095);
-  // the footer key and counts take ~3.5 lines of W·0.012 text above footerY
-  const contentBottom = place.footerY - W * 0.056;
+  // the footer (key, the counts' cards, the credit) takes ~5 lines of
+  // W·0.012 text above footerY
+  const contentBottom = place.footerY - W * 0.062;
   const unitMm = (opts.paperWidthMm ?? 420) / W;
   const minTextMm = opts.minTextMm ?? 3.2;
   const minFont = minTextMm / unitMm;
@@ -2088,8 +2091,12 @@ function layoutAttempt(
   const totalLeaves = Math.max(1, base.value ?? 1);
   const bs = opts.branchScale ?? 1;
   const wMin = lineMin;
-  const wK = Math.min((trunkWidth * 0.8 - wMin) / Math.sqrt(totalLeaves), W * 0.016) * bs;
+  // (the widest limb at most 1.2% of the page: the names, not the wood, are the subject)
+  const wK = Math.min((trunkWidth * 0.8 - wMin) / Math.sqrt(totalLeaves), W * 0.012) * bs;
   const widthOf = (leaves: number) => wMin * 1.5 + wK * (Math.sqrt(leaves) - 1);
+  // A dotted line's dots: big enough to read as a line, never blobs (a
+  // daughter's large family once drew its line in dots wider than names' type)
+  const dotWidth = (w: number) => clamp(w, wMin * 2.2, wMin * 3.2);
 
   // ── 5b. Connections, and clearing them of unrelated names ─────────────
   // Each connection is a gentle cubic from parent to child that stays
@@ -2205,7 +2212,7 @@ function layoutAttempt(
   // it (the clarity check judges lines by their width).
   const nodeWidths = (node: LiveNode) => {
     if (dotted.has(node.member.id)) {
-      const w = Math.max(wMin * 2.2, node.shape === "leaf" ? widthOf(1) : widthOf(node.leafCount) * 0.8);
+      const w = dotWidth(node.shape === "leaf" ? widthOf(1) : widthOf(node.leafCount) * 0.8);
       return { w0: w, w1: w };
     }
     if (node.shape === "leaf") return { w0: widthOf(1), w1: Math.max(wMin * 0.8, node.fontSize * 0.14) };
@@ -2215,7 +2222,7 @@ function layoutAttempt(
   const holderWidths = (h: Holder) => {
     const w = widthOf(Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0)));
     if (h.dotted) {
-      const wd = Math.max(wMin * 2.2, w * 0.8);
+      const wd = dotWidth(w * 0.8);
       return { w0: wd, w1: wd };
     }
     return { w0: !h.lone && h.anchorOf.region === "crown" && h.anchorOf.depth === 1 ? w * 1.15 : w, w1: w * 0.85 };
@@ -3040,7 +3047,7 @@ function layoutAttempt(
     const leaves = Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0));
     const w = widthOf(leaves);
     if (h.dotted) {
-      const wd = Math.max(wMin * 2.2, w * 0.8);
+      const wd = dotWidth(w * 0.8);
       const p = (v: Vec) => `${v.x.toFixed(1)} ${v.y.toFixed(1)}`;
       branches.push({ d: `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`, w: wd, lineage: h.lineage ?? null, dotted: true });
       edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: wd, w1: wd, lineage: h.lineage ?? null });
@@ -3058,7 +3065,7 @@ function layoutAttempt(
     if (dotted.has(node.member.id)) {
       // outside the lineage: an even dotted line, a little heavier than a
       // twig so the dots read
-      const w = Math.max(wMin * 2.2, node.shape === "leaf" ? widthOf(1) : widthOf(node.leafCount) * 0.8);
+      const w = dotWidth(node.shape === "leaf" ? widthOf(1) : widthOf(node.leafCount) * 0.8);
       const p = (v: Vec) => `${v.x.toFixed(1)} ${v.y.toFixed(1)}`;
       branches.push({ d: `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`, w, lineage: node.lineage ?? null, dotted: true });
       edges.push({ parentId: from, childId: node.id, points: sample(c), w0: w, w1: w, lineage: node.lineage ?? null });

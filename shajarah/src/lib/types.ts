@@ -71,6 +71,8 @@ export interface PosterTheme {
   nodeRim: string;
   /** "بسم الله الرحمن الرحيم" header. */
   bismillah: boolean;
+  /** A small edition line under the title ("طبعة ١٤٤٨ هـ / ٢٠٢٦ م"), from the family's last update. */
+  edition?: boolean;
   /** Corner medallion with Al-Hujurat 49:13. */
   verse: boolean;
   /** Corner medallion with the hadith on learning one's lineage. */

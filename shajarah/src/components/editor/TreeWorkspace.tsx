@@ -915,7 +915,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <TreePoster
                 ref={svgRef}
                 layout={layout}
-                meta={{ title: tree.title, subtitle: tree.subtitle, name: tree.name }}
+                meta={{ title: tree.title, subtitle: tree.subtitle, name: tree.name, updated: tree.version ?? null }}
                 theme={theme}
                 selectedId={selectedId}
                 lineageIds={lineageIds}

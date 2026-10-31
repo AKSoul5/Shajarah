@@ -43,6 +43,7 @@ export function generationLabel(generation: number, arabic: boolean): string {
   return `Generation ${generation + 1}`;
 }
 
-export const LEAF_TONES = ["#2f6b2a", "#3f8434", "#4f9a3e", "#5f8f3a", "#6aa84f", "#356f3a"];
+/** The Classic theme's sons' leaves: deep heritage teals, a little varied, all dark enough for white names. */
+export const LEAF_TONES = ["#1f4a40", "#24544a", "#2c5d52", "#2f6658", "#356a5f", "#22503f"];
 export const BARK = "#5b3a1d";
 export const BARK_DARK = "#3e2711";

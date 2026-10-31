@@ -761,6 +761,8 @@ Ornaments are toggled under **Style → Ornaments**:
 - the Canva gold-foil frame;
 - daughters as gold capsules;
 - the basmala ﷽;
+- the edition line under the title, "طبعة ١٤٤٨ هـ / ٢٠٢٦ م": the year of
+  the family's last change, so each printing says when it was made;
 - Al-Hujurat 49:13;
 - the Tirmidhi hadith «تعلموا من أنسابكم ما تصلون به أرحامكم…».
 
@@ -805,7 +807,7 @@ in `settings.posterSize`.
 | Luxe | the same tree inside the Canva gold-foil frame, with the verse and hadith medallions |
 | Heritage | ivory and gold ovals with gold rims, gold scalloped medallions, basmala, verse and hadith medallions |
 | Silver & Gold | metallic silver (male) and gold (female) ovals, framed ancestor badges |
-| Classic botanical | green leaves for sons, rose for daughters, names carved in the bark |
+| Classic botanical | a heritage palette: deep-teal leaves for sons, dusty-rose capsules for daughters, antique-gold medallions, walnut bark with the names carved in it |
 | Parchment & Emerald | emerald and gold leaves on parchment |
 | Minimal black & white | white ovals, fine line branches, like hand-drawn family charts |
 
@@ -813,6 +815,24 @@ Every preset but the black-and-white one colours each main branch
 (lineage colours), so a line can be followed from the trunk to its
 youngest names. (Colouring the names by generation instead is under
 **Colour nodes by**.)
+
+- **Four branch colours, of like weight:** deep teal, antique gold, dusty
+  plum and slate blue, in turn, so neighbouring branches always differ.
+  (Six or seven colours read as a rainbow; branches four apart are far
+  apart.)
+- **Limbs no heavier than they need be:** a line's width still follows how
+  many people it carries, but the widest is at most 1.2% of the page, so
+  the names, not the wood, carry the poster.
+- **Dotted lines** (a family through a daughter) keep dots of a line's
+  size, never blobs, however large the family.
+
+**The foot of the poster** has three bands:
+- **The key:** what each shape and line means.
+- **The family's numbers on small cards:** المجموع، الذكور، الإناث and الأجيال
+  (how many generations the family on the poster spans, from its oldest
+  ancestor).
+- **The credit**, with when the family was last changed ("آخر تحديث"),
+  in the Hijri and Gregorian calendars.
 
 **Identifiers.** A son and a daughter keep their colours whatever else is
 true of them: a parent (someone with descendants on the poster) has a

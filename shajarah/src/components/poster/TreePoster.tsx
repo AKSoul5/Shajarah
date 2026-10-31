@@ -14,6 +14,8 @@ export interface PosterMeta {
   title: string | null;
   subtitle: string | null;
   name: string;
+  /** When the family was last changed (ISO time): the footer's "last updated". */
+  updated?: string | null;
 }
 
 interface Props {
@@ -51,6 +53,8 @@ const RUQAA = "'Aref Ruqaa', Amiri, 'Traditional Arabic', serif";
 const PAPER = "#f7f1e3";
 const IVORY = "#fcf8ee";
 const GOLD = "#b08a2e";
+/** Deeper gold for figures on ivory (readable at small sizes). */
+const GOLD_DEEP = "#8a6a1f";
 const INK = "#2a1c0c";
 /** Spouses' cartouches: a soft rose, apart from the line's own names. */
 const SPOUSE_FILL = "#f8ece6";
@@ -787,6 +791,7 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
   const subtitle = layout.focus ? null : meta.subtitle;
   const focusY = titleY + H * 0.024;
   const lastY = layout.focus ? focusY : subtitle ? subY : titleY;
+  const edition = theme.edition ? editionLine(meta.updated, rtl) : null;
   return (
     <g>
       {theme.bismillah && (
@@ -814,8 +819,24 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
         </text>
       )}
       <Divider x={W / 2} y={lastY + H * 0.014} w={Math.min(W * 0.26, avail * 0.6)} pal={pal} />
+      {edition && (
+        <text x={W / 2} y={lastY + H * 0.014 + W * 0.016} textAnchor="middle" dominantBaseline="central" fontSize={W * 0.0105}
+          fill={pal.mono ? "#555" : GOLD_DEEP} letterSpacing={W * 0.0004} direction={rtl ? "rtl" : "ltr"}>
+          {edition}
+        </text>
+      )}
     </g>
   );
+}
+
+/** "طبعة ١٤٤٨ هـ / ٢٠٢٦ م" (no middle dot: in Arabic it reads as the digit zero): the year of the family's last update, both calendars on an Arabic poster. */
+function editionLine(updated: string | null | undefined, rtl: boolean): string {
+  const at = updated ? new Date(updated) : new Date();
+  const when = Number.isNaN(at.getTime()) ? new Date() : at;
+  if (!rtl) return `Edition ${when.getFullYear()}`;
+  const hijri = when.toLocaleDateString("ar-SA-u-ca-islamic-umalqura", { year: "numeric" });
+  const greg = when.toLocaleDateString("ar-SA-u-ca-gregory", { year: "numeric" });
+  return `طبعة ${hijri} / ${greg} م`;
 }
 
 /** Round medallion carrying a verse or hadith, in fine gold lines. */
@@ -835,14 +856,15 @@ function TextMedallion({ x, y, r, content, pal }: { x: number; y: number; r: num
 }
 
 /**
- * Quiet lines at the foot of the poster: the key (what each shape means),
- * the family counts, and the credit.
+ * The foot of the poster, in three quiet bands: the key (what each shape and
+ * line means), the family's numbers on small cards, and the credit with the
+ * date it was last updated.
  */
 function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: PosterTheme; pal: Palette; meta: PosterMeta }) {
   const { width: W, rtl, stats, generationsPresent, generationOffset } = layout;
   const fs = W * 0.012;
-  // key, counts, then the credit on footerY
-  const y = layout.frame.footerY - fs * 3.4;
+  // key, the cards, then the credit on footerY
+  const y = layout.frame.footerY - fs * 4.6;
   const sw = fs * 1.9; // swatch width
   const satin = theme.metallic && !pal.mono;
   const pill = (x: number, fill: string, stroke: string) => (
@@ -923,9 +945,33 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     }
   }
   const fmt = (n: number) => n.toLocaleString(rtl ? "ar-SA" : "en-US");
-  const counts = rtl
-    ? `الذكور ${fmt(stats.males)}  ·  الإناث ${fmt(stats.females)}  ·  المجموع ${fmt(stats.total)}`
-    : `Males ${fmt(stats.males)}  ·  Females ${fmt(stats.females)}  ·  Total ${fmt(stats.total)}`;
+  // The numbers, each on its own small card (a number over its name)
+  const cards: [string, number][] = rtl
+    ? [["المجموع", stats.total], ["الذكور", stats.males], ["الإناث", stats.females], ["الأجيال", stats.generations]]
+    : [["People", stats.total], ["Males", stats.males], ["Females", stats.females], ["Generations", stats.generations]];
+  const cardW = fs * 4.4, cardH = fs * 1.95, cardGap = fs * 0.7, cardY = layout.frame.footerY - fs * 2.25;
+  const cardsW = cards.length * cardW + (cards.length - 1) * cardGap;
+  const ink = pal.mono ? "#111" : "#5a4630";
+  const gold = pal.mono ? "#111" : GOLD;
+  const cardEls = (rtl ? [...cards] : cards).map(([label, n], i) => {
+    // (RTL: the first card on the right)
+    const cx = rtl ? W / 2 + cardsW / 2 - cardW / 2 - i * (cardW + cardGap) : W / 2 - cardsW / 2 + cardW / 2 + i * (cardW + cardGap);
+    return (
+      <g key={label} transform={`translate(${cx.toFixed(1)} ${cardY.toFixed(1)})`}>
+        <rect x={-cardW / 2} y={-cardH / 2} width={cardW} height={cardH} rx={fs * 0.3} fill={pal.mono ? "#fff" : IVORY} stroke={gold} strokeWidth={fs * 0.05} />
+        <text y={-cardH * 0.13} textAnchor="middle" dominantBaseline="central" fontSize={fs * 1.05} fontWeight={700} fill={pal.mono ? "#111" : GOLD_DEEP}>{fmt(n)}</text>
+        <text y={cardH * 0.28} textAnchor="middle" dominantBaseline="central" direction={rtl ? "rtl" : "ltr"} fontSize={fs * 0.62} fill={ink}>{label}</text>
+      </g>
+    );
+  });
+  // last updated: the month, in both calendars on an Arabic poster
+  const when = meta.updated ? new Date(meta.updated) : null;
+  const updated = when && !Number.isNaN(when.getTime())
+    ? rtl
+      ? `آخر تحديث: ${when.toLocaleDateString("ar-SA-u-ca-islamic-umalqura", { month: "long", year: "numeric" })} / ${when.toLocaleDateString("ar-SA-u-ca-gregory", { month: "long", year: "numeric" })} م`
+      : `Last updated ${when.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}`
+    : null;
+  const credit = rtl ? `${meta.name} — صُمّمت بواسطة شجرة` : `${meta.name} — made with Shajarah`;
   // lay the key out from the centre; RTL reads right to left
   const gap = fs * 1.8;
   const widths = items.map((it) => sw + fs * 0.5 + textWidth(it.label, fs));
@@ -951,11 +997,10 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   return (
     <g>
       {placed}
-      <text x={W / 2} y={y + fs * 1.9} dominantBaseline="central" textAnchor="middle" direction={rtl ? "rtl" : "ltr"} fontSize={fs} fill={pal.ink}>
-        {counts}
-      </text>
-      <text x={W / 2} y={y + fs * 3.4} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.8} fill={pal.mono ? "#666" : "#8a6d40"} direction={rtl ? "rtl" : "ltr"}>
-        {rtl ? `${meta.name} — صُمّمت بواسطة شجرة` : `${meta.name} — made with Shajarah`}
+      {cardEls}
+      <text x={W / 2} y={layout.frame.footerY} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.72} fill={pal.mono ? "#666" : "#8a6d40"} direction={rtl ? "rtl" : "ltr"}>
+        {/* (in Arabic a middle dot reads as the digit zero: a comma) */}
+        {updated ? (rtl ? `${credit}، ${updated}` : `${credit}  ·  ${updated}`) : credit}
       </text>
     </g>
   );

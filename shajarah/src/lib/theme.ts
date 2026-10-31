@@ -1,7 +1,7 @@
 import { PAPER_SIZES, type PaperSize } from "./paper";
 import type { PosterSettings, PosterTheme, ThemePreset } from "./types";
 
-const ORNAMENTS = { bismillah: true, verse: true, hadith: true, frame: true };
+const ORNAMENTS = { bismillah: true, edition: true, verse: true, hadith: true, frame: true };
 
 export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string }> = {
   refined: {
@@ -10,7 +10,7 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string }>
     male: "#c9cbc7", female: "#dcbc6a", ancestor: "#b08a2e", branch: "#6e5538",
     background: "parchment", metallic: true, nodeRim: "#8d8f8a",
     nodeShape: "auto", femaleCapsule: true, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "column",
-    bismillah: true, verse: false, hadith: false, frame: false,
+    bismillah: true, edition: true, verse: false, hadith: false, frame: false,
   },
   luxe: {
     label: "Luxe (Canva gold-foil frame)",
@@ -39,8 +39,10 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string }>
   classic: {
     label: "Classic botanical",
     preset: "classic", colorBy: "gender",
-    male: "#3f8434", female: "#d9708a", ancestor: "#d4af37", branch: "#4a2e1a",
-    background: "parchment", metallic: false, nodeRim: "#2f4a1a",
+    // a heritage palette (deep teal, dusty rose, antique gold, walnut): the
+    // old bright green and pink sat loud on the parchment
+    male: "#2c5d52", female: "#d4a3aa", ancestor: "#a77c2e", branch: "#594b3d",
+    background: "parchment", metallic: false, nodeRim: "#183f36",
     nodeShape: "auto", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "carved", spouseStyle: "manuscript", soilStyle: "paragraph",
     ...ORNAMENTS,
   },
@@ -58,7 +60,7 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string }>
     male: "#ffffff", female: "#e6e6e6", ancestor: "#111111", branch: "#1a1a1a",
     background: "white", metallic: false, nodeRim: "#111111",
     nodeShape: "oval", femaleCapsule: false, branchColors: false, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "paragraph",
-    bismillah: true, verse: false, hadith: false, frame: false,
+    bismillah: true, edition: true, verse: false, hadith: false, frame: false,
   },
 };
 
@@ -114,11 +116,13 @@ export function metalStops(c: string): [string, string, string] {
 }
 
 /**
- * Muted, print-friendly lineage colours, ordered so neighbours differ
- * strongly: forest green, burgundy, dusty blue, ochre, deep teal, plum.
- * All are dark enough to read as lines on ivory (≥ 3:1).
+ * The main branches' colours: four muted heritage tones of like weight
+ * (deep teal, antique gold, dusty plum, slate blue), ordered so neighbours
+ * differ strongly. Fewer than one per branch on purpose: six or seven
+ * colours read as a rainbow, and branches four apart are far apart. All
+ * are dark enough to read as lines on ivory (≥ 3:1).
  */
-export const LINEAGE_COLORS = ["#3d6b45", "#7b3542", "#46688f", "#8f6a1e", "#23696b", "#6a4a72"] as const;
+export const LINEAGE_COLORS = ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380"] as const;
 
 export function lineageColor(i: number | null | undefined, fallback: string): string {
   return i == null ? fallback : LINEAGE_COLORS[i % LINEAGE_COLORS.length];
@@ -159,6 +163,8 @@ export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
     // inside the frame the header starts below its top rosette
     // (room for basmala, title, subtitle and the divider under them)
     // the basmala pushes the title down (see TreePoster's Header)
-    headerBand: theme.frame ? (theme.bismillah ? 0.215 : 0.19) : theme.bismillah ? 0.15 : theme.verse || theme.hadith ? 0.13 : 0.105,
+    // (and a little more for the edition line under the divider)
+    headerBand: (theme.frame ? (theme.bismillah ? 0.215 : 0.19) : theme.bismillah ? 0.15 : theme.verse || theme.hadith ? 0.13 : 0.105)
+      + (theme.edition ? 0.012 : 0),
   };
 }
