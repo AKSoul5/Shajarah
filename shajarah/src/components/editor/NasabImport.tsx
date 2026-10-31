@@ -11,7 +11,7 @@ interface Props {
   onCancel: () => void;
 }
 
-/** Paste "أحمد بن نوفل بن …" lines; shows what will be reused vs created. */
+/** Paste "خالد بن سعد بن …" lines; shows what will be reused vs created. */
 export function NasabImport({ tree, busy, onImport, onCancel }: Props) {
   const [text, setText] = useState("");
   // Simulate the lines in order, so later lines see people added by earlier ones.
@@ -33,7 +33,7 @@ export function NasabImport({ tree, busy, onImport, onCancel }: Props) {
       <textarea
         className="input min-h-[220px] font-naskh text-base leading-relaxed"
         dir="rtl"
-        placeholder="أحمد بن نوفل بن أحمد بن محمد بن سالم … بن آدم عليه السلام"
+        placeholder="خالد بن سعد بن عبدالله بن محمد بن سالم … بن آدم عليه السلام"
         value={text}
         onChange={(e) => setText(e.target.value)}
       />

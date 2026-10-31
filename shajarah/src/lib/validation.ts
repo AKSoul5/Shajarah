@@ -72,7 +72,7 @@ export const updateTreeSchema = createTreeSchema.partial().extend({
 });
 
 export const importNasabSchema = z.object({
-  /** One nasab per line, newest name first: "أحمد بن نوفل بن …". */
+  /** One nasab per line, newest name first: "خالد بن سعد بن …". */
   text: z.string().trim().min(1, "Paste at least one nasab").max(50_000),
 });
 

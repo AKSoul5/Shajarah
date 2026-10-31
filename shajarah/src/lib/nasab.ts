@@ -1,7 +1,7 @@
 // Nasab (patronymic chain) import.
 //
 // Arabic genealogies are usually written as one line, newest first:
-//   "أحمد بن نوفل بن أحمد بن محمد … بن شيث بن آدم عليه السلام"
+//   "خالد بن سعد بن عبدالله بن محمد … بن شيث بن آدم عليه السلام"
 // parseNasab() turns that into an ordered chain and planNasabImport()
 // matches it against the existing tree, so pasting several family members'
 // nasabs one after another builds a single connected tree without

@@ -385,7 +385,7 @@ export function parseGedcom(text: string): GedcomFile {
       if (p && !p.fams.includes(f.xref)) p.fams.push(f.xref);
     }
   }
-  // A name written as a nasab ("أحمد بن نوفل") is the person's own name
+  // A name written as a nasab ("خالد بن سعد") is the person's own name
   // when the file links their parents: the chain then comes from the links.
   // Without a parent in the file the whole name is kept, so "عائشة بنت حمد"
   // does not lose her father's name.

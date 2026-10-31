@@ -23,22 +23,22 @@ function sideBranchFamily(): TreeDTO {
     return m;
   };
   // the brother, his son, and six grandsons (two with sons of their own)
-  const brother = add("عوض", father.id);
+  const brother = add("قاسم", father.id);
   const son = add("سالم", brother.id);
-  const grandsons = ["عبدالرحمن", "نعمان", "حسن", "محمد", "جمال", "عبدالحكيم"].map((x) => add(x, son.id));
-  add("خالد", grandsons[0].id);
+  const grandsons = ["عبدالرحمن", "كمال", "حازم", "محمد", "ماهر", "عبدالحميد"].map((x) => add(x, son.id));
+  add("عاصم", grandsons[0].id);
   add("فهد", grandsons[3].id);
   // the canopy base's family: two wives, sons with families, daughters
-  const w1 = add("نور", null, "FEMALE"), w2 = add("مريم", null, "FEMALE");
+  const w1 = add("ندى", null, "FEMALE"), w2 = add("خلود", null, "FEMALE");
   const marriages: MarriageDTO[] = [w1, w2].map((w, i) => ({ id: `mm${i}`, spouseAId: crown.id, spouseBId: w.id, startYear: null, endYear: null }));
-  const sons = ["أحمد", "عمر", "أسعد", "حامد", "عبدالمعين"].map((x) => add(x, crown.id, "MALE", w2.id));
-  ["سالم", "فضل", "عقيل", "عبدالله", "نافع"].forEach((x) => add(x, crown.id, "MALE", w2.id));
-  ["عائشة", "حميدة", "رقية"].forEach((x) => add(x, crown.id, "FEMALE", w2.id));
-  ["قمر", "بدرية"].forEach((x) => add(x, crown.id, "FEMALE", w1.id));
+  const sons = ["أحمد", "عمر", "منذر", "هشام", "عبدالكريم"].map((x) => add(x, crown.id, "MALE", w2.id));
+  ["سالم", "معاذ", "بلال", "عبدالله", "أنس"].forEach((x) => add(x, crown.id, "MALE", w2.id));
+  ["بشرى", "أسماء", "إيمان"].forEach((x) => add(x, crown.id, "FEMALE", w2.id));
+  ["رهف", "شذى"].forEach((x) => add(x, crown.id, "FEMALE", w1.id));
   sons.forEach((s, i) => {
     for (let k = 0; k < 6 - i; k++) {
-      const g = add(["باسل", "ظافر", "هدى", "منى", "طلال", "مدى"][k], s.id, k === 2 || k === 3 || k === 5 ? "FEMALE" : "MALE");
-      if (g.gender === "MALE" && k < 2) for (let j = 0; j < 3; j++) add(["فيصل", "خالد", "بدر"][j], g.id);
+      const g = add(["وليد", "مازن", "علا", "لينا", "راكان", "نهى"][k], s.id, k === 2 || k === 3 || k === 5 ? "FEMALE" : "MALE");
+      if (g.gender === "MALE" && k < 2) for (let j = 0; j < 3; j++) add(["ماجد", "عاصم", "يزيد"][j], g.id);
     }
   });
   const gens = computeGenerations(members, "PATRILINEAL");
@@ -49,7 +49,7 @@ function sideBranchFamily(): TreeDTO {
 describe("a side branch from the badge nearest the crown", () => {
   const tree = sideBranchFamily();
   // the brother and everyone descended from him
-  const branch = new Set<string>([tree.members.find((m) => m.name === "عوض")!.id]);
+  const branch = new Set<string>([tree.members.find((m) => m.name === "قاسم")!.id]);
   for (let grew = true; grew;) {
     grew = false;
     for (const m of tree.members) if (m.fatherId && branch.has(m.fatherId) && !branch.has(m.id)) { branch.add(m.id); grew = true; }

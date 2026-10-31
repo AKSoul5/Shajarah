@@ -128,12 +128,12 @@ family as one undoable step.
 
 ## Entering a family quickly: paste a nasab
 
-Click **بن…** in the member list and paste one lineage per line, newest name
-first:
+Click **Nasab** in the member list and paste one lineage per line, newest
+name first:
 
 ```
-أحمد بن نوفل بن أحمد بن محمد بن سالم … بن شيث بن آدم عليه السلام
-فاطمة بنت نوفل بن أحمد بن محمد
+خالد بن سعد بن عبدالله بن محمد … بن شيث بن آدم عليه السلام
+هند بنت سعد بن عبدالله بن محمد
 ```
 
 - Each line becomes a chain of fathers. "بنت" marks the first person as a
@@ -1175,7 +1175,7 @@ deleted; it is a poster setting (`settings.hiddenIds`). The button says how
 many descendants go with them.
 
 - Hidden people are listed at the bottom left of the poster ("Hidden:
-  ماجدة +8"); **✕** brings one back, and clicking the name opens them.
+  هند +8"); **✕** brings one back, and clicking the name opens them.
 - Nobody the tree stands on can be hidden: the root, the trunk and canopy
   starts, the person a branch poster is of, and their ancestors.
 - Hidden people are not counted in the poster's totals, nor reported as
@@ -1199,8 +1199,8 @@ groups, each with what would bring it onto the poster.
 - **Not connected to the line:** parents not recorded, or not on the poster.
 
 Choosing someone opens their panel to link, fix or delete them. Names are
-given as a short nasab, a woman's as «بنت» her father («ماجدة بنت نوفل بن
-أحمد»).
+given as a short nasab, a woman's as «بنت» her father («هند بنت سعد بن
+عبدالله»).
 
 ## Moving around the poster
 
@@ -1233,10 +1233,10 @@ On anyone's panel, **Relationship** asks for a second person and says how
 they are related, in Arabic and English. It goes through the nearest
 ancestor they share, by fathers and by mothers:
 
-- **Names:** brothers and sisters, full or by one parent ("حامد أخو أحمد
+- **Names:** brothers and sisters, full or by one parent ("هشام أخو أحمد
   لأبيه"). Uncles and aunts by the side they are on (عمّ، عمّة، خال،
-  خالة). Cousins by the parent they come through ("دينا بنت عمّة أحمد").
-  Also nephews and nieces, a sibling's grandchildren, great-uncles ("عوض
+  خالة). Cousins by the parent they come through ("منى بنت عمّة أحمد").
+  Also nephews and nieces, a sibling's grandchildren, great-uncles ("قاسم
   عمّ والد أحمد"), parents, grandparents, descendants and spouses.
 - **Further relations:** named through the shared ancestor, with how far
   each is from them ("second cousin once removed").

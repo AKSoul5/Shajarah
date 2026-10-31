@@ -11,13 +11,13 @@ import { kalaliTree } from "@/lib/samples/kalali";
 import { layoutOptionsFor, resolveTheme, THEME_PRESETS } from "@/lib/theme";
 import type { MemberDTO, TreeDTO } from "@/lib/types";
 
-/** The Al-Kalali line with its trunk from عقيل (12 names) and ~115 descendants under the canopy base محمد. */
+/** The Al-Kalali line with its trunk from بلال (12 names) and ~115 descendants under the canopy base محمد. */
 function trunkHeavyFamily(): TreeDTO {
   const base = kalaliTree();
   const members: MemberDTO[] = base.members.slice(0, 82).map((m) => ({ ...m }));
   const rand = mulberry32(4);
-  const SONS = ["أحمد", "حامد", "عبدالمعين", "أسعد", "عمر", "باسل", "نوفل", "ظافر", "خالد", "محمد", "عبدالرحمن", "حسام", "طلال", "نايف"];
-  const DAUGHTERS = ["منال", "لبنى", "مي", "رواء", "هالة", "نور", "ريم", "دعاء", "هدى", "منى", "سارة", "لولوة"];
+  const SONS = ["أحمد", "هشام", "عبدالكريم", "منذر", "عمر", "وليد", "زياد", "مازن", "عاصم", "محمد", "عبدالرحمن", "أسامة", "راكان", "نواف"];
+  const DAUGHTERS = ["سهى", "سلوى", "ديما", "جمانة", "سمية", "ندى", "غدير", "عفاف", "علا", "لينا", "مها", "ريما"];
   let n = 0;
   const grow = (fatherId: string, d: number) => {
     if (n > 112 || d > 3) return;

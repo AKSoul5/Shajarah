@@ -21,9 +21,9 @@ describe("parseNasab", () => {
   });
 
   it("detects a daughter's nasab", () => {
-    const { entries, gender } = parseNasab("فاطمة بنت محمد بن سالم");
+    const { entries, gender } = parseNasab("زينة بنت محمد بن سالم");
     expect(gender).toBe("FEMALE");
-    expect(entries.map((e) => e.name)).toEqual(["سالم", "محمد", "فاطمة"]);
+    expect(entries.map((e) => e.name)).toEqual(["سالم", "محمد", "زينة"]);
   });
 
   it("normalises spelling variants", () => {
@@ -35,38 +35,38 @@ describe("parseNasab", () => {
 describe("planNasabImport", () => {
   it("reuses shared ancestors and creates only the new tail", () => {
     const tree = [m("a", "سالم"), m("b", "محمد", "a"), m("c", "علي", "b")];
-    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("نوفل بن محمد بن سالم").entries);
+    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("زياد بن محمد بن سالم").entries);
     expect(plan.matched.map((x) => x.id)).toEqual(["a", "b"]);
-    expect(plan.descendantsToCreate.map((e) => e.name)).toEqual(["نوفل"]);
+    expect(plan.descendantsToCreate.map((e) => e.name)).toEqual(["زياد"]);
     expect(plan.ancestorsToCreate).toEqual([]);
   });
 
   it("adds older ancestors above an existing root", () => {
-    const tree = [m("s", "شعلان"), m("k", "عقيل", "s")];
-    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("فضل بن عقيل بن شعلان بن أحمد بن أسعد").entries);
-    expect(plan.ancestorsToCreate.map((e) => e.name)).toEqual(["أسعد", "أحمد"]);
+    const tree = [m("s", "عمار"), m("k", "بلال", "s")];
+    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("معاذ بن بلال بن عمار بن أحمد بن منذر").entries);
+    expect(plan.ancestorsToCreate.map((e) => e.name)).toEqual(["منذر", "أحمد"]);
     expect(plan.adoptedRootId).toBe("s");
     expect(plan.matched.map((x) => x.id)).toEqual(["s", "k"]);
-    expect(plan.descendantsToCreate.map((e) => e.name)).toEqual(["فضل"]);
+    expect(plan.descendantsToCreate.map((e) => e.name)).toEqual(["معاذ"]);
   });
 
   it("joins a partial nasab that starts mid-tree", () => {
-    const tree = [m("r", "آدم"), m("a", "مبارك", "r"), m("b", "سالم", "a"), m("c", "محمد", "b"), m("d", "أحمد", "c")];
-    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("سالم بن نوفل بن أحمد بن محمد بن سالم بن مبارك").entries);
+    const tree = [m("r", "آدم"), m("a", "نبيل", "r"), m("b", "سالم", "a"), m("c", "محمد", "b"), m("d", "أحمد", "c")];
+    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("سالم بن زياد بن أحمد بن محمد بن سالم بن نبيل").entries);
     expect(plan.matched.map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
-    expect(plan.descendantsToCreate.map((e) => e.name)).toEqual(["نوفل", "سالم"]);
+    expect(plan.descendantsToCreate.map((e) => e.name)).toEqual(["زياد", "سالم"]);
     expect(plan.ancestorsToCreate).toEqual([]);
   });
 
   it("does not join on a single common name", () => {
     const tree = [m("a", "محمد"), m("b", "علي", "a")];
-    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("زيد بن محمد بن خالد").entries);
+    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("زيد بن محمد بن عاصم").entries);
     expect(plan.matched).toEqual([]);
   });
 
   it("rejects an anchor whose real ancestors disagree", () => {
-    const tree = [m("x", "حسن"), m("a", "محمد", "x"), m("b", "علي", "a")];
-    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("علي بن محمد بن خالد").entries);
+    const tree = [m("x", "حازم"), m("a", "محمد", "x"), m("b", "علي", "a")];
+    const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("علي بن محمد بن عاصم").entries);
     expect(plan.matched).toEqual([]);
   });
 
@@ -83,25 +83,25 @@ describe("applyNasabLines", () => {
     let n = 0;
     const { members, results } = applyNasabLines(
       tree, "PATRILINEAL",
-      "خالد بن نوفل بن أحمد بن محمد بن سالم\nمريم بنت خالد بن نوفل",
+      "عاصم بن زياد بن أحمد بن محمد بن سالم\nخلود بنت عاصم بن زياد",
       () => `new${n++}`,
     );
     expect(results.map((r) => [r.reused, r.created, r.ambiguous])).toEqual([[3, 2, false], [2, 1, false]]);
-    const maryam = members.find((x) => x.name === "مريم")!;
+    const maryam = members.find((x) => x.name === "خلود")!;
     expect(maryam.gender).toBe("FEMALE");
-    expect(members.find((x) => x.id === maryam.fatherId)?.name).toBe("خالد");
+    expect(members.find((x) => x.id === maryam.fatherId)?.name).toBe("عاصم");
   });
 
   it("joins every son's line that ends in the family's founder to that one founder", () => {
     let n = 0;
     const { members } = applyNasabLines(
       [], "PATRILINEAL",
-      "عبدالعزيز بن محمد بن عبدالله\nصالح بن عمر بن عبدالله\nفهد بن سعود بن عبدالله\nعلي بن خالد بن عبدالله",
+      "عبدالعزيز بن محمد بن عبدالله\nصالح بن عمر بن عبدالله\nفهد بن سعود بن عبدالله\nعلي بن عاصم بن عبدالله",
       () => `p${n++}`,
     );
     const roots = members.filter((x) => !x.fatherId);
     expect(roots.map((x) => x.name)).toEqual(["عبدالله"]);
-    expect(members.filter((x) => x.fatherId === roots[0].id).map((x) => x.name)).toEqual(["محمد", "عمر", "سعود", "خالد"]);
+    expect(members.filter((x) => x.fatherId === roots[0].id).map((x) => x.name)).toEqual(["محمد", "عمر", "سعود", "عاصم"]);
   });
 
   it("does not join on the founder's name when two people without a father share it", () => {
@@ -114,7 +114,7 @@ describe("applyNasabLines", () => {
     // the tree starts at عبدكلال (written without a space); the pasted
     // lineage begins «عبد كلال بن نصر …» and reaches آدم عليه السلام
     const tree = [m("root", "عبدكلال"), m("a", "محمد", "root"), m("b", "علي", "a"), m("inlaw", "نصر")];
-    const line = "عبد كلال بن نصر بن سهل بن عريب بن عبد كلال بن عريب بن فهد بن زيد بن مثوب بن ذي حرث بن الحارث بن مالك بن غيدان بن حجر بن يريم بن زيد بن سهل بن عمرو بن قيس بن معاوية بن جشم بن عبد شمس بن وائل بن الغوث بن قطن بن عريب بن زهير بن أيمن بن الهميسع بن حمير بن سبأ بن يشجب بن يعرب بن قحطان بن عابر بن شالخ بن أرفخشذ بن سام بن نوح عليه السلام بن لامك بن متوشلخ بن أخنوخ بن يرد بن مهلائيل بن قينان بن أنوش بن شيث بن آدم عليه السلام";
+    const line = "عبد كلال بن نصر بن سهل بن عريب بن عبد كلال بن عريب بن فهد بن زيد بن مثوب بن ذي حرث بن الحارث بن مالك بن غيدان بن حجر بن يريم بن زيد بن سهل بن عمرو بن قيس بن معاوية بن جشم بن عبد الصالح بن وائل بن الغوث بن قطن بن عريب بن زهير بن أيمن بن الهميسع بن حمير بن سبأ بن يشجب بن يعرب بن قحطان بن عابر بن شالخ بن أرفخشذ بن سام بن نوح عليه السلام بن لامك بن متوشلخ بن أخنوخ بن يرد بن مهلائيل بن قينان بن أنوش بن شيث بن آدم عليه السلام";
     let n = 0;
     const { members, newRootId } = applyNasabLines(tree, "PATRILINEAL", line, () => `n${n++}`, "root");
     const byId = new Map(members.map((x) => [x.id, x]));
@@ -135,7 +135,7 @@ describe("applyNasabLines", () => {
   });
 
   it("does not grow upward from someone of that name who is not the tree's oldest ancestor", () => {
-    const tree = [m("root", "خالد"), m("a", "سعد", "root"), m("inlaw", "محمد")];
+    const tree = [m("root", "عاصم"), m("a", "سعد", "root"), m("inlaw", "محمد")];
     const plan = planNasabImport(tree, "PATRILINEAL", parseNasab("محمد بن عمر").entries, "root");
     expect(plan.adoptedRootId).toBeNull();
     expect(plan.matched).toEqual([]);
@@ -150,8 +150,8 @@ describe("applyNasabLines", () => {
 
 describe("nasab", () => {
   it("names a woman بنت her father, and her fathers بن theirs", () => {
-    const tree = [m("a", "أحمد"), m("n", "نوفل", "a"), { ...m("j", "ماجدة", "n"), gender: "FEMALE" as const }, m("s", "سالم", "n")];
-    expect(nasab(tree, "j")).toBe("ماجدة بنت نوفل بن أحمد");
-    expect(nasab(tree, "s")).toBe("سالم بن نوفل بن أحمد");
+    const tree = [m("a", "أحمد"), m("n", "زياد", "a"), { ...m("j", "هند", "n"), gender: "FEMALE" as const }, m("s", "سالم", "n")];
+    expect(nasab(tree, "j")).toBe("هند بنت زياد بن أحمد");
+    expect(nasab(tree, "s")).toBe("سالم بن زياد بن أحمد");
   });
 });

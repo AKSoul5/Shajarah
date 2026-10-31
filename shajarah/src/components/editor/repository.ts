@@ -18,7 +18,7 @@ export interface FamilyRepository {
   createMarriage(input: CreateMarriageInput): Promise<TreeDTO>;
   deleteMarriage(id: string): Promise<TreeDTO>;
   updateTree(input: UpdateTreeInput): Promise<TreeDTO>;
-  /** One nasab per line ("أحمد بن نوفل بن …"); reuses existing ancestors. */
+  /** One nasab per line ("خالد بن سعد بن …"); reuses existing ancestors. */
   importNasab(text: string): Promise<TreeDTO>;
   /** The text of a GEDCOM file; reuses people already in the tree. */
   importGedcom(text: string): Promise<TreeDTO>;

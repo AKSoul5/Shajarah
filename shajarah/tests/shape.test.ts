@@ -28,8 +28,8 @@ export function dominantBranchFamily(): TreeDTO {
     return m;
   };
   const marry = (a: MemberDTO, b: MemberDTO) => marriages.push({ id: `m${marriages.length}`, spouseAId: a.id, spouseBId: b.id, startYear: null, endYear: null });
-  const SONS = ["محمد", "أحمد", "خالد", "عمر", "سالم", "فيصل", "طلال", "نايف", "حامد", "باسل", "ظافر", "نوفل"];
-  const DAUGHTERS = ["منى", "هدى", "سارة", "دنى", "ريم", "نور", "منال", "لبنى"];
+  const SONS = ["محمد", "أحمد", "عاصم", "عمر", "سالم", "ماجد", "راكان", "نواف", "هشام", "وليد", "مازن", "زياد"];
+  const DAUGHTERS = ["لينا", "علا", "مها", "رنا", "غدير", "ندى", "سهى", "سلوى"];
   const pick = (list: string[]) => list[Math.floor(rand() * list.length)];
   let top: MemberDTO | null = null;
   for (let i = 0; i < 12; i++) top = add(pick(SONS), "MALE", top?.id ?? null);
@@ -40,7 +40,7 @@ export function dominantBranchFamily(): TreeDTO {
   for (let i = 0; i < 16; i++) {
     if (i === 6) {
       const ahmad = add("أحمد", "MALE", base.id, null, i);
-      const w1 = add("نفيسة", "FEMALE", null), w2 = add("غمرة", "FEMALE", null);
+      const w1 = add("وفاء", "FEMALE", null), w2 = add("أمل", "FEMALE", null);
       marry(ahmad, w1); marry(ahmad, w2);
       for (const [k, w] of [[0, w2], [1, w2], [2, w2], [3, w2], [4, w1], [5, w1], [6, w1], [7, w1]] as const) {
         if (k < 4) {
@@ -49,7 +49,7 @@ export function dominantBranchFamily(): TreeDTO {
         } else {
           // a daughter married into another family, with her children by him
           const d = add(pick(DAUGHTERS), "FEMALE", ahmad.id, w.id, k);
-          const h = add(`${pick(SONS)} ${["مليح", "شمس", "بهلول", "تميم"][k - 4]}`, "MALE", null);
+          const h = add(`${pick(SONS)} ${["الراشد", "الصالح", "العامري", "المحمود"][k - 4]}`, "MALE", null);
           marry(d, h);
           for (let c = 0; c < 2 + Math.floor(rand() * 3); c++) add(pick(SONS), rand() < 0.5 ? "MALE" : "FEMALE", h.id, d.id, c);
         }

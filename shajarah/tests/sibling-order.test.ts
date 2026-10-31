@@ -47,10 +47,10 @@ function brothers(sizes: number[]): { tree: TreeDTO; sons: string[] } {
     members.push(m);
     return m;
   };
-  const names = ["أحمد", "عمر", "باسل", "نوفل", "ظافر", "سالم", "فضل"];
+  const names = ["أحمد", "عمر", "وليد", "زياد", "مازن", "سالم", "معاذ"];
   const sons = sizes.map((k, i) => {
     const s = add(names[i], crown.id);
-    for (let j = 0; j < k; j++) add(["طلال", "خالد", "فيصل", "مهند", "بدر", "هتان", "حسام", "فارس", "سلمان", "يوسف"][j], s.id);
+    for (let j = 0; j < k; j++) add(["راكان", "عاصم", "ماجد", "شادي", "يزيد", "تامر", "أسامة", "فارس", "سلمان", "إدريس"][j], s.id);
     return s.id;
   });
   const gens = computeGenerations(members, "PATRILINEAL");

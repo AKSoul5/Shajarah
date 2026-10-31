@@ -22,13 +22,13 @@ function daughterOfFourHusbands(): { tree: TreeDTO; daughter: string } {
     return m;
   };
   const marriages: MarriageDTO[] = [];
-  const sons = ["أحمد", "عمر", "باسل", "نوفل", "ظافر"].map((x) => add(x, crown.id));
-  sons.forEach((s, i) => { for (let k = 0; k < 3 + i; k++) add(["طلال", "خالد", "فيصل", "مهند", "بدر", "هتان", "حسام"][k], s.id); });
-  const daughter = add("ماجدة", sons[3].id, "FEMALE");
-  ["عمر الجروان", "وائل فتوح", "محمد عسيري", "سامي لاذقاني"].forEach((x, i) => {
+  const sons = ["أحمد", "عمر", "وليد", "زياد", "مازن"].map((x) => add(x, crown.id));
+  sons.forEach((s, i) => { for (let k = 0; k < 3 + i; k++) add(["راكان", "عاصم", "ماجد", "شادي", "يزيد", "تامر", "أسامة"][k], s.id); });
+  const daughter = add("هند", sons[3].id, "FEMALE");
+  ["سعد الراشد", "فهد الصالح", "ناصر العامري", "بندر المحمود"].forEach((x, i) => {
     const h = add(x, null);
     marriages.push({ id: `hm${i}`, spouseAId: h.id, spouseBId: daughter.id, startYear: null, endYear: null });
-    for (const c of [["محبة", "غاية"], ["فيصل", "يوسف"], ["عبدالمحسن", "آية"], ["محمد", "نور"]][i]) add(c, h.id, c === "محبة" || c === "غاية" || c === "آية" || c === "نور" ? "FEMALE" : "MALE", daughter.id);
+    for (const c of [["لمى", "روان"], ["ماجد", "إدريس"], ["عبدالرؤوف", "هيا"], ["محمد", "ندى"]][i]) add(c, h.id, c === "لمى" || c === "روان" || c === "هيا" || c === "ندى" ? "FEMALE" : "MALE", daughter.id);
   });
   const gens = computeGenerations(members, "PATRILINEAL");
   for (const m of members) m.generation = gens.get(m.id) ?? 0;

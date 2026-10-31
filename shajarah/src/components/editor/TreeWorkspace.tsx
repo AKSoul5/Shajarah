@@ -552,7 +552,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 <button type="button" className="btn-primary whitespace-nowrap" onClick={() => setPanel({ kind: "new", draft: emptyDraft() })}>
                   + Person
                 </button>
-                <button type="button" className="btn-outline whitespace-nowrap px-2 text-xs" title="Paste a nasab: أحمد بن نوفل بن …" onClick={() => setPanel({ kind: "import" })}>
+                <button type="button" className="btn-outline whitespace-nowrap px-2 text-xs" title="Paste a nasab: خالد بن سعد بن …" onClick={() => setPanel({ kind: "import" })}>
                   Nasab
                 </button>
                 <button type="button" className="btn-outline px-2 text-xs" title="Save or open a project file; import or export GEDCOM" onClick={() => setPanel({ kind: "gedcom" })}>
