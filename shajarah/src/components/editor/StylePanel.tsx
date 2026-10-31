@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useDismiss } from "../useDismiss";
 import { THEME_PRESETS } from "@/lib/theme";
 import type { PosterTheme, ThemePreset } from "@/lib/types";
+import { Icon } from "@/components/Icon";
 
 interface Props {
   theme: PosterTheme;
@@ -35,7 +36,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
   return (
     <div className="relative" ref={menu}>
       <button type="button" className="btn-outline whitespace-nowrap" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        🎨 Style ▾
+        <Icon name="palette" className="me-1.5 h-4 w-4" />Style ▾
       </button>
       {open && (
         <div className="absolute end-0 z-30 mt-2 max-h-[80vh] w-96 space-y-4 overflow-auto rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">

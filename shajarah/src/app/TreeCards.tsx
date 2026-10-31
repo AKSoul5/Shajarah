@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { normalizeName } from "@/lib/nasab";
 import type { TreeSummary } from "@/lib/types";
+import { Icon } from "@/components/Icon";
 
 /** "3 h ago", "yesterday", "12 Oct 2026". */
 function ago(iso: string, now = Date.now()): string {
@@ -78,7 +79,7 @@ export function TreeCards({ trees: initialTrees }: { trees: TreeSummary[] }) {
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative min-w-0 flex-1 basis-56">
           <span className="sr-only">Search families by name or poster title</span>
-          <span aria-hidden className="pointer-events-none absolute inset-y-0 start-2.5 flex items-center text-bark-500">⌕</span>
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 start-2.5 flex items-center text-bark-500"><Icon name="search" className="h-3.5 w-3.5" /></span>
           <input
             type="search"
             className="input ps-7 font-naskh text-base"
@@ -137,7 +138,7 @@ export function TreeCards({ trees: initialTrees }: { trees: TreeSummary[] }) {
                   title={t.pinned ? "Pinned to the top: unpin" : "Pin to the top"}
                   onClick={() => void pin(t)}
                 >
-                  {t.pinned ? "★" : "☆"}
+                  <Icon name="star" filled={t.pinned} className="h-4 w-4" />
                 </button>
                 <button
                   type="button"

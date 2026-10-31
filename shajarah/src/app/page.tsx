@@ -6,6 +6,7 @@ import { CreateTreeForm } from "./CreateTreeForm";
 import { ImportFamilyButton } from "./ImportFamilyButton";
 import { OpenProjectButton } from "./OpenProjectButton";
 import { TreeCards } from "./TreeCards";
+import { Icon, type IconName } from "@/components/Icon";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +16,11 @@ const PATTERN = `url("data:image/svg+xml,${encodeURIComponent(
 )}")`;
 
 const FEATURES = [
-  ["🌳", "A real tree", "Ancestors on the trunk, the oldest in the soil, the family in the canopy, every line clear."],
-  ["✒️", "Arabic first", "Nasab names, Ruqaa titles, the basmala and verse medallions; English works too."],
-  ["👨‍👩‍👧", "Whole families", "Daughters, wives and husbands, half-siblings, and a daughter's family on dotted lines."],
-  ["🖨️", "Any size", "From A3 to wall-sized 2A0 and beyond: PDF, PNG, vector SVG or tiled sheets."],
-] as const;
+  ["tree", "A real tree", "Ancestors on the trunk, the oldest in the soil, the family in the canopy, every line clear."],
+  ["pen", "Arabic first", "Nasab names, Ruqaa titles, the basmala and verse medallions; English works too."],
+  ["family", "Whole families", "Daughters, wives and husbands, half-siblings, and a daughter's family on dotted lines."],
+  ["printer", "Any size", "From A3 to wall-sized 2A0 and beyond: PDF, PNG, vector SVG or tiled sheets."],
+] as const satisfies readonly (readonly [IconName, string, string])[];
 
 export default async function Home() {
   let trees: TreeSummary[] = [];
@@ -32,9 +33,9 @@ export default async function Home() {
 
   const returning = trees.length > 0;
   // one card for each way to start: the same frame, the action at the bottom
-  const startCard = (icon: string, title: string, text: React.ReactNode, action: React.ReactNode) => (
+  const startCard = (icon: IconName, title: string, text: React.ReactNode, action: React.ReactNode) => (
     <div className="flex flex-col rounded-xl border border-parchment-300 bg-white p-5 shadow-sm">
-      <h3 className="flex items-center gap-2 font-semibold"><span aria-hidden>{icon}</span>{title}</h3>
+      <h3 className="flex items-center gap-2 font-semibold"><Icon name={icon} className="h-5 w-5 text-gilt-600" />{title}</h3>
       <div className="mt-1 flex-1 text-sm text-bark-500">{text}</div>
       <div className="mt-4">{action}</div>
     </div>
@@ -96,7 +97,7 @@ export default async function Home() {
               <section className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="What Shajarah does">
                 {FEATURES.map(([icon, title, text]) => (
                   <div key={title} className="rounded-xl border border-parchment-300/70 bg-white/70 p-4">
-                    <div className="text-2xl" aria-hidden>{icon}</div>
+                    <Icon name={icon} className="h-7 w-7 text-gilt-600" />
                     <h3 className="mt-1 font-semibold">{title}</h3>
                     <p className="mt-1 text-sm text-bark-500">{text}</p>
                   </div>
@@ -109,10 +110,10 @@ export default async function Home() {
               <h2 id="start-h" className="text-xl font-semibold">{returning ? "Start another family" : "Start your family"}</h2>
               <p className="mb-5 mt-1 text-sm text-bark-500">Type it in, bring it from a file, or open one you saved.</p>
               <div className="grid gap-5 md:grid-cols-3">
-                {startCard("✍️", "Create a new family",
+                {startCard("pen", "Create a new family",
                   <p>Begin with the eldest ancestor you know; add sons, daughters and wives from there.</p>,
                   <CreateTreeForm />)}
-                {startCard("📄", "Import from a file",
+                {startCard("file", "Import from a file",
                   <>
                     <p>
                       A <b>GEDCOM</b> file from Ancestry, MyHeritage, FamilySearch or Gramps, or a <b>family outline</b>:
@@ -124,7 +125,7 @@ export default async function Home() {
     سارة (بنت) | زوج: فهد الشمري`}</pre>
                   </>,
                   <ImportFamilyButton />)}
-                {startCard("📦", "Open a saved project",
+                {startCard("archive", "Open a saved project",
                   <p>
                     A <code>.shajarah</code> file holds a whole family: everyone, the poster&apos;s style, sources and photos.
                     It opens as a new family; the ones here stay as they are.

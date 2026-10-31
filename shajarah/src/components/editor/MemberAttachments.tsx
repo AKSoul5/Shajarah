@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CitationDTO, MediaDTO, MemberDTO, TreeDTO } from "@/lib/types";
 import type { CreateCitationInput, CreateSourceInput } from "@/lib/validation";
+import { Icon } from "@/components/Icon";
 
 interface Props {
   tree: TreeDTO;
@@ -91,8 +92,8 @@ export function MediaList({ files: media, ownerName, busy, onUpload, onAddMedia,
                 <img src={m.url} alt={m.caption ?? `Photo of ${ownerName}`} className="h-16 w-16 rounded object-cover" loading="lazy" />
               </a>
             ) : (
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded bg-parchment-100 text-2xl" aria-hidden>
-                📄
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded bg-parchment-100 text-bark-500" aria-hidden>
+                <Icon name="file" className="h-7 w-7" />
               </span>
             )}
             <div className="min-w-0 flex-1 space-y-1">

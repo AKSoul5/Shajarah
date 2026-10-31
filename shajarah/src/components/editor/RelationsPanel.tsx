@@ -134,7 +134,7 @@ export function RelationsPanel({
                 title="Toggle father / mother"
                 onClick={() => setParentChoice(parentGender === "MALE" ? "FEMALE" : "MALE")}
               >
-                {parentGender === "MALE" ? "♂" : "♀"}
+                {parentGender === "MALE" ? "Father" : "Mother"}
               </button>
             )}
             <button type="button" className="btn-primary px-3" disabled={busy || !parentName.trim()} onClick={submitParent}>
@@ -207,7 +207,7 @@ export function RelationsPanel({
             title="Toggle son / daughter"
             onClick={() => setChildGender((g) => (g === "MALE" ? "FEMALE" : "MALE"))}
           >
-            {childGender === "MALE" ? "♂" : "♀"}
+            {childGender === "MALE" ? "Son" : "Daughter"}
           </button>
           <button type="button" className="btn-primary px-3" disabled={busy || !childName.trim()} onClick={submitChild}>
             +

@@ -34,6 +34,7 @@ import { openProjectFile } from "../projectFiles";
 import { mergePeople, spouseNamed } from "@/lib/merge";
 import { explainNotDrawn, type NotDrawn, type NotDrawnKind } from "@/lib/notDrawn";
 import { normalizeName } from "@/lib/nasab";
+import { Icon } from "@/components/Icon";
 
 interface Props {
   initialTree: TreeDTO;
@@ -719,7 +720,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                           <button type="button" className="btn-outline ms-auto px-2 py-0.5 text-xs" disabled={!showFemales && tree.lineage !== "MATRILINEAL"}
                             title={!showFemales && tree.lineage !== "MATRILINEAL" ? "Daughters are hidden: tick Show daughters first" : undefined}
                             onClick={() => updateSettings({ familiesThrough: [...familiesThrough, d] })}>
-                            ┈ Show {her(d)}
+                            <Icon name="dotted" className="me-1 h-3.5 w-3.5" />Show {her(d)}
                           </button>
                         </div>
                         <ul className="space-y-1">{notDrawn.filter((x) => x.throughId === d).map((x) => person(x))}</ul>
@@ -915,51 +916,51 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   Soil (ancient lineage) → trunk (medallions) → canopy (branches).
                 </p>
                 {tree.crownBaseId === selected.id ? (
-                  <button type="button" className="btn-outline w-full" onClick={() => void mutate(() => repo.updateTree({ crownBaseId: null }), { label: "Reset the canopy start" })}>
+                  <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ crownBaseId: null }), { label: "Reset the canopy start" })}>
                     ✓ Canopy starts here — reset to automatic
                   </button>
                 ) : (
-                  <button type="button" className="btn-outline w-full" onClick={() => void mutate(() => repo.updateTree({ crownBaseId: selected.id }), { label: "Set the canopy start" })}>
-                    🌳 Start the canopy here
+                  <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ crownBaseId: selected.id }), { label: "Set the canopy start" })}>
+                    <Icon name="tree" />Start the canopy here
                   </button>
                 )}
                 {tree.trunkStartId === selected.id ? (
-                  <button type="button" className="btn-outline w-full" onClick={() => void mutate(() => repo.updateTree({ trunkStartId: null }), { label: "Reset the trunk start" })}>
+                  <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ trunkStartId: null }), { label: "Reset the trunk start" })}>
                     ✓ Trunk starts here — reset to automatic
                   </button>
                 ) : (
-                  <button type="button" className="btn-outline w-full" onClick={() => void mutate(() => repo.updateTree({ trunkStartId: selected.id }), { label: "Set the trunk start" })}>
-                    🪵 Start the trunk here (older ancestors go in the soil)
+                  <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ trunkStartId: selected.id }), { label: "Set the trunk start" })}>
+                    <Icon name="trunk" />Start the trunk here (older ancestors go in the soil)
                   </button>
                 )}
                 {tree.settings?.centerBranchId === selected.id ? (
-                  <button type="button" className="btn-outline w-full" onClick={() => updateSettings({ centerBranchId: null })}>
+                  <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ centerBranchId: null })}>
                     ✓ Centered in canopy — reset
                   </button>
                 ) : (
                   <button
                     type="button"
-                    className="btn-outline w-full disabled:opacity-50"
+                    className="btn-outline w-full justify-start gap-2 text-start disabled:opacity-50"
                     disabled={!selectedInCanopy}
                     title={selectedInCanopy ? "Place this branch straight above the trunk, its brothers to either side" : "Only a branch in the canopy can be centred"}
                     onClick={() => updateSettings({ centerBranchId: selected.id })}
                   >
-                    🎯 Center this branch in the tree
+                    <Icon name="target" />Center this branch in the tree
                   </button>
                 )}
                 {selectedHasOwnFamily && (
                   familiesThrough.includes(selected.id) ? (
-                    <button type="button" className="btn-outline w-full" onClick={() => updateSettings({ familiesThrough: familiesThrough.filter((id) => id !== selected.id) })}>
+                    <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ familiesThrough: familiesThrough.filter((id) => id !== selected.id) })}>
                       ✓ {selected.gender === "FEMALE" ? "Her husband and children are" : "His wife and children are"} shown (dotted) — hide
                     </button>
                   ) : (
                     <button
                       type="button"
-                      className="btn-outline w-full"
+                      className="btn-outline w-full justify-start gap-2 text-start"
                       title="Relatives outside the lineage: drawn from this person on dotted lines"
                       onClick={() => updateSettings({ familiesThrough: [...familiesThrough, selected.id] })}
                     >
-                      ┈ Show {selected.gender === "FEMALE" ? "her husband and children" : "his wife and children"} (dotted lines)
+                      <Icon name="dotted" />Show {selected.gender === "FEMALE" ? "her husband and children" : "his wife and children"} (dotted lines)
                     </button>
                   )
                 )}
@@ -967,38 +968,41 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   <p className="text-xs text-bark-500">Daughters are hidden, and their families with them: tick <b>Show daughters</b> to see hers.</p>
                 )}
                 {hiddenIds.includes(selected.id) ? (
-                  <button type="button" className="btn-outline w-full" onClick={() => updateSettings({ hiddenIds: hiddenIds.filter((id) => id !== selected.id) })}>
+                  <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ hiddenIds: hiddenIds.filter((id) => id !== selected.id) })}>
                     ✓ Hidden from the poster — show again
                   </button>
                 ) : !standsOn.has(selected.id) && (
                   <button
                     type="button"
-                    className="btn-outline w-full"
+                    className="btn-outline w-full justify-start gap-2 text-start"
                     title="Leave this person off the poster, with all their children and descendants (by every marriage). Nothing is deleted."
                     onClick={() => updateSettings({ hiddenIds: [...hiddenIds, selected.id] })}
                   >
-                    🙈 Hide from the poster{hiddenWith(selected.id) > 0 && ` (and ${hiddenWith(selected.id)} ${selected.gender === "FEMALE" ? "of her" : "of his"} descendants)`}
+                    <Icon name="eyeOff" />Hide from the poster{hiddenWith(selected.id) > 0 && ` (and ${hiddenWith(selected.id)} ${selected.gender === "FEMALE" ? "of her" : "of his"} descendants)`}
                   </button>
                 )}
                 {tree.settings?.focusId === selected.id ? (
-                  <button type="button" className="btn-outline w-full" onClick={() => updateSettings({ focusId: null })}>
+                  <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ focusId: null })}>
                     ✓ Poster shows only this branch — show the whole family
                   </button>
                 ) : (
                   <button
                     type="button"
-                    className="btn-outline w-full flex-col disabled:opacity-50"
+                    className="btn-outline w-full justify-start gap-2 text-start disabled:opacity-50"
                     disabled={!selectedHasDescendants}
                     title={selectedHasDescendants ? undefined : "No descendants recorded yet: there is no branch to show"}
                     onClick={() => updateSettings({ focusId: selected.id })}
                   >
-                    🌿 Poster of this branch only (their ancestors and descendants)
-                    {!selectedHasDescendants && <span className="block text-xs text-gray-500">No descendants recorded yet</span>}
+                    <Icon name="branch" />
+                    <span>
+                      Poster of this branch only (their ancestors and descendants)
+                      {!selectedHasDescendants && <span className="block text-xs text-gray-500">No descendants recorded yet</span>}
+                    </span>
                   </button>
                 )}
               </div>
               {tree.rootMemberId !== selected.id && !selected.fatherId && !selected.motherId && (
-                <button type="button" className="btn-outline w-full" onClick={() => void mutate(() => repo.updateTree({ rootMemberId: selected.id }), { label: "Set the root" })}>
+                <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ rootMemberId: selected.id }), { label: "Set the root" })}>
                   Make this the root of the trunk
                 </button>
               )}
@@ -1021,7 +1025,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           {view === "poster" && layout && (
             findOpen ? (
               <div role="search" className="flex items-center gap-1 rounded-full border border-parchment-300 bg-white/95 py-1 pe-1 ps-3 shadow">
-                <SearchIcon />
+                <Icon name="search" className="h-3.5 w-3.5" />
                 <input ref={findInput} autoFocus className="w-56 bg-transparent px-1 py-0.5 text-sm outline-none" dir="auto"
                   placeholder="Find a name on the poster…" aria-label="Find a name on the poster" value={findQuery}
                   onChange={(e) => setFindQuery(e.target.value)}
@@ -1040,7 +1044,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             ) : (
               <button type="button" onClick={() => layoutKeysRef.current.openFind()} title="Find a name on the poster (Ctrl/⌘+F)"
                 className="flex items-center gap-1.5 rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-600 shadow-sm hover:bg-white">
-                <SearchIcon /> Find a name
+                <Icon name="search" className="h-3.5 w-3.5" /> Find a name
               </button>
             )
           )}
@@ -1500,15 +1504,5 @@ function FallbackActions({ branches, measure, onFocus, onHideDaughters, onTiled 
         </button>
       )}
     </div>
-  );
-}
-
-/** A magnifier, drawn (the "⌕" character varies from one system to another). */
-function SearchIcon() {
-  return (
-    <svg aria-hidden viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <circle cx="6.8" cy="6.8" r="4.6" />
-      <path d="M10.3 10.3 14 14" />
-    </svg>
   );
 }

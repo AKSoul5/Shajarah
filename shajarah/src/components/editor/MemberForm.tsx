@@ -106,7 +106,7 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
                   className={`px-3 py-1.5 text-sm ${d.gender === g ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700"}`}
                   onClick={() => set("gender", g)}
                 >
-                  {g === "MALE" ? "♂ Male" : "♀ Female"}
+                  {g === "MALE" ? "Male" : "Female"}
                 </button>
               ))}
             </div>

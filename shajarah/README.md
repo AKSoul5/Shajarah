@@ -150,7 +150,7 @@ name first:
   upward from him. With a tree starting at «عبدكلال», pasting «عبد كلال بن
   نصر بن سهل … بن آدم عليه السلام» puts the 47 older names above him (no
   second عبد كلال), and آدم becomes the tree's root. To set them all in the
-  foundation, select عبد كلال and press **🪵 Start the trunk here**.
+  foundation, select عبد كلال and press **Start the trunk here**.
 - A preview shows how many names are reused and how many are new. It warns
   when a line fits in two places equally well.
 - After an import, **Undo this import** in the member list removes exactly
@@ -364,7 +364,7 @@ is held in the page as a `data:` URL.
 - **Add a father above anyone:** select a person and type his father's name
   under *Parents* (and press Enter). When that person was the poster's
   root, the root moves up to the new father, so the tree grows upward.
-- **Primary lineage:** under *Poster tiers*, "🎯 Center this branch in the
+- **Primary lineage:** under *Poster tiers*, "Center this branch in the
   tree" places the selected person's branch straight above the trunk
   (settings `centerBranchId`), with his brothers to either side in birth
   order. It works for any person in the canopy, at any depth: every branch
@@ -429,7 +429,7 @@ family's names hung at the trunk's top; now droop is at most 7% and lean
 
 On a father's-line poster a daughter's children belong to their father's
 line, so they are not drawn. To include them, select her and press
-**┈ Show her husband and children (dotted lines)** under *Poster tiers*
+**Show her husband and children (dotted lines)** under *Poster tiers*
 (settings `familiesThrough`). Her husband is a cartouche on her line, and
 her children and their descendants grow from it on dotted lines, counted in
 generations through her; the key explains the dots ("عن طريق البنات").
@@ -524,9 +524,9 @@ on any member's panel:
 
 | Tier | Who | Drawn as | Set with |
 | --- | --- | --- | --- |
-| **Foundation** (soil) | ancestors older than the trunk start (e.g. آدم … نصر) | one of five soil styles (below) | 🪵 **Start the trunk here** → `FamilyTree.trunkStartId` |
+| **Foundation** (soil) | ancestors older than the trunk start (e.g. آدم … نصر) | one of five soil styles (below) | **Start the trunk here** → `FamilyTree.trunkStartId` |
 | **Trunk** | trunk start … the canopy's father (e.g. عبد كلال الأصغر … سالم) | ivory badges up the trunk, eldest at the bottom, joined by a gold thread | — |
-| **Canopy** | the canopy base and all descendants | Bézier branches, leaves and capsules | 🌳 **Start the canopy here** → `FamilyTree.crownBaseId` |
+| **Canopy** | the canopy base and all descendants | Bézier branches, leaves and capsules | **Start the canopy here** → `FamilyTree.crownBaseId` |
 
 - **One solid trunk.** The ancestors stand in one centred column, one row
   per ancestor at about the size of the names, all badges one width,
@@ -802,7 +802,7 @@ artwork, which is embedded into the exported file.
 
 ## Styles
 
-**🎨 Style** has seven presets, and every setting can be overridden.
+**Style** has seven presets, and every setting can be overridden.
 Settings are saved per tree in `settings.theme`; the poster size is saved
 in `settings.posterSize`.
 
@@ -1136,7 +1136,7 @@ instead of only reporting the problem:
   - The poster shows that person's ancestors on the trunk and in the soil
     (all of them, up to the root) and all their descendants in the canopy.
     It says whose branch it is under the title ("فرع عبدالله بن نصار").
-  - Any member's panel has the same button ("🌿 Poster of this branch only").
+  - Any member's panel has the same button ("Poster of this branch only").
     It is disabled for someone with no descendants recorded yet, since there
     is no branch to show.
   - A banner in the editor shows the number of people on the poster, and
@@ -1167,7 +1167,7 @@ Measured on the 496-person family (`tests/hardening.test.ts`):
 
 ## Hiding a branch from the poster
 
-Select someone and press **🙈 Hide from the poster** under *Poster tiers*:
+Select someone and press **Hide from the poster** under *Poster tiers*:
 they are left off the poster with all their children and descendants, by
 every marriage (a mother's children by each husband go with her), and so
 are spouses who married into the family only through them. Nothing is
@@ -1189,7 +1189,7 @@ daughters' families · 7 spouses». Click it: the side panel lists them in
 groups, each with what would bring it onto the poster.
 
 - **Daughters' families:** a card for each daughter with her husbands,
-  children and their descendants, and **┈ Show her husband and children**
+  children and their descendants, and **Show her husband and children**
   to draw them through her on dotted lines. (A father recorded only by a
   child together, with no marriage, counts as her husband.)
 - **Spouses:** wives (or husbands) who married into the family; **Show
@@ -1329,7 +1329,7 @@ undo.
   each (a gold monogram, the family's name, its people and when it was
   last edited, the poster's title), searchable by name or poster title
   (hamza forms, diacritics, spaces and case are ignored), sorted by when
-  last edited, by name or by size. A family can be pinned (☆/★) to stay at
+  last edited, by name or by size. A family can be pinned (the star) to stay at
   the top: stored as `settings.pinned`, set by `POST /api/trees/:id/pin`,
   which leaves the family's "last edited" time as it was. Each card can be
   deleted after asking. (A first-time visitor sees what Shajarah does in
