@@ -53,7 +53,9 @@ describe("a daughter's family on dotted lines", () => {
       for (const c of s.childIds) expect(l.edges.some((e) => e.parentId === s.id && e.childId === c)).toBe(true);
     }
     // every line of theirs dotted: to each husband and to each descendant
-    expect(l.branches.filter((b) => b.dotted)).toHaveLength(theirs.size + 2 + NOURA);
+    // (and Hassan's three children leave him on one short stem, with a bead
+    // where their lines part: two more)
+    expect(l.branches.filter((b) => b.dotted)).toHaveLength(theirs.size + 2 + NOURA + 2);
     expect(l.nodes.find((n) => n.member.id === amina.id)!.subLabel ?? null).toBeNull();
     // generations count through her: Ibrahim 0, Amina 1, her children 2
     const yusuf = l.nodes.find((n) => n.member.name === "Yusuf" && n.parentId === amina.id)!;

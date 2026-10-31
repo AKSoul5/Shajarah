@@ -218,7 +218,7 @@ export const TreePoster = memo(
           {layout.branches.map((b, i) =>
             b.dotted ? (
               // a family shown through a daughter: round dots along the line
-              <path key={i} d={b.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.w} strokeLinecap="round" strokeDasharray={`0.01 ${(b.w * 2.1).toFixed(1)}`} />
+              <path key={i} d={b.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.w} strokeLinecap="round" strokeDasharray={`0.01 ${(b.w * 2.4).toFixed(1)}`} opacity={0.9} />
             ) : (
               <path key={i} d={b.d} fill={pal.branch(b.lineage)} />
             ),
@@ -1018,7 +1018,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   const fmt = (n: number) => n.toLocaleString(rtl ? "ar-SA" : "en-US");
   // The numbers, each on its own small card (a number over its name)
   const cards: [string, number][] = rtl
-    ? [["المجموع", stats.total], ["الذكور", stats.males], ["الإناث", stats.females], ["الأجيال", stats.generations]]
+    ? [["المجموع", stats.total], ["الذكور", stats.males], ["الإناث", stats.females], ["أجيال النسب", stats.generations]]
     : [["People", stats.total], ["Males", stats.males], ["Females", stats.females], ["Generations", stats.generations]];
   const cardW = fs * 4.4, cardH = fs * 1.95, cardGap = fs * 0.7, cardY = layout.frame.footerY - fs * 2.25;
   const cardsW = cards.length * cardW + (cards.length - 1) * cardGap;
@@ -1042,7 +1042,10 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
       ? `آخر تحديث: ${when.toLocaleDateString("ar-SA-u-ca-islamic-umalqura", { month: "long", year: "numeric" })} / ${when.toLocaleDateString("ar-SA-u-ca-gregory", { month: "long", year: "numeric" })} م`
       : `Last updated ${when.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}`
     : null;
-  const credit = rtl ? `${meta.name} — صُمّمت بواسطة شجرة` : `${meta.name} — made with Shajarah`;
+  // (on an Arabic poster the family's name only when it is written in
+  // Arabic: a Latin file name read oddly among the Arabic)
+  const named = rtl ? /[\u0600-\u06FF]/.test(meta.name) : !!meta.name.trim();
+  const credit = rtl ? `${named ? `${meta.name} — ` : ""}صُمّمت بواسطة شجرة` : `${named ? `${meta.name} — ` : ""}made with Shajarah`;
   // lay the key out from the centre; RTL reads right to left
   const gap = fs * 1.8;
   const widths = items.map((it) => sw + fs * 0.5 + textWidth(it.label, fs));

@@ -14,8 +14,12 @@ const geometry = (fs: number) => {
   return { inset, padY, padX, lh: fs * 1.65, ascent: fs * 1.05, descent: fs * 0.45 };
 };
 
+// (a little larger than the plaque's running text: on a large poster the
+// whole lineage in two long lines read as a grey rule from a step away)
+const paragraphFont = (ctx: SoilContext) => Math.max(runningFont(ctx), Math.min(ctx.f * 1.05, ctx.maxFont * 0.9));
+
 const linesOf = (ctx: SoilContext) => {
-  const fs = runningFont(ctx);
+  const fs = paragraphFont(ctx);
   const g = geometry(fs);
   return { fs, g, lines: wrapWords(ctx, ctx.text, ctx.maxWidth - 2 * g.padX, fs) };
 };

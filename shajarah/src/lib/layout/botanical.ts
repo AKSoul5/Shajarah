@@ -92,6 +92,8 @@ export interface LayoutOptions {
   centerLead?: boolean;
   /** How a centred branch's brothers are split between its two sides: so each side holds as many names (default), or by the room their families need. */
   centerSides?: "names" | "room";
+  /** Moves the middle of the canopy's fan by this share of it (towards the end where u = 1), to even out its two halves. Default: chosen automatically. */
+  sideBias?: number;
   /** How far (radians) above horizontal the canopy's sweep starts on each side. Default: SWEEP_LIFT, eased for a very crowded generation. */
   sweepLift?: number;
   /** Where the canopy starts. Defaults to tree.crownBaseId, then automatic. */
@@ -381,6 +383,23 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
         opts = { ...opts, sweepLift: WIDE_SWEEP };
         firstAttempt = wide;
       }
+    }
+  }
+  // Evening the two halves: with one side of the trunk much more crowded
+  // than the other (see sideLean), the side holding most of the families
+  // was crammed in its equal half while the other stood half empty. The
+  // middle of the fan moves towards the roomier side, a little (at most
+  // SIDE_SHIFT_MAX, so a centred branch still rises from the trunk), judged
+  // on the search's first attempt (names at full size), before the search.
+  if (opts.sideBias === undefined) {
+    const quick = (o: LayoutOptions) => layoutAttempt(tree, o, 1, false, false, false, { checks: 0 });
+    const probe = firstAttempt ?? quick(opts);
+    const lean = probe.nodes.length <= HUGE_FAMILY ? sideLean(probe) : null;
+    const bias = lean !== null && Math.abs(lean) > SIDE_LEAN_OK ? clamp(lean * 0.2, -SIDE_SHIFT_MAX, SIDE_SHIFT_MAX) : 0;
+    opts = { ...opts, sideBias: bias };
+    if (bias && firstAttempt) {
+      firstAttempt = quick(opts);
+      firstAttempt.clarity = validateRelationships(firstAttempt, tree);
     }
   }
   const search = (dense: boolean) => {
@@ -734,6 +753,30 @@ export function fanKink(l: Pick<PosterLayout, "nodes" | "origin">): number {
 }
 /** A centred branch keeps its place among its brothers unless one side would hold less than this share of the other's names. */
 const LOPSIDED = 0.5;
+/** The most the middle of the canopy's fan moves to even out its two halves (a share of the fan). */
+const SIDE_SHIFT_MAX = 0.04;
+/** How much more crowded one half of the canopy may be than the other (see sideLean) before the halves are evened out. */
+const SIDE_LEAN_OK = 0.1;
+
+/**
+ * How much more crowded the canopy's left half is than its right: each
+ * side's names (and spouses) over how far that side reaches from the
+ * trunk, (left − right) / (left + right); null for a small canopy.
+ */
+function sideLean(l: PosterLayout): number | null {
+  const ox = l.origin.x;
+  const side = { l: { n: 0, reach: 0 }, r: { n: 0, reach: 0 } };
+  for (const n of [...l.nodes, ...l.spouses]) {
+    if (n.y > l.origin.y) continue; // (the trunk's side branches)
+    const s = n.x < ox - 1 ? side.l : n.x > ox + 1 ? side.r : null;
+    if (!s) continue;
+    s.n++;
+    s.reach = Math.max(s.reach, Math.abs(n.x - ox) + n.w / 2);
+  }
+  if (side.l.n + side.r.n < 24 || !side.l.reach || !side.r.reach) return null;
+  const dl = side.l.n / side.l.reach, dr = side.r.n / side.r.reach;
+  return (dl - dr) / (dl + dr);
+}
 /** Generations above the centred branch whose largest sub-branch is held straight on (see the leader). */
 const LEAD_STEPS = 1;
 /** The trunk's names are at most this many times the canopy's typical name. */
@@ -859,8 +902,9 @@ function layoutAttempt(
   const place = framePlacement(W, H, framed);
   const contentTop = H * (opts.headerBand ?? 0.095);
   // the footer (key, the counts' cards, the credit) takes ~5 lines of
-  // W·0.012 text above footerY
-  const contentBottom = place.footerY - W * 0.062;
+  // W·0.012 text above footerY, and a clear line of paper between the
+  // foundation and the key (they once touched)
+  const contentBottom = place.footerY - W * 0.068;
   const unitMm = (opts.paperWidthMm ?? 420) / W;
   const minTextMm = opts.minTextMm ?? 3.2;
   const minFont = minTextMm / unitMm;
@@ -1634,6 +1678,22 @@ function layoutAttempt(
   const chosenPath = new Set<HNode>(centerNode && centerNode !== dominant ? centerNode.ancestors() as HNode[] : []);
   const centerIds = new Set([...centerPath].map((n) => n.data.member!.id));
   partition(base, 0.015, 0.985);
+  // Evening the two halves (opts.sideBias, chosen in computePosterLayout):
+  // the middle of the fan moves, each half stretched or narrowed to suit,
+  // every sub-branch keeping its order and its share of its own half.
+  const warpOf = (m: number) => (u: number) => (u <= 0.5 ? 0.015 + ((u - 0.015) * (m - 0.015)) / (0.5 - 0.015) : m + ((u - 0.5) * (0.985 - m)) / (0.985 - 0.5));
+  const sideBias = opts.sideBias ?? 0;
+  if (Math.abs(sideBias) > 0.005) {
+    const warp = warpOf(0.5 + sideBias);
+    for (const n of base.descendants() as HNode[]) {
+      if (n.u0 === undefined) continue;
+      // (the centred son still rises straight up the middle; further up,
+      // his line leans with the families either side of it, or it would
+      // pass his brothers' families)
+      const middle = n.depth === base.depth + 1 && centerPath.has(n) && Math.abs(n.u! - 0.5) < 1e-6;
+      n.u0 = warp(n.u0); n.u1 = warp(n.u1!); n.u = middle ? 0.5 : warp(n.u!);
+    }
+  }
 
   const nodes: LiveNode[] = [];
   const byId = new Map<string, LiveNode>();
@@ -1929,7 +1989,10 @@ function layoutAttempt(
     const pad = f * 1.5;
     const fanFor = (R: number) => {
       const hi = Math.min(1.25, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R));
-      const downMost = -Math.atan2(Math.max(0, groundY - pad - A.y), R);
+      // (down no further than the names may go: above the ground by
+      // 3% of the page; a fan reaching lower had its names clamped up into a
+      // knot)
+      const downMost = -Math.atan2(Math.max(0, groundY - Math.max(pad, W * 0.03 + f) - A.y), R);
       return { hi, lo: Math.max(hi - 1.55, Math.min(downMost, hi - 0.6)) };
     };
     // As far out as its names need: each generation a ring, a name's width
@@ -1947,7 +2010,10 @@ function layoutAttempt(
     for (let k = 0; k < 2; k++) {
       const { hi, lo } = fanFor(reachR);
       const span = Math.max(0.3, hi - lo);
-      let need = depthMax * (widest + f * 2) / (0.3 + 0.7 * depthMax / depthMax);
+      // (each generation's ring 0.7 / depthMax of the reach further out:
+      // that step at least a name's width and a gap, or a family of
+      // several generations sat in a knot on its own lines)
+      let need = (depthMax * (widest + f * 2)) / 0.7;
       for (const [d, c] of ringCount) need = Math.max(need, (c * fl * 2.6) / (span * (0.3 + 0.7 * (d / depthMax))));
       reachR = clamp(Math.max(reachR, need), f * 4, Math.min(W * 0.42, room * 0.92));
     }
@@ -2024,7 +2090,9 @@ function layoutAttempt(
       const half = Math.hypot(n.w, n.h) / 2;
       const d = { x: n.x - m.x, y: n.y - m.y };
       const dist = Math.hypot(d.x, d.y);
-      const minD = m.r * 1.04 + half;
+      // (a clear ring of paper round the medallion: names grazing its rim
+      // crowded the verse)
+      const minD = m.r * 1.12 + half;
       if (dist < minD) {
         const k = minD / (dist || 1);
         n.x = m.x + d.x * k;
@@ -2096,7 +2164,9 @@ function layoutAttempt(
   const widthOf = (leaves: number) => wMin * 1.5 + wK * (Math.sqrt(leaves) - 1);
   // A dotted line's dots: big enough to read as a line, never blobs (a
   // daughter's large family once drew its line in dots wider than names' type)
-  const dotWidth = (w: number) => clamp(w, wMin * 2.2, wMin * 3.2);
+  // (kept light: the dotted families are the quiet layer of the poster,
+  // never heavier than the solid branches of the line itself)
+  const dotWidth = (w: number) => clamp(w * 0.7, wMin * 1.5, wMin * 2.2);
 
   // ── 5b. Connections, and clearing them of unrelated names ─────────────
   // Each connection is a gentle cubic from parent to child that stays
@@ -2229,9 +2299,21 @@ function layoutAttempt(
   };
   // Where a line to a child starts: its parent's name, or for a main limb
   // the canopy base (or the trunk, for a side branch).
+  const rimStart = (node: LiveNode) => !!base.data.member && node.region === "crown" && node.depth === 1 && node.terminal && !stemStart.has(node.id);
   const startOf = (node: LiveNode): Vec => {
     const parent = node.parentId ? byId.get(node.parentId) : undefined;
-    return parent && parent.region !== "fixed" ? { x: parent.x, y: parent.y } : (stemStart.get(node.id) ?? origin);
+    if (parent && parent.region !== "fixed") return { x: parent.x, y: parent.y };
+    const stem = stemStart.get(node.id);
+    if (stem) return stem;
+    // A son or daughter of the canopy base with no family of their own
+    // leaves from the rim of the base's oval, towards their name: a dozen
+    // such lines all from its centre rose out of it as one broom.
+    if (rimStart(node)) {
+      const d = norm(sub(node, origin));
+      const k = 0.8 / Math.hypot(d.x / baseOval.rx, d.y / baseOval.ry);
+      return add(origin, scale(d, k));
+    }
+    return origin;
   };
   /** Where the line to a spouse's holder starts: the partner (as for the children's lines). */
   const fromOf = (h: Holder): Vec => (h.lone ? { x: h.anchorOf.x, y: h.anchorOf.y } : startOf(h.anchorOf));
@@ -2291,7 +2373,9 @@ function layoutAttempt(
       // not where they were)
       const at = (q: { h: Holder; J?: Vec }) => (q.J ? { ...q.h, x: q.J.x, y: q.J.y } : q.h);
       const fits = (h: Holder, J: Vec, also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true) => {
-        const pad = h.fontSize * 0.25;
+        // (clear of names by a little more than a hairline: a box with a
+        // name's rim touching it read as one shape)
+        const pad = h.fontSize * 0.4;
         const me = { x: J.x, y: J.y, w: h.w + pad * 2, h: h.h + pad * 2 };
         const others = [...obstacles, ...also.map(at)];
         if (others.some((o) => Math.abs(o.x - J.x) < (o.w + h.w) / 2 + pad && Math.abs(o.y - J.y) < (o.h + h.h) / 2 + pad)) return false;
@@ -2477,7 +2561,10 @@ function layoutAttempt(
     const dv = scale(d, 1 / L);
     let { c1, c2 } = c;
     if (node.region === "crown" && node.depth === 1) {
-      c1 = add(c.p0, scale(norm(add(scale(UP, SWEEP), scale(dv, 1 - SWEEP))), L * 0.45));
+      // (a childless one from the rim of the base's oval sweeps up less:
+      // all of them rising first made a broom of lines above the trunk)
+      const sweep = rimStart(node) ? SWEEP * 0.3 : SWEEP;
+      c1 = add(c.p0, scale(norm(add(scale(UP, sweep), scale(dv, 1 - sweep))), L * (rimStart(node) ? 0.3 : 0.45)));
     }
     if (node.parentId && familySize.get(node.parentId) === 1 && node.region === "crown") {
       const side = node.depth % 2 === 0 ? 1 : -1;
@@ -2658,13 +2745,25 @@ function layoutAttempt(
       if (!changed) break;
     }
   };
+  /** The shared stems of dotted families: from the parent (or holder) to where the lines part. */
+  const forks = new Map<string, { from: Vec; at: Vec; dir: Vec }>();
+  // how many children on dotted lines leave each holder or person
+  const dottedFrom = new Map<string, number>();
+  for (const n of growingNodes) {
+    if (!dotted.has(n.member.id)) continue;
+    const from = holderOf.get(n.id)?.id ?? n.parentId ?? "";
+    dottedFrom.set(from, (dottedFrom.get(from) ?? 0) + 1);
+  }
   const buildCurves = () => {
     const growthDir = new Map<string, Vec>();
+    forks.clear();
     placeHolders();
     indexBoxes();
     for (const node of growingNodes) {
       let P = startOf(node);
-      let gP = (node.parentId && growthDir.get(node.parentId)) || stemDir.get(node.id) || norm(sub(node, origin));
+      // (one from the rim of the base's oval sets out towards its name, not
+      // up the trunk's line with all the others)
+      let gP = rimStart(node) ? norm(sub(node, P)) : (node.parentId && growthDir.get(node.parentId)) || stemDir.get(node.id) || norm(sub(node, origin));
       const holder = holderOf.get(node.id);
       if (holder) {
         // the partner's line to the spouse's holder (once), then the
@@ -2684,6 +2783,27 @@ function layoutAttempt(
         gP = growthDir.get(holder.id) ?? holder.dir;
       }
       const fan = fanOf(holder ? holder.id : node.parentId);
+      // Several children on dotted lines from one place leave it together,
+      // along one short stem, and part at its end: ten lines each starting
+      // in its own direction made a knot of dots around the husband's box.
+      const fromId = holder ? holder.id : node.parentId ?? "";
+      let forked = false;
+      // (not from a knot: that bead is already where they part)
+      if (dotted.has(node.member.id) && !holder?.knot && (dottedFrom.get(fromId) ?? 0) >= 3) {
+        let fork = forks.get(fromId);
+        if (!fork) {
+          const kids = growingNodes.filter((k) => (holderOf.get(k.id)?.id ?? k.parentId ?? "") === fromId && dotted.has(k.member.id));
+          const dir = norm(kids.reduce((a, k) => add(a, norm(sub(k, P))), { x: 0, y: 0 }));
+          const box = holder ?? (node.parentId ? byId.get(node.parentId) : undefined);
+          const r = box ? Math.abs(dir.x) * box.w / 2 + Math.abs(dir.y) * box.h / 2 : 0;
+          const near = Math.min(...kids.map((k) => len(sub(k, P)) - Math.max(k.w, k.h) / 2));
+          const fs = box?.fontSize ?? node.fontSize;
+          const stemLen = Math.min(fs * 3, Math.max(0, near - r) * 0.4);
+          fork = { from: P, at: add(P, scale(dir, r + stemLen)), dir };
+          forks.set(fromId, fork);
+        }
+        if (len(sub(fork.at, fork.from)) > 1) { P = fork.at; gP = fork.dir; forked = true; }
+      }
       // Organic curves: a line leaves its father half along his own growth
       // direction and arrives partly along its own ray, so it bends in a
       // gentle S rather than shooting out straight (measured: no less clear).
@@ -2698,7 +2818,7 @@ function layoutAttempt(
       const dv = norm(sub(C, P));
       lineSpec.set(node.id, {
         P, C, gP, rayDir: node.ray !== undefined ? dirOf(node.ray) : leaf ? dv : UP,
-        follow: 0.5 * (1 - 0.8 * fan), reach0: 0.38 - 0.16 * fan, leaf, organicOn: !holder, node,
+        follow: 0.5 * (1 - 0.8 * fan), reach0: 0.38 - 0.16 * fan, leaf, organicOn: !holder && !forked, node,
       });
       const { c, e0 } = shapeCurve(node.id, SHAPES[0]);
       curveOf.set(node.id, c);
@@ -3058,6 +3178,7 @@ function layoutAttempt(
       edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: mainLimb ? w * 1.15 : w, w1: w * 0.85, lineage: h.lineage ?? null });
     }
   }
+  const stemDrawn = new Set<string>();
   for (const node of growing) {
     const c = curveOf.get(node.id)!;
     const holder = holderOf.get(node.id);
@@ -3067,8 +3188,33 @@ function layoutAttempt(
       // twig so the dots read
       const w = dotWidth(node.shape === "leaf" ? widthOf(1) : widthOf(node.leafCount) * 0.8);
       const p = (v: Vec) => `${v.x.toFixed(1)} ${v.y.toFixed(1)}`;
-      branches.push({ d: `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`, w, lineage: node.lineage ?? null, dotted: true });
-      edges.push({ parentId: from, childId: node.id, points: sample(c), w0: w, w1: w, lineage: node.lineage ?? null });
+      const fork = forks.get(from);
+      const forked = !!fork && len(sub(fork.at, c.p0)) < 0.5;
+      // (the shared stem once, then each child's line from its end)
+      if (forked && !stemDrawn.has(from)) {
+        stemDrawn.add(from);
+        const sw = dotWidth(Math.max(...growing.filter((k) => forks.get(holderOf.get(k.id)?.id ?? parentIdOf(k)) === fork && dotted.has(k.member.id)).map((k) => widthOf(Math.max(1, k.leafCount)))));
+        branches.push({ d: `M${p(fork.from)}L${p(fork.at)}`, w: sw, lineage: node.lineage ?? null, dotted: true });
+        // (a bead where the lines part)
+        branches.push({ d: `M${p(fork.at)}l0.01 0`, w: sw * 1.6, lineage: node.lineage ?? null, dotted: true });
+      }
+      // From a fork each line's dots begin a little way out, where the
+      // lines have parted enough for their dots to stay apart: many lines'
+      // first dots crowded round the fork read as a blot.
+      let drawn = c;
+      if (forked) {
+        const kids = growing.filter((k) => forks.get(holderOf.get(k.id)?.id ?? parentIdOf(k)) === fork && dotted.has(k.member.id));
+        const angles = kids.map((k) => Math.atan2(k.y - fork!.at.y, k.x - fork!.at.x)).sort((a, b) => a - b);
+        let gapA = Math.PI;
+        for (let i = 1; i < angles.length; i++) gapA = Math.min(gapA, Math.max(0.05, angles[i] - angles[i - 1]));
+        const R = Math.min(clamp((w * 1.6) / gapA, w * 1.2, w * 6), len(sub(c.p1, c.p0)) * 0.3);
+        let t = 0;
+        while (t < 0.6 && len(sub(cubicAt(c, t), c.p0)) < R) t += 0.01;
+        drawn = cubicFrom(c, t);
+      }
+      branches.push({ d: `M${p(drawn.p0)}C${p(drawn.c1)} ${p(drawn.c2)} ${p(drawn.p1)}`, w, lineage: node.lineage ?? null, dotted: true });
+      const stemPts = forked ? [fork!.from, add(fork!.from, scale(sub(fork!.at, fork!.from), 0.5))] : [];
+      edges.push({ parentId: from, childId: node.id, points: [...stemPts, ...sample(c)], w0: w, w1: w, lineage: node.lineage ?? null });
         continue;
     }
     if (node.shape === "leaf") {
@@ -3379,6 +3525,23 @@ function crossesInside(a: Vec, b: Vec, c: Vec, d: Vec): boolean {
 }
 
 /** Splits a line in two at the space nearest its middle (not leaving a word like "m." alone). */
+/** The point at t on a cubic. */
+function cubicAt(c: Cubic, t: number): Vec {
+  const u = 1 - t;
+  return {
+    x: u * u * u * c.p0.x + 3 * u * u * t * c.c1.x + 3 * u * t * t * c.c2.x + t * t * t * c.p1.x,
+    y: u * u * u * c.p0.y + 3 * u * u * t * c.c1.y + 3 * u * t * t * c.c2.y + t * t * t * c.p1.y,
+  };
+}
+
+/** The part of a cubic from t to its end (de Casteljau). */
+function cubicFrom(c: Cubic, t: number): Cubic {
+  const lerp = (a: Vec, b: Vec): Vec => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  const ab = lerp(c.p0, c.c1), bc = lerp(c.c1, c.c2), cd = lerp(c.c2, c.p1);
+  const abc = lerp(ab, bc), bcd = lerp(bc, cd);
+  return { p0: lerp(abc, bcd), c1: bcd, c2: cd, p1: c.p1 };
+}
+
 function splitInTwo(text: string): string {
   const spaces = [...text.matchAll(/ /g)].map((m) => m.index!).filter((i) => i >= 4 && text.length - i - 1 >= 4);
   if (!spaces.length) return text;
