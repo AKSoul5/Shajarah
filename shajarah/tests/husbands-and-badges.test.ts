@@ -64,6 +64,27 @@ describe("a daughter's several husbands", () => {
   }
 });
 
+describe("a daughter's children by a father not recorded", () => {
+  it("part at a knot on her dotted line, as at a husband's box, instead of running out of her side by side", () => {
+    const { tree, daughter } = daughterOfFourHusbands();
+    const kids = new Set(tree.members.filter((m) => m.motherId === daughter).map((m) => m.id));
+    const unknown = { ...tree, members: tree.members.map((m) => (kids.has(m.id) ? { ...m, fatherId: null } : m)) };
+    for (const preset of ["refined", "classic"]) {
+      const settings = { ...unknown.settings, theme: { preset } } as TreeDTO["settings"];
+      const l = computePosterLayout({ ...unknown, settings }, layoutOptionsFor(resolveTheme(settings), "A1"));
+      const at = l.spouses.filter((s) => s.partnerId === daughter);
+      expect(at.length, preset).toBe(1);
+      const knot = at[0];
+      expect(knot.knot, preset).toBe(true);
+      expect(new Set(knot.childIds), preset).toEqual(kids);
+      // one line from her to the knot, and from it one to each child
+      expect(l.edges.filter((e) => e.parentId === daughter && e.childId === knot.id).length, preset).toBe(1);
+      for (const id of kids) expect(l.edges.some((e) => e.parentId === knot.id && e.childId === id), preset).toBe(true);
+      expect(l.clarity.issues, preset).toEqual([]);
+    }
+  }, 120_000);
+});
+
 describe("circular badges", () => {
   it("are one height for every name: a long name stretches into a capsule hugging it", () => {
     const { tree } = daughterOfFourHusbands();

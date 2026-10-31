@@ -56,6 +56,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
   };
   const [file, setFile] = useState<{ name: string; size: number; bytes: ArrayBuffer } | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [inputKey, setInputKey] = useState(0);
   const worker = useRef<Worker | null>(null);
   const request = useRef(0);
 
@@ -120,6 +121,10 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
   const p = status.kind === "ready" ? status.preview : null;
   return (
     <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4 text-sm">
+      <div className="flex items-center gap-2">
+        <button type="button" className="btn-ghost px-2" onClick={onCancel}>← All</button>
+        <h2 className="text-base font-semibold text-bark-900">Files</h2>
+      </div>
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">Project file</h2>
         <p className="text-gray-600">
@@ -151,6 +156,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
           saved until you press Import.
         </p>
         <input
+          key={inputKey}
           type="file"
           accept=".ged,.gedcom,.txt,text/plain"
           aria-label="GEDCOM file or family outline"
@@ -219,7 +225,8 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
           >
             {busy ? "Importing…" : p && !p.blocked ? `Import ${p.newMembers} ${p.newMembers === 1 ? "person" : "people"}` : "Import"}
           </button>
-          <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
+          {/* (clears the chosen file; ← All goes back to the family) */}
+          {file && <button type="button" className="btn-ghost" onClick={() => { setFile(null); setStatus({ kind: "idle" }); setInputKey((k) => k + 1); }}>Cancel</button>}
         </div>
       </section>
 

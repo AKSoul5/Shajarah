@@ -537,6 +537,16 @@ const SPOUSE_INK = "#6e4438";
  */
 function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; pal: Palette; style: PosterTheme["spouseStyle"]; onClick: object }) {
   const fs = s.fontSize;
+  // (a knot where a daughter's children by an unrecorded father part: a
+  // bead on her dotted line, a little larger than its dots)
+  if (s.knot) {
+    return (
+      <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick}>
+        <title>{s.member.name}</title>
+        <circle r={fs * 0.3} fill={pal.branch(s.lineage ?? null)} />
+      </g>
+    );
+  }
   const ink = pal.mono ? "#111" : SPOUSE_INK;
   const rule = pal.mono ? "#111" : GOLD;
   const dash = s.dotted ? `${(fs * 0.25).toFixed(1)} ${(fs * 0.18).toFixed(1)}` : undefined;
@@ -884,8 +894,8 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
       ),
     });
   }
-  if (layout.spouses.length) {
-    const kinds = new Set(layout.spouses.map((s) => s.member.gender));
+  if (layout.spouses.some((s) => !s.knot)) {
+    const kinds = new Set(layout.spouses.filter((s) => !s.knot).map((s) => s.member.gender));
     items.push({
       label: rtl ? (kinds.size > 1 ? "زوج / زوجة" : kinds.has("MALE") ? "زوج" : "زوجة") : "Spouse",
       swatch: (x) => {

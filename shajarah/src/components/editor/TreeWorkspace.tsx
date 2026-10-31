@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { computePosterLayout } from "@/lib/layout/botanical";
+import { usePosterLayout } from "./usePosterLayout";
 import { branchHeads, clearestPaper, rankBranches, smallestClearPaper, type BranchOption } from "@/lib/layout/branches";
 import { generationColor } from "@/lib/layout/palette";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
@@ -67,16 +68,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const savedSize = tree.settings?.posterSize;
   const posterSize: PaperSize = isPaperSize(savedSize) ? savedSize : "A2";
   const theme = useMemo(() => resolveTheme(tree.settings), [tree.settings]);
-  // Layout is recomputed on every edit; deferring keeps typing responsive.
+  // Layout is recomputed on every edit, in a worker: the editor stays
+  // usable while a large family is laid out (the last poster stays shown).
   const deferredTree = useDeferredValue(tree);
-  const layout = useMemo(
-    () =>
-      computePosterLayout(deferredTree, {
-        showFemales, seed,
-        ...layoutOptionsFor(theme, posterSize),
-      }),
-    [deferredTree, showFemales, seed, theme, posterSize],
-  );
+  const { layout, pending: layoutPending } = usePosterLayout(deferredTree, {
+    showFemales, seed,
+    ...layoutOptionsFor(theme, posterSize),
+  });
 
   // ── Undo/redo: snapshots of the whole tree (src/lib/history.ts). The
   // refs hold the latest values for callbacks that outlive a render.
@@ -290,7 +288,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
 
   // What to offer when no single poster size is enough for the whole family
   // (inside a branch poster: its sub-branches, so a branch can be narrowed again)
-  const branches = useMemo(() => branchHeads(deferredTree, layout), [deferredTree, layout]);
+  const branches = useMemo(() => (layout ? branchHeads(deferredTree, layout) : []), [deferredTree, layout]);
   const nextPaper = PAPER_ORDER[PAPER_ORDER.indexOf(posterSize) + 1] ?? null;
   const fallbacks: Fallbacks = {
     branches,
@@ -330,8 +328,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     tree.lineage === "MATRILINEAL" ? c.fatherId === selected.id : c.motherId === selected.id);
   // only a name drawn in the canopy (not the trunk or the soil) can be centred
   const canopyIds = useMemo(
-    () => new Set(layout.base ? lineagePath(tree.members, tree.lineage, layout.base.member.id).descendants : []),
-    [layout.base, tree.members, tree.lineage],
+    () => new Set(layout?.base ? lineagePath(tree.members, tree.lineage, layout.base.member.id).descendants : []),
+    [layout?.base, tree.members, tree.lineage],
   );
   const selectedInCanopy = !!selected && canopyIds.has(selected.id);
   const selectedHasDescendants = useMemo(
@@ -344,12 +342,12 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const standsOn = useMemo(
     () => withAncestors(tree.members, [
       tree.rootMemberId, tree.crownBaseId, tree.trunkStartId, tree.settings?.focusId,
-      layout.base?.member.id, ...layout.trunkLabels.map((l) => l.member.id),
+      layout?.base?.member.id, ...(layout?.trunkLabels ?? []).map((l) => l.member.id),
     ]),
-    [tree.members, tree.rootMemberId, tree.crownBaseId, tree.trunkStartId, tree.settings?.focusId, layout.base, layout.trunkLabels],
+    [tree.members, tree.rootMemberId, tree.crownBaseId, tree.trunkStartId, tree.settings?.focusId, layout?.base, layout?.trunkLabels],
   );
   // The people the poster leaves out, by what would bring them on.
-  const notDrawn = useMemo(() => explainNotDrawn(tree, layout.unplacedIds ?? []), [tree, layout.unplacedIds]);
+  const notDrawn = useMemo(() => explainNotDrawn(tree, layout?.unplacedIds ?? []), [tree, layout?.unplacedIds]);
   const notDrawnCount = (kind: NotDrawnKind) => notDrawn.filter((x) => x.kind === kind).length;
   /** How many of their descendants go with `id` when hidden (in-laws who married in aside). */
   const hiddenWith = (id: string) =>
@@ -406,14 +404,31 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     else void mutate(() => repo.undoImport(lastImport.receipt), { label: "Undo import" });
   };
 
+  // A wife or husband who married in (no parents of their own on record) is
+  // listed in the generation of the one they married, not with the root at
+  // the very top as generation 1.
+  const marriedIn = useMemo(() => {
+    const byId = new Map(tree.members.map((m) => [m.id, m]));
+    const partnerGen = new Map<string, number>();
+    for (const mm of tree.marriages) {
+      for (const [a, b] of [[mm.spouseAId, mm.spouseBId], [mm.spouseBId, mm.spouseAId]]) {
+        const me = byId.get(a), other = byId.get(b);
+        if (!me || !other || me.fatherId || me.motherId || me.id === tree.rootMemberId) continue;
+        if (other.fatherId || other.motherId || other.id === tree.rootMemberId) partnerGen.set(me.id, other.generation);
+      }
+    }
+    return partnerGen;
+  }, [tree.members, tree.marriages, tree.rootMemberId]);
+  const listGeneration = useCallback((m: MemberDTO) => marriedIn.get(m.id) ?? m.generation, [marriedIn]);
+
   const filtered = useMemo(() => {
     // (hamza forms, ى / ي, ة / ه, diacritics, spaces and case ignored: احمد finds أحمد)
     const q = normalizeName(query.trim());
     const list = q
       ? tree.members.filter((m) => normalizeName(nasab(tree.members, m.id, 3)).includes(q) || normalizeName(m.laqab ?? "").includes(q))
       : tree.members;
-    return [...list].sort((a, b) => a.generation - b.generation || a.birthOrder - b.birthOrder).slice(0, 400);
-  }, [tree.members, query]);
+    return [...list].sort((a, b) => listGeneration(a) - listGeneration(b) || a.birthOrder - b.birthOrder).slice(0, 400);
+  }, [tree.members, query, listGeneration]);
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-parchment-100 text-bark-900">
@@ -421,7 +436,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         <Link href="/" className="font-naskh text-2xl font-bold text-bark-700">شجرة</Link>
         <div className="min-w-0">
           <h1 className="truncate font-naskh text-lg font-bold" dir="auto">{tree.name}</h1>
-          <p className="text-xs text-gray-500">
+          <p className="truncate text-xs text-gray-500" title={`${tree.members.length} members · ${tree.members.reduce((g, m) => Math.max(g, m.generation + 1), 0)} generations`}>
             {tree.members.length} members · {tree.members.reduce((g, m) => Math.max(g, m.generation + 1), 0)} generations
             {mode === "local" && " · demo mode (changes are not saved)"}
           </p>
@@ -433,7 +448,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               type="button"
               role="tab"
               aria-selected={view === v}
-              className={`px-3 py-1 ${view === v ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}
+              className={`whitespace-nowrap px-3 py-1 ${view === v ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}
               onClick={() => showView(v)}
             >
               {v === "poster" ? "Poster" : `Sources (${tree.sources.length})`}
@@ -443,16 +458,16 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         <div className="ms-auto flex items-center gap-3">
           {/* in a matrilineal tree the women are the line: they are always shown */}
           {tree.lineage !== "MATRILINEAL" && (
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 whitespace-nowrap text-sm">
               <input type="checkbox" checked={showFemales} onChange={(e) => updateSettings({ showFemales: e.target.checked })} />
               Show daughters
             </label>
           )}
-          <label className="flex items-center gap-2 text-sm" title="Each wife (or husband) as a cartouche on the branch, her children growing from it">
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="Each wife (or husband) as a cartouche on the branch, her children growing from it">
             <input type="checkbox" checked={theme.motherNames} onChange={(e) => updateSettings({ theme: { ...theme, motherNames: e.target.checked } })} />
             Show spouses
           </label>
-          <label className="flex items-center gap-2 text-sm" title="Select a person to highlight their ancestors and descendants">
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="Select a person to highlight their ancestors and descendants">
             <input type="checkbox" checked={trace} onChange={(e) => setTrace(e.target.checked)} />
             Trace lineage
           </label>
@@ -485,7 +500,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             onSoilTextChange={(soilText) => void mutate(() => repo.updateTree({ soilText }), { label: "Edit the soil inscription" })}
             frameAvailable={frameSrc !== null}
           />
-          <label className="flex items-center gap-2 text-sm" title="The printed size the poster is designed for">
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="The printed size the poster is designed for">
             Poster
             <select className="input w-auto py-1" value={posterSize} onChange={(e) => updateSettings({ posterSize: e.target.value as PaperSize })}>
               {PAPER_ORDER.map((p) => (
@@ -518,11 +533,11 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             <>
               <div className="flex gap-2 border-b border-parchment-200 p-3">
                 <input className="input flex-1" dir="auto" placeholder="Search members…" value={query} onChange={(e) => setQuery(e.target.value)} />
-                <button type="button" className="btn-primary" onClick={() => setPanel({ kind: "new", draft: emptyDraft() })}>
+                <button type="button" className="btn-primary whitespace-nowrap" onClick={() => setPanel({ kind: "new", draft: emptyDraft() })}>
                   + Person
                 </button>
-                <button type="button" className="btn-outline" title="Paste a nasab: أحمد بن نوفل بن …" onClick={() => setPanel({ kind: "import" })}>
-                  بن…
+                <button type="button" className="btn-outline whitespace-nowrap px-2 text-xs" title="Paste a nasab: أحمد بن نوفل بن …" onClick={() => setPanel({ kind: "import" })}>
+                  Nasab
                 </button>
                 <button type="button" className="btn-outline px-2 text-xs" title="Save or open a project file; import or export GEDCOM" onClick={() => setPanel({ kind: "gedcom" })}>
                   Files
@@ -557,7 +572,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     >
                       <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: generationColor(m.generation).fill }} />
                       <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
-                      <span className="text-xs text-gray-400">G{m.generation + 1}</span>
+                      <span className="whitespace-nowrap text-xs text-gray-400" title={marriedIn.has(m.id) ? "Married into the family" : undefined}>
+                        {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -661,7 +678,10 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
 
           {panel.kind === "new" && (
             <div className="min-h-0 flex-1 overflow-auto p-4">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-bark-500">New member</h2>
+              <div className="mb-3 flex items-center gap-2">
+                <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>← All</button>
+                <h2 className="text-base font-semibold text-bark-900">New member</h2>
+              </div>
               <MemberForm tree={tree} member={null} initialDraft={panel.draft} busy={busy} onSave={saveNew} onCancel={() => setPanel({ kind: "list" })} />
             </div>
           )}
@@ -867,8 +887,17 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 onRemoveMedia: (id) => void mutate(() => repo.deleteMedia(id), { label: "Remove file" }),
               }}
             />
+          ) : !layout ? (
+            <div className="flex h-full items-center justify-center" role="status">
+              <p className="animate-pulse font-naskh text-xl text-bark-500" dir="rtl">تنمو الشجرة…</p>
+            </div>
           ) : (
             <>
+            {layoutPending && (
+              <div className="pointer-events-none absolute end-4 top-4 z-20 rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-500 shadow" role="status">
+                Updating the poster…
+              </div>
+            )}
             {layout.tooDense && !showDense && (
               <TooDensePanel
                 issues={layout.clarity.issues.length}
@@ -882,7 +911,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             )}
             {/* (kept in the page while hidden, so export still has the poster) */}
             <div className={layout.tooDense && !showDense ? "invisible" : "contents"}>
-            <PosterViewport width={layout.width} height={layout.height}>
+            <PosterViewport width={layout.width} height={layout.height} reserveBottom={layout.focus ? 56 : 0}>
               <TreePoster
                 ref={svgRef}
                 layout={layout}

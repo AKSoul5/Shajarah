@@ -218,6 +218,12 @@ export interface SpouseHolder {
   /** On a dotted line (a family shown through a daughter). */
   dotted: boolean;
   lineage?: number | null;
+  /**
+   * No name: where a daughter's children whose father is not recorded part
+   * on their way from her (a knot on her dotted line, as a husband's box
+   * would be), instead of all running out of her side by side.
+   */
+  knot?: boolean;
 }
 
 export interface TrunkLabel {
@@ -2122,11 +2128,13 @@ function layoutAttempt(
       const throughHer = through.has(pid);
       if (!throughHer && !(opts.motherNames && partners.has(pid))) continue;
       const groups = new Map<string, LiveNode[]>();
+      const unknown: LiveNode[] = [];
       for (const k of kids) {
         // through a daughter: her children's fathers; otherwise a father's wives
         if (throughHer !== dotted.has(k.member.id)) continue;
         const other = throughHer ? (matri ? k.member.motherId : k.member.fatherId) : (matri ? k.member.fatherId : k.member.motherId);
         if (other && byMemberId.has(other)) groups.set(other, [...(groups.get(other) ?? []), k]);
+        else if (throughHer) unknown.push(k);
       }
       const names = [...groups.keys()].map((id) => givenAndFamilyName(byMemberId.get(id)!.name));
       for (const [sid, group] of groups) {
@@ -2147,6 +2155,21 @@ function layoutAttempt(
         h.h = fs * (1.6 + 1.05 * (h.lines.length - 1));
         holders.push(h);
         for (const k of group) holderOf.set(k.id, h);
+      }
+      // (two or more children of a daughter by a father not recorded: a knot
+      // where their dotted lines part; one runs straight from her)
+      if (unknown.length >= 2) {
+        const partner = byMemberId.get(pid)!;
+        const fs = Math.max(floorFor(fl), Math.min(...unknown.map((k) => k.fontSize)) * 0.9);
+        const lineages = new Set(unknown.map((k) => k.lineage ?? null));
+        const h: Holder = {
+          id: `spouse:${pid}:?`, member: partner, partnerId: pid, childIds: unknown.map((k) => k.id),
+          label: "", lines: [], fontSize: fs, w: fs * 0.9, h: fs * 0.9, x: 0, y: 0, dotted: true, knot: true,
+          lineage: lineages.size === 1 ? [...lineages][0] : null,
+          anchorOf: unknown[0], kids: unknown, dir: UP, clear: true,
+        };
+        holders.push(h);
+        for (const k of unknown) holderOf.set(k.id, h);
       }
     }
     // Every other recorded spouse of someone on the poster (a wife with no

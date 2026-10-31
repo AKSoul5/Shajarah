@@ -22,7 +22,10 @@ export function NasabImport({ tree, busy, onImport, onCancel }: Props) {
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">Import nasab</h2>
+      <div className="flex items-center gap-2">
+        <button type="button" className="btn-ghost px-2" onClick={onCancel}>← All</button>
+        <h2 className="text-base font-semibold text-bark-900">Paste a nasab</h2>
+      </div>
       <p className="text-sm text-gray-600">
         Paste one lineage per line, newest name first. Names already in the tree are reused, so you
         can paste each family member&apos;s nasab and they join up automatically.

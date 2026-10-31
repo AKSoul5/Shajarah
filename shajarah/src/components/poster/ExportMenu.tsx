@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type RefObject } from "react";
+import { useDismiss } from "../useDismiss";
 import {
   PAPER_SIZES, exportPdf, exportPng, exportSvg, exportTiledPdf, maxDpi, pixelSize, tileGrid, type PaperSize,
 } from "@/lib/export/exportPoster";
@@ -21,6 +22,7 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
   const [sheet, setSheet] = useState<SheetSize>("A3");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false), !!busy);
   // (a PNG or PDF is one browser canvas: very large papers at a lower resolution)
   const rasterDpi = Math.min(dpi, maxDpi(paper));
   const px = pixelSize(paper, rasterDpi);
@@ -44,13 +46,13 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
   };
 
   return (
-    <div className="relative">
-      <button type="button" className="btn-primary" onClick={() => setOpen((o) => !o)}>
+    <div className="relative" ref={menu}>
+      <button type="button" className="btn-primary whitespace-nowrap" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         Export for print ▾
       </button>
       {open && (
-        <div className="absolute end-0 z-30 mt-2 w-80 space-y-3 rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
-          <div className="grid grid-cols-2 gap-2">
+        <div className="absolute end-0 z-30 mt-2 w-96 space-y-3 rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
+          <div className="grid grid-cols-[1fr_7rem] gap-2">
             <label className="text-xs font-medium text-bark-700">
               Paper
               <select className="input mt-1" value={paper} onChange={(e) => setPaper(e.target.value as PaperSize)}>
@@ -84,7 +86,7 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
           </div>
           <div className="flex items-center gap-2 border-t border-parchment-200 pt-3">
             <button type="button" className="btn-outline flex-1 justify-between" disabled={!!busy} onClick={() => run("tiles")}>
-              <span>Tiled PDF</span><span className="text-xs text-gray-500">{busy === "tiles" ? "Rendering…" : `${paper} on ${(tiles.rows * tiles.cols).toLocaleString()} ${sheet} sheets`}</span>
+              <span className="whitespace-nowrap">Tiled PDF</span><span className="text-xs text-gray-500">{busy === "tiles" ? "Rendering…" : `${paper} on ${(tiles.rows * tiles.cols).toLocaleString()} ${sheet} sheets`}</span>
             </button>
             <select className="input w-20" value={sheet} onChange={(e) => setSheet(e.target.value as SheetSize)} aria-label="Sheet size">
               {Object.keys(SHEET_SIZES).map((k) => <option key={k} value={k}>{k}</option>)}

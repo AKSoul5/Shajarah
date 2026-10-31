@@ -8,6 +8,8 @@ interface Props {
   /** Poster size in layout units, used to fit the poster on screen. */
   width: number;
   height: number;
+  /** Room (CSS px) kept free below the poster when fitted, for a banner there. */
+  reserveBottom?: number;
   children: ReactNode;
 }
 
@@ -20,7 +22,7 @@ interface Props {
  * zooms at the pointer; dragging pans. The poster stays within half its
  * size of the view, so it cannot be scrolled out of sight.
  */
-export function PosterViewport({ width, height, children }: Props) {
+export function PosterViewport({ width, height, reserveBottom = 0, children }: Props) {
   const outer = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const behavior = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
@@ -30,13 +32,14 @@ export function PosterViewport({ width, height, children }: Props) {
   const fit = useCallback(() => {
     const el = outer.current;
     if (!el || !behavior.current) return;
-    const { clientWidth: cw, clientHeight: ch } = el;
+    const { clientWidth: cw } = el;
+    const ch = el.clientHeight - reserveBottom;
     const k = Math.min(cw / DISPLAY_W, ch / displayH) * 0.96;
     select(el).call(
       behavior.current.transform,
       zoomIdentity.translate((cw - DISPLAY_W * k) / 2, (ch - displayH * k) / 2).scale(k),
     );
-  }, [displayH]);
+  }, [displayH, reserveBottom]);
 
   useEffect(() => {
     const el = outer.current;

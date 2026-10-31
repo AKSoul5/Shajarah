@@ -2,6 +2,7 @@
 
 import { SOIL_STYLES, SOIL_STYLE_ORDER } from "@/lib/layout/soil";
 import { useState } from "react";
+import { useDismiss } from "../useDismiss";
 import { THEME_PRESETS } from "@/lib/theme";
 import type { PosterTheme, ThemePreset } from "@/lib/types";
 
@@ -17,6 +18,7 @@ interface Props {
 /** Theme presets, colour pickers, node shape and label options. */
 export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameAvailable = true }: Props) {
   const [open, setOpen] = useState(false);
+  const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false));
   const [soilDraft, setSoilDraft] = useState(soilText ?? "");
   const color = (key: "male" | "female" | "ancestor" | "branch", label: string) => (
     <label className="flex items-center justify-between gap-2 text-sm">
@@ -31,12 +33,12 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
   );
 
   return (
-    <div className="relative">
-      <button type="button" className="btn-outline" onClick={() => setOpen((o) => !o)}>
+    <div className="relative" ref={menu}>
+      <button type="button" className="btn-outline whitespace-nowrap" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         🎨 Style ▾
       </button>
       {open && (
-        <div className="absolute end-0 z-30 mt-2 max-h-[80vh] w-80 space-y-4 overflow-auto rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
+        <div className="absolute end-0 z-30 mt-2 max-h-[80vh] w-96 space-y-4 overflow-auto rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
           <section>
             <h4 className="section-title">Theme</h4>
             <div className="grid grid-cols-2 gap-1.5">
@@ -70,7 +72,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             {color("branch", "Branches & trunk")}
             <label className="flex items-center justify-between text-sm">
               Colour nodes by
-              <select className="input w-36" value={theme.colorBy} onChange={(e) => onChange({ colorBy: e.target.value as PosterTheme["colorBy"] })}>
+              <select className="input w-48" value={theme.colorBy} onChange={(e) => onChange({ colorBy: e.target.value as PosterTheme["colorBy"] })}>
                 <option value="gender">Gender</option>
                 <option value="generation">Generation</option>
               </select>
@@ -85,7 +87,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             <h4 className="section-title">Nodes & labels</h4>
             <label className="flex items-center justify-between text-sm">
               Shape
-              <select className="input w-36" value={theme.nodeShape} onChange={(e) => onChange({ nodeShape: e.target.value as PosterTheme["nodeShape"] })}>
+              <select className="input w-48" value={theme.nodeShape} onChange={(e) => onChange({ nodeShape: e.target.value as PosterTheme["nodeShape"] })}>
                 <option value="auto">Auto</option>
                 <option value="leaf">Leaves</option>
                 <option value="circle">Circular badges</option>
@@ -94,21 +96,21 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             </label>
             <label className="flex items-center justify-between text-sm">
               Label
-              <select className="input w-36" value={theme.labelMode} onChange={(e) => onChange({ labelMode: e.target.value as PosterTheme["labelMode"] })}>
+              <select className="input w-48" value={theme.labelMode} onChange={(e) => onChange({ labelMode: e.target.value as PosterTheme["labelMode"] })}>
                 <option value="name">First name</option>
                 <option value="withFather">Name بن father</option>
               </select>
             </label>
             <label className="flex items-center justify-between text-sm">
               Trunk ancestors
-              <select className="input w-36" value={theme.trunkStyle} onChange={(e) => onChange({ trunkStyle: e.target.value as PosterTheme["trunkStyle"] })}>
+              <select className="input w-48" value={theme.trunkStyle} onChange={(e) => onChange({ trunkStyle: e.target.value as PosterTheme["trunkStyle"] })}>
                 <option value="carved">Carved in bark</option>
                 <option value="badges">Framed badges</option>
               </select>
             </label>
             <label className="flex items-center justify-between text-sm" title="How a wife's (or husband's) name is set on the branch, when spouses are shown">
               Spouses
-              <select className="input w-36" value={theme.spouseStyle} onChange={(e) => onChange({ spouseStyle: e.target.value as PosterTheme["spouseStyle"] })}>
+              <select className="input w-48" value={theme.spouseStyle} onChange={(e) => onChange({ spouseStyle: e.target.value as PosterTheme["spouseStyle"] })}>
                 <option value="manuscript">Manuscript cartouche</option>
                 <option value="capsule">Soft capsule</option>
                 <option value="inscribed">Inscribed, no box</option>
@@ -116,7 +118,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             </label>
             <label className="flex items-center justify-between text-sm" title="How the ancient lineage below the trunk is drawn">
               Foundation
-              <select className="input w-36" value={theme.soilStyle} onChange={(e) => onChange({ soilStyle: e.target.value as PosterTheme["soilStyle"] })}>
+              <select className="input w-48" value={theme.soilStyle} onChange={(e) => onChange({ soilStyle: e.target.value as PosterTheme["soilStyle"] })}>
                 {SOIL_STYLE_ORDER.map((id) => (
                   <option key={id} value={id} title={SOIL_STYLES[id].description}>{SOIL_STYLES[id].label}</option>
                 ))}
@@ -124,14 +126,14 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             </label>
             <label className="flex items-center justify-between text-sm" title="A lineage too long for the foundation's share of the page">
               Foundation names
-              <select className="input w-36" value={theme.soilShorten ? "shorten" : "all"} onChange={(e) => onChange({ soilShorten: e.target.value === "shorten" })}>
+              <select className="input w-48" value={theme.soilShorten ? "shorten" : "all"} onChange={(e) => onChange({ soilShorten: e.target.value === "shorten" })}>
                 <option value="all">Every name</option>
                 <option value="shorten">Shorten long lineages (…)</option>
               </select>
             </label>
             <label className="flex items-center justify-between text-sm">
               Background
-              <select className="input w-36" value={theme.background} onChange={(e) => onChange({ background: e.target.value as PosterTheme["background"] })}>
+              <select className="input w-48" value={theme.background} onChange={(e) => onChange({ background: e.target.value as PosterTheme["background"] })}>
                 <option value="parchment">Parchment</option>
                 <option value="white">Plain white</option>
               </select>

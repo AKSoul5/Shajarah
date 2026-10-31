@@ -437,7 +437,10 @@ works the other way round in a mother's-line tree.
   who married into the family, nor a daughter married to a cousin of the
   line: their children are of the line.)
 - **A daughter's child whose father is not recorded** is drawn from her on
-  a dotted line too, never as one of the line.
+  a dotted line too, never as one of the line. Two or more such children
+  share one dotted line from her to a small bead, where their lines part
+  (as they would at a husband's cartouche), instead of all running out of
+  her side by side like a rope (tests/husbands-and-badges.test.ts).
 - **A daughter keeps her colour** when she has children of another family
   (with a parent's gold rim); only the line's own parents are ivory.
 
@@ -1176,6 +1179,22 @@ in, Shift + wheel scrolls sideways, Ctrl/⌘ + wheel (or a pinch) zooms at
 the pointer, and dragging pans; **＋ / － / Fit** zoom and fit the poster.
 It can be scrolled no more than half its size past the view, so it is
 never lost.
+
+- **The editor never freezes while the poster is laid out.** A large
+  family takes a few seconds to lay out (about 3 s for 245 people). That
+  now happens in the background (a web worker): the list, the forms and the
+  menus answer at once. The last poster stays on screen, marked
+  *Updating the poster…*, until the new one is ready. Several quick changes
+  make one new layout, not a queue of them.
+- **Menus** (Style, Export for print) close on a click outside them or on
+  Escape, and only one is open at a time.
+- **The side panels** (Files, Nasab, New member, a person, Not on the
+  poster) each have **← All** at the top to go back to the member list.
+- **Married-in wives and husbands** (no parents of their own on record) are
+  listed in the generation of the one they married, marked *wife* or
+  *husband*, not at the very top as generation 1.
+- **A branch poster's banner** ("Showing only the branch of …") sits under
+  the poster when it is fitted, not over its foundation.
 
 ## The order of brothers and sisters
 
