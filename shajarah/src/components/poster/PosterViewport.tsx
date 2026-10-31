@@ -10,6 +10,11 @@ interface Props {
   height: number;
   /** Room (CSS px) kept free below the poster when fitted, for a banner there. */
   reserveBottom?: number;
+  /**
+   * A point (poster units) to bring to the middle of the view, zoomed in to
+   * at least `zoom` times the fitted size; a new `seq` moves there again.
+   */
+  focusOn?: { x: number; y: number; zoom: number; seq: number } | null;
   children: ReactNode;
 }
 
@@ -22,7 +27,7 @@ interface Props {
  * zooms at the pointer; dragging pans. The poster stays within half its
  * size of the view, so it cannot be scrolled out of sight.
  */
-export function PosterViewport({ width, height, reserveBottom = 0, children }: Props) {
+export function PosterViewport({ width, height, reserveBottom = 0, focusOn = null, children }: Props) {
   const outer = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const behavior = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
@@ -80,12 +85,28 @@ export function PosterViewport({ width, height, reserveBottom = 0, children }: P
     };
   }, [fit, displayH]);
 
+  // to a name the editor asks for (found by search, chosen in the list)
+  useEffect(() => {
+    const el = outer.current;
+    if (!el || !behavior.current || !focusOn) return;
+    const { clientWidth: cw, clientHeight: ch } = el;
+    const fitK = Math.min(cw / DISPLAY_W, (ch - reserveBottom) / displayH) * 0.96;
+    const k = Math.min(12, Math.max(zoomTransform(el).k, fitK * focusOn.zoom));
+    const px = (focusOn.x / width) * DISPLAY_W, py = (focusOn.y / width) * DISPLAY_W;
+    select(el).call(behavior.current.transform, zoomIdentity.translate(cw / 2 - px * k, ch / 2 - py * k).scale(k));
+    // (seq is what moves it: the same point asked for again goes there again)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusOn?.seq]);
+
   const zoomBy = (k: number) => {
     if (outer.current && behavior.current) select(outer.current).call(behavior.current.scaleBy, k);
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#d9ccb0]" ref={outer}>
+    // (never scrolled itself: pan and zoom move the poster; a browser
+    // bringing something into view would otherwise shift the whole frame)
+    <div className="relative h-full w-full overflow-hidden bg-[#d9ccb0]" ref={outer}
+      onScroll={(e) => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; }}>
       <div ref={inner} style={{ width: DISPLAY_W, height: displayH, transformOrigin: "0 0" }} className="shadow-2xl">
         {children}
       </div>

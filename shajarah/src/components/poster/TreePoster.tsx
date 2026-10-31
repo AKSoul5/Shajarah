@@ -31,6 +31,11 @@ interface Props {
   /** Mark the spots the relationship-clarity check flagged (editor only). */
   showIssues?: boolean;
   onSelect?: (memberId: string) => void;
+  /** A name right-clicked (editor only): its menu opens at the pointer. */
+  onMenu?: (memberId: string, clientX: number, clientY: number) => void;
+  /** Names found by the poster's search, ringed in gold; `currentMarkId` the one shown now (editor only). */
+  markedIds?: Set<string>;
+  currentMarkId?: string | null;
   /**
    * Names dragged among their brothers and sisters (editor only): dropped on
    * a sibling, a name takes that sibling's place in the birth order.
@@ -124,7 +129,7 @@ function SatinGradient({ id, color }: { id: string; color: string }) {
  */
 export const TreePoster = memo(
   forwardRef<SVGSVGElement, Props>(function TreePoster(
-    { layout, meta, theme, selectedId, lineageIds, showIssues, onSelect, reorder, className, frameSrc },
+    { layout, meta, theme, selectedId, lineageIds, showIssues, onSelect, onMenu, markedIds, currentMarkId, reorder, className, frameSrc },
     ref,
   ) {
     const { width: W, height: H, rtl } = layout;
@@ -136,7 +141,10 @@ export const TreePoster = memo(
       return rim ? { ...f, border: rim } : f;
     };
     const artwork = theme.frame && !!frameSrc && !pal.mono;
-    const click = (id: string) => (onSelect ? { onClick: () => onSelect(id), style: { cursor: "pointer" }, "data-member": id } : {});
+    const click = (id: string) => (onSelect ? {
+      onClick: () => onSelect(id), style: { cursor: "pointer" }, "data-member": id,
+      ...(onMenu ? { onContextMenu: (e: { preventDefault: () => void; clientX: number; clientY: number }) => { e.preventDefault(); onMenu(id, e.clientX, e.clientY); } } : {}),
+    } : {});
     const tracing = !!selectedId && !!lineageIds && lineageIds.size > 0;
     const onLine = (id: string) => id === selectedId || !!lineageIds?.has(id);
 
@@ -261,6 +269,23 @@ export const TreePoster = memo(
                   width={n.w + n.fontSize * 0.6} height={n.h + n.fontSize * 0.6} rx={n.fontSize * 0.6}
                   stroke="#c62828" strokeWidth={n.fontSize * 0.18} />
               ))}
+          </g>
+        )}
+        {markedIds && markedIds.size > 0 && (
+          // names the search found: a gold ring each, the one shown now bolder
+          <g data-ui="find" fill="none" pointerEvents="none">
+            {[...layout.nodes, ...layout.stubs, ...(layout.base ? [layout.base] : [])]
+              .filter((n) => markedIds.has(n.id))
+              .map((n) => (
+                <rect key={n.id} x={n.x - n.w / 2 - n.fontSize * 0.45} y={n.y - n.h / 2 - n.fontSize * 0.45}
+                  width={n.w + n.fontSize * 0.9} height={n.h + n.fontSize * 0.9} rx={n.fontSize * 0.75}
+                  stroke="#c39a3c" strokeWidth={n.fontSize * (n.id === currentMarkId ? 0.32 : 0.16)} />
+              ))}
+            {layout.trunkLabels.filter((l) => markedIds.has(l.member.id)).map((l) => (
+              <rect key={l.member.id} x={l.x - l.w / 2 - l.fontSize * 0.3} y={l.y - l.h / 2 - l.fontSize * 0.3}
+                width={l.w + l.fontSize * 0.6} height={l.h + l.fontSize * 0.6} rx={l.fontSize * 0.5}
+                stroke="#c39a3c" strokeWidth={l.fontSize * (l.member.id === currentMarkId ? 0.3 : 0.15)} />
+            ))}
           </g>
         )}
         {reorder && <ReorderLayer layout={layout} reorder={reorder} />}

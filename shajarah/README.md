@@ -1217,8 +1217,27 @@ never lost.
   menus answer at once. The last poster stays on screen, marked
   *Updating the poster…*, until the new one is ready. Several quick changes
   make one new layout, not a queue of them.
-- **Menus** (Style, Export for print) close on a click outside them or on
-  Escape, and only one is open at a time.
+- **Menus** (View, Style, Export for print, the undo history) close on a
+  click outside them or on Escape, and only one is open at a time.
+- **The header** keeps to one row on a laptop (1024 px and up): undo and
+  redo sit together with the list of recent steps (**▾**: choose one to go
+  back to just before it; every later step can be redone), and what the
+  poster shows is under **View ▾**: daughters, spouses, the traced line,
+  the member list and full screen.
+- **More room for the poster:** **«** on the member list's edge (or **[**)
+  folds it to a thin rail, remembered on this computer; **F** (or View →
+  Full screen) gives the whole window to the poster, with **Exit** and
+  **Export** in its corner, and **Esc** comes back.
+- **Find a name on the poster:** **Ctrl/⌘+F** (or **Find a name**, at the
+  poster's top corner). Every match is ringed in gold, and the view zooms to
+  each in turn (**Enter** next, **Shift+Enter** back, **Alt+Enter** opens
+  that person). A nasab finds one person: «أحمد بن سالم».
+- **Choosing someone in the list** (or on a relationship's path) brings
+  them into view on the poster.
+- **Right-click a name on the poster** for its menu: open, trace their
+  line, how they are related to someone, add a child, centre this branch,
+  show a daughter's family, a poster of this branch, hide from the poster,
+  start the canopy here.
 - **The side panels** (Files, Nasab, New member, a person, Not on the
   poster) each have **← All** at the top to go back to the member list.
 - **Married-in wives and husbands** (no parents of their own on record) are

@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { computePosterLayout } from "@/lib/layout/botanical";
 import { usePosterLayout } from "./usePosterLayout";
+import { ViewMenu } from "./ViewMenu";
+import { UndoControls } from "./UndoControls";
+import { PersonMenu, type PersonMenuItem } from "./PersonMenu";
 import { MemberPicker } from "./MemberPicker";
 import { relationship } from "@/lib/relationship";
 import { branchHeads, clearestPaper, rankBranches, smallestClearPaper, type BranchOption } from "@/lib/layout/branches";
@@ -146,6 +149,17 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const selected = tree.members.find((m) => m.id === selectedId) ?? null;
   // The selected person's direct line, from the data (not from the drawing)
   const [trace, setTrace] = useState(true);
+  // The member list can fold away (remembered on this computer), and the
+  // poster can fill the window
+  const [sidebarOpen, setSidebarOpenState] = useState(true);
+  const [fullScreen, setFullScreen] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem("shajarah:sidebar") === "closed") setSidebarOpenState(false); } catch { /* storage unavailable */ }
+  }, []);
+  const setSidebarOpen = useCallback((open: boolean) => {
+    setSidebarOpenState(open);
+    try { localStorage.setItem("shajarah:sidebar", open ? "open" : "closed"); } catch { /* storage unavailable */ }
+  }, []);
   // A poster too dense for its paper is replaced by its options, unless asked for
   const [showDense, setShowDense] = useState(false);
   // How the selected person is related to another, chosen on their panel:
@@ -169,6 +183,52 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   }, [selected, trace, tree.members, tree.lineage, kinship, layout?.spouses]);
 
   const select = useCallback((id: string) => setPanel({ kind: "edit", id }), []);
+
+  // ── Bringing a name into view, and finding names on the poster ──────────
+  // Where each name drawn on the poster is (canopy, trunk, the canopy base)
+  const posterSpots = useMemo(() => {
+    const at = new Map<string, { x: number; y: number }>();
+    if (!layout) return at;
+    for (const n of [...layout.nodes, ...layout.stubs, ...(layout.base ? [layout.base] : [])]) at.set(n.id, { x: n.x, y: n.y });
+    for (const l of layout.trunkLabels) at.set(l.member.id, { x: l.x, y: l.y });
+    return at;
+  }, [layout]);
+  const [focusOn, setFocusOn] = useState<{ x: number; y: number; zoom: number; seq: number } | null>(null);
+  const focusSeq = useRef(0);
+  const showOnPoster = useCallback((id: string, zoom = 1.6) => {
+    const p = posterSpots.get(id);
+    if (p) setFocusOn({ ...p, zoom, seq: ++focusSeq.current });
+  }, [posterSpots]);
+  /** Opens someone chosen away from the poster (the list, a path) and brings them into view on it. */
+  const selectAndShow = useCallback((id: string) => {
+    select(id);
+    showOnPoster(id);
+  }, [select, showOnPoster]);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findIndex, setFindIndex] = useState(0);
+  const findInput = useRef<HTMLInputElement>(null);
+  // (a name anywhere in it, or a nasab from its start: «أحمد بن سالم»)
+  const findMatches = useMemo(() => {
+    const q = normalizeName(findQuery.trim());
+    if (!q) return [];
+    const byId = new Map(tree.members.map((m) => [m.id, m]));
+    return [...posterSpots.keys()].filter((id) => {
+      const m = byId.get(id);
+      return !!m && (normalizeName(m.name).includes(q) || normalizeName(nasab(tree.members, id, 4)).startsWith(q));
+    });
+  }, [findQuery, posterSpots, tree.members]);
+  const findCurrent = findMatches.length ? findMatches[Math.min(findIndex, findMatches.length - 1)] : null;
+  useEffect(() => setFindIndex(0), [findQuery]);
+  useEffect(() => {
+    if (findOpen && findCurrent) showOnPoster(findCurrent, 3);
+    // (the found name, again whenever the poster's layout changes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [findOpen, findCurrent, findIndex]);
+  const findStep = (d: number) => findMatches.length && setFindIndex((i) => (i + d + findMatches.length) % findMatches.length);
+  const markedIds = useMemo(() => (findOpen ? new Set(findMatches) : undefined), [findOpen, findMatches]);
+  // A name's own menu, opened by a right-click on the poster
+  const [personMenu, setPersonMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const saveNew = async (input: CreateMemberInput) => {
     const before = new Set(tree.members.map((m) => m.id));
@@ -249,7 +309,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
 
   /** Undo or redo one step: show it at once, then make the server match. */
   const travel = useCallback(
-    async (dir: "undo" | "redo") => {
+    async (dir: "undo" | "redo", steps = 1) => {
       if (busyRef.current) return;
       const pending = pendingSettings.current;
       if (pending) {
@@ -259,8 +319,15 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
       }
       const current = treeRef.current;
       const prev = historyRef.current;
-      const step = dir === "undo" ? undo(prev, current) : redo(prev, current);
-      if (!step) return;
+      // (several steps at once from the history list: one save to the server)
+      const first = dir === "undo" ? undo(prev, current) : redo(prev, current);
+      if (!first) return;
+      let step: NonNullable<typeof first> = first;
+      for (let i = 1; i < steps; i++) {
+        const next: typeof first | null = dir === "undo" ? undo(step.history, step.tree) : redo(step.history, step.tree);
+        if (!next) break;
+        step = next;
+      }
       commitHistory(step.history);
       treeRef.current = step.tree;
       setTree(step.tree);
@@ -276,8 +343,32 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   );
   const travelRef = useRef(travel);
   travelRef.current = travel;
+  const layoutKeysRef = useRef({ toggleSidebar: () => {}, toggleFullScreen: () => {}, exitFullScreen: () => {}, openFind: () => false as boolean });
+  layoutKeysRef.current = {
+    openFind: () => {
+      if (view !== "poster") return false;
+      setFindOpen(true);
+      requestAnimationFrame(() => findInput.current?.select());
+      return true;
+    },
+    toggleSidebar: () => setSidebarOpen(!sidebarOpen),
+    toggleFullScreen: () => setFullScreen((f) => !f),
+    exitFullScreen: () => setFullScreen(false),
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // [ folds the member list, F fills the window with the poster, Escape
+      // leaves full screen (not while typing)
+      // Ctrl/⌘+F finds a name on the poster (instead of the browser's find)
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") {
+        if (layoutKeysRef.current.openFind()) { e.preventDefault(); return; }
+      }
+      const typing = (e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']");
+      if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key === "[") { e.preventDefault(); layoutKeysRef.current.toggleSidebar(); return; }
+        if (e.key === "f" || e.key === "F") { e.preventDefault(); layoutKeysRef.current.toggleFullScreen(); return; }
+        if (e.key === "Escape") layoutKeysRef.current.exitFullScreen();
+      }
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
       // inside a text field the browser's own undo edits the text
       const el = e.target as HTMLElement | null;
@@ -299,8 +390,6 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   useEffect(() => {
     if (panel.kind === "edit" && !tree.members.some((m) => m.id === panel.id)) setPanel({ kind: "list" });
   }, [panel, tree.members]);
-  const nextUndo = history.undo.at(-1);
-  const nextRedo = history.redo.at(-1);
 
   // What to offer when no single poster size is enough for the whole family
   // (inside a branch poster: its sub-branches, so a branch can be narrowed again)
@@ -448,7 +537,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-parchment-100 text-bark-900">
-      <header className="relative z-40 flex items-center gap-4 border-b border-parchment-300 bg-white/80 px-4 py-2.5 backdrop-blur">
+      <header className={`relative z-40 flex items-center gap-3 border-b border-parchment-300 bg-white/80 px-4 py-2.5 backdrop-blur ${fullScreen ? "hidden" : ""}`}>
         <Link href="/" className="font-naskh text-2xl font-bold text-bark-700">شجرة</Link>
         <div className="min-w-0">
           <h1 className="truncate font-naskh text-lg font-bold" dir="auto">{tree.name}</h1>
@@ -457,7 +546,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             {mode === "local" && " · demo mode (changes are not saved)"}
           </p>
         </div>
-        <div role="tablist" aria-label="View" className="flex overflow-hidden rounded-md border border-parchment-300 text-sm">
+        <div role="tablist" aria-label="View" className="flex shrink-0 overflow-hidden rounded-md border border-parchment-300 text-sm">
           {(["poster", "sources"] as const).map((v) => (
             <button
               key={v}
@@ -472,43 +561,27 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           ))}
         </div>
         <div className="ms-auto flex items-center gap-3">
-          {/* in a matrilineal tree the women are the line: they are always shown */}
-          {tree.lineage !== "MATRILINEAL" && (
-            <label className="flex items-center gap-2 whitespace-nowrap text-sm">
-              <input type="checkbox" checked={showFemales} onChange={(e) => updateSettings({ showFemales: e.target.checked })} />
-              Show daughters
-            </label>
-          )}
-          <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="Each wife (or husband) as a cartouche on the branch, her children growing from it">
-            <input type="checkbox" checked={theme.motherNames} onChange={(e) => updateSettings({ theme: { ...theme, motherNames: e.target.checked } })} />
-            Show spouses
-          </label>
-          <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="Select a person to highlight their ancestors and descendants">
-            <input type="checkbox" checked={trace} onChange={(e) => setTrace(e.target.checked)} />
-            Trace lineage
-          </label>
-          <div className="flex items-center" role="group" aria-label="Undo and redo">
-            <button
-              type="button"
-              className="btn-ghost px-2 text-lg leading-none disabled:opacity-30"
-              aria-label={nextUndo ? `Undo: ${nextUndo.label}` : "Undo"}
-              title={nextUndo ? `Undo: ${nextUndo.label} (Ctrl/⌘+Z)` : "Nothing to undo"}
-              disabled={!nextUndo || busy}
-              onClick={() => void travel("undo")}
-            >
-              ↶
-            </button>
-            <button
-              type="button"
-              className="btn-ghost px-2 text-lg leading-none disabled:opacity-30"
-              aria-label={nextRedo ? `Redo: ${nextRedo.label}` : "Redo"}
-              title={nextRedo ? `Redo: ${nextRedo.label} (Ctrl/⌘+Shift+Z)` : "Nothing to redo"}
-              disabled={!nextRedo || busy}
-              onClick={() => void travel("redo")}
-            >
-              ↷
-            </button>
-          </div>
+          <UndoControls
+            undo={history.undo}
+            redo={history.redo}
+            busy={busy}
+            onUndo={() => void travel("undo")}
+            onRedo={() => void travel("redo")}
+            onUndoSteps={(n) => void travel("undo", n)}
+          />
+          <ViewMenu
+            toggles={[
+              // (in a matrilineal tree the women are the line: they are always shown)
+              ...(tree.lineage !== "MATRILINEAL"
+                ? [{ label: "Show daughters", checked: showFemales, onChange: (on: boolean) => updateSettings({ showFemales: on }) }]
+                : []),
+              { label: "Show spouses", checked: theme.motherNames, onChange: (on: boolean) => updateSettings({ theme: { ...theme, motherNames: on } }),
+                title: "Each wife (or husband) as a cartouche on the branch, her children growing from it" },
+              { label: "Trace lineage", checked: trace, onChange: setTrace, title: "Select a person to highlight their ancestors and descendants" },
+              { label: "Member list", checked: sidebarOpen, onChange: setSidebarOpen, keys: "[" },
+              { label: "Full screen", checked: fullScreen, onChange: setFullScreen, keys: "F" },
+            ]}
+          />
           <StylePanel
             theme={theme}
             onChange={(patch) => updateSettings({ theme: { ...theme, ...patch } })}
@@ -517,10 +590,10 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             frameAvailable={frameSrc !== null}
           />
           <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="The printed size the poster is designed for">
-            Poster
-            <select className="input w-auto py-1" value={posterSize} onChange={(e) => updateSettings({ posterSize: e.target.value as PaperSize })}>
+            <span className="hidden xl:inline">Poster</span>
+            <select aria-label="Poster size" className="input w-auto py-1" value={posterSize} onChange={(e) => updateSettings({ posterSize: e.target.value as PaperSize })}>
               {PAPER_ORDER.map((p) => (
-                <option key={p} value={p}>{p} — {PAPER_SIZES[p].w}×{PAPER_SIZES[p].h} mm</option>
+                <option key={p} value={p}>{p} ({PAPER_SIZES[p].w}×{PAPER_SIZES[p].h})</option>
               ))}
             </select>
           </label>
@@ -537,8 +610,23 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="relative flex min-h-0 w-[380px] shrink-0 flex-col overflow-hidden border-e border-parchment-300 bg-white">
+      <div className="relative flex min-h-0 flex-1">
+        {sidebarOpen && !fullScreen && (
+          // a small tab on the list's edge folds it away
+          <button type="button" onClick={() => setSidebarOpen(false)} title="Hide the member list ( [ )" aria-label="Hide the member list"
+            className="absolute start-[380px] top-3 z-20 rounded-e-md border border-s-0 border-parchment-300 bg-white px-1 py-2 text-xs text-bark-500 shadow-sm hover:bg-parchment-50 hover:text-bark-900">
+            «
+          </button>
+        )}
+        {!sidebarOpen && !fullScreen && (
+          // the member list folded away: a thin rail to bring it back
+          <button type="button" onClick={() => setSidebarOpen(true)} title="Show the member list ( [ )" aria-label="Show the member list"
+            className="flex w-9 shrink-0 items-start justify-center border-e border-parchment-300 bg-white pt-3 text-bark-500 hover:bg-parchment-50 hover:text-bark-900">
+            »
+          </button>
+        )}
+        <aside className={`relative min-h-0 w-[380px] shrink-0 flex-col overflow-hidden border-e border-parchment-300 bg-white ${sidebarOpen && !fullScreen ? "flex" : "hidden"}`}>
+
           {error && (
             <div className="m-3 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-800">
               {error} <button className="ms-2 underline" onClick={() => setError(null)}>dismiss</button>
@@ -583,7 +671,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   <li key={m.id}>
                     <button
                       type="button"
-                      onClick={() => select(m.id)}
+                      onClick={() => selectAndShow(m.id)}
                       className="flex w-full items-center gap-2 border-b border-parchment-100 px-3 py-1.5 text-start hover:bg-parchment-50"
                     >
                       <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: generationColor(m.generation).fill }} />
@@ -774,7 +862,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                           return (
                             <li key={id} className="flex items-center gap-1">
                               {i > 0 && <span className="text-bark-400">{i <= kinship.up ? "↑" : "↓"}</span>}
-                              <button type="button" onClick={() => select(id)}
+                              <button type="button" onClick={() => selectAndShow(id)}
                                 className={`rounded-full border px-2 py-0.5 font-naskh text-sm ${shared ? "border-gilt-500 bg-parchment-100 font-bold" : "border-parchment-300 bg-white"}`}
                                 title={shared ? "Their nearest shared ancestor" : undefined}>
                                 {m?.name}
@@ -919,6 +1007,78 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         </aside>
 
         <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          {/* the poster's own controls, stacked in its top corner: full
+              screen's exit, finding a name, and the layout under way */}
+          <div className="pointer-events-none absolute end-4 top-4 z-30 flex flex-col items-end gap-2 [&>*]:pointer-events-auto">
+          {fullScreen && (
+            <div className="flex items-center gap-2 rounded-full border border-parchment-300 bg-white/95 px-2 py-1 shadow">
+              <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
+                ✕ Exit full screen
+              </button>
+              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} />
+            </div>
+          )}
+          {view === "poster" && layout && (
+            findOpen ? (
+              <div role="search" className="flex items-center gap-1 rounded-full border border-parchment-300 bg-white/95 py-1 pe-1 ps-3 shadow">
+                <SearchIcon />
+                <input ref={findInput} autoFocus className="w-56 bg-transparent px-1 py-0.5 text-sm outline-none" dir="auto"
+                  placeholder="Find a name on the poster…" aria-label="Find a name on the poster" value={findQuery}
+                  onChange={(e) => setFindQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); if (e.altKey && findCurrent) selectAndShow(findCurrent); else findStep(e.shiftKey ? -1 : 1); }
+                    if (e.key === "Escape") { e.preventDefault(); setFindOpen(false); }
+                  }} />
+                <span className="min-w-[3.5rem] text-center text-xs text-bark-500" aria-live="polite">
+                  {findQuery.trim() ? (findMatches.length ? `${Math.min(findIndex, findMatches.length - 1) + 1} of ${findMatches.length}` : "none") : ""}
+                </span>
+                <button type="button" className="rounded-full px-1.5 text-bark-600 hover:bg-parchment-100 disabled:opacity-30" aria-label="Previous" title="Previous (Shift+Enter)" disabled={findMatches.length < 2} onClick={() => findStep(-1)}>↑</button>
+                <button type="button" className="rounded-full px-1.5 text-bark-600 hover:bg-parchment-100 disabled:opacity-30" aria-label="Next" title="Next (Enter)" disabled={findMatches.length < 2} onClick={() => findStep(1)}>↓</button>
+                <button type="button" className="rounded-full px-2 text-xs text-bark-700 hover:bg-parchment-100 disabled:opacity-30" disabled={!findCurrent} title="Open this person (Alt+Enter)" onClick={() => findCurrent && selectAndShow(findCurrent)}>Open</button>
+                <button type="button" className="rounded-full px-1.5 text-bark-500 hover:bg-parchment-100" aria-label="Close" title="Close (Esc)" onClick={() => setFindOpen(false)}>✕</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => layoutKeysRef.current.openFind()} title="Find a name on the poster (Ctrl/⌘+F)"
+                className="flex items-center gap-1.5 rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-600 shadow-sm hover:bg-white">
+                <SearchIcon /> Find a name
+              </button>
+            )
+          )}
+          {view === "poster" && layout && layoutPending && (
+            <div className="rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-500 shadow" role="status">
+              Updating the poster…
+            </div>
+          )}
+          </div>
+          {personMenu && layout && (() => {
+            const id = personMenu.id;
+            const m = tree.members.find((x) => x.id === id);
+            if (!m) return null;
+            const inCanopy = canopyIds.has(id);
+            const ownFamily = tree.members.some((c) => (tree.lineage === "MATRILINEAL" ? c.fatherId === id : c.motherId === id));
+            const hasDescendants = tree.members.some((c) => c.fatherId === id || c.motherId === id);
+            const her = m.gender === "FEMALE";
+            const items: PersonMenuItem[] = [
+              { label: "Open", onClick: () => select(id) },
+              { label: "Trace their line", onClick: () => { setTrace(true); select(id); } },
+              { label: "How are they related to…", onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("section[aria-label=Relationship] input")?.focus()); } },
+              { label: "Add a child…", onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("aside input[placeholder^='Add a']")?.focus()); }, divider: true },
+              tree.settings?.centerBranchId === id
+                ? { label: "✓ Centred — reset", onClick: () => updateSettings({ centerBranchId: null }), divider: true }
+                : { label: "Centre this branch", onClick: () => updateSettings({ centerBranchId: id }), disabled: !inCanopy, title: inCanopy ? undefined : "Only a branch in the canopy can be centred", divider: true },
+              ...(ownFamily ? [familiesThrough.includes(id)
+                ? { label: `✓ ${her ? "Her" : "His"} family shown — hide`, onClick: () => updateSettings({ familiesThrough: familiesThrough.filter((x) => x !== id) }) }
+                : { label: `Show ${her ? "her husband and children" : "his wife and children"}`, onClick: () => updateSettings({ familiesThrough: [...familiesThrough, id] }) }] : []),
+              tree.settings?.focusId === id
+                ? { label: "✓ Branch poster — show the whole family", onClick: () => updateSettings({ focusId: null }) }
+                : { label: "Poster of this branch only", onClick: () => updateSettings({ focusId: id }), disabled: !hasDescendants, title: hasDescendants ? undefined : "No descendants recorded yet" },
+              ...(!standsOn.has(id) ? [{ label: `Hide from the poster${hiddenWith(id) > 0 ? ` (and ${hiddenWith(id)} descendants)` : ""}`, onClick: () => updateSettings({ hiddenIds: [...hiddenIds, id] }) }] : []),
+              tree.crownBaseId === id
+                ? { label: "✓ Canopy starts here — reset", onClick: () => void mutate(() => repo.updateTree({ crownBaseId: null }), { label: "Reset the canopy start" }), divider: true }
+                : { label: "Start the canopy here", onClick: () => void mutate(() => repo.updateTree({ crownBaseId: id }), { label: "Set the canopy start" }), divider: true },
+            ];
+            return <PersonMenu name={nasab(tree.members, id, 2)} x={personMenu.x} y={personMenu.y} items={items} onClose={() => setPersonMenu(null)} />;
+          })()}
           {view === "sources" ? (
             <SourcesPage
               tree={tree}
@@ -948,11 +1108,6 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             </div>
           ) : (
             <>
-            {layoutPending && (
-              <div className="pointer-events-none absolute end-4 top-4 z-20 rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-500 shadow" role="status">
-                Updating the poster…
-              </div>
-            )}
             {layout.tooDense && !showDense && (
               <TooDensePanel
                 issues={layout.clarity.issues.length}
@@ -966,7 +1121,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             )}
             {/* (kept in the page while hidden, so export still has the poster) */}
             <div className={layout.tooDense && !showDense ? "invisible" : "contents"}>
-            <PosterViewport width={layout.width} height={layout.height} reserveBottom={layout.focus ? 56 : 0}>
+            <PosterViewport width={layout.width} height={layout.height} reserveBottom={layout.focus ? 56 : 0} focusOn={focusOn}>
               <TreePoster
                 ref={svgRef}
                 layout={layout}
@@ -976,6 +1131,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 lineageIds={lineageIds}
                 showIssues
                 onSelect={select}
+                onMenu={(id, x, y) => setPersonMenu({ id, x, y })}
+                markedIds={markedIds}
+                currentMarkId={findCurrent}
                 reorder={reorder}
                 frameSrc={frameSrc}
                 className="block h-full w-full"
@@ -1342,5 +1500,15 @@ function FallbackActions({ branches, measure, onFocus, onHideDaughters, onTiled 
         </button>
       )}
     </div>
+  );
+}
+
+/** A magnifier, drawn (the "⌕" character varies from one system to another). */
+function SearchIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <circle cx="6.8" cy="6.8" r="4.6" />
+      <path d="M10.3 10.3 14 14" />
+    </svg>
   );
 }
