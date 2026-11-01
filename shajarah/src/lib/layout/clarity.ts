@@ -29,7 +29,7 @@
  * Passing these checks is necessary, not sufficient: renders must still be
  * inspected at print scale.
  */
-import { lineageParentId, posterParentId } from "../genealogy";
+import { posterParentId } from "../genealogy";
 import type { TreeDTO } from "../types";
 import type { Edge, PosterLayout } from "./botanical";
 import type { Vec } from "./geometry";
@@ -101,7 +101,9 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
   // trunk: bottom → top must follow the data, father to son, ending at the base
   const chain = [...layout.trunkLabels.map((t) => t.member), ...(layout.base ? [layout.base.member] : [])];
   for (let i = 1; i < chain.length; i++) {
-    if (lineageParentId(chain[i], tree.lineage) !== chain[i - 1].id) {
+    // (a family shown through a daughter stands on her: her child's parent
+    // on the poster is the daughter)
+    if (posterParentId(chain[i], tree.lineage, through) !== chain[i - 1].id) {
       issues.push({ kind: "trunk-order", edge: [chain[i - 1].id, chain[i].id] });
     }
   }

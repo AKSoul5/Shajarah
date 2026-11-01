@@ -207,12 +207,18 @@ describe("branch posters keep the person's whole ancestry", () => {
     check(tree, mid.id, "A1");
   });
 
-  it("a person older than the trunk start: the custom soil text is not reused (it would repeat their trunk)", () => {
+  it("a person on the trunk below the canopy start: their branch is the family's poster without the other lines", () => {
+    // (started at the person, a long trunk of only sons became a canopy
+    // dozens of generations deep, too dense to read at any size; it keeps
+    // the family's canopy start, trunk and custom soil text instead)
     const tree = { ...kalaliTree(), soilText: "نص مخصص للتربة" };
     const start = tree.members.find((m) => m.id === tree.trunkStartId)!;
     const older = tree.members.find((m) => m.id === start.fatherId)!;
     const l = computePosterLayout(tree, { focusId: older.id });
-    expect(l.soil?.custom ?? false).toBe(false);
+    expect(l.base?.id).toBe(tree.crownBaseId);
+    expect(l.focus?.id).toBe(older.id);
+    expect(l.soil?.custom).toBe(true);
+    expect(l.clarity.issues).toEqual([]);
     // ... while the whole tree, and a branch through the trunk start, keep it
     expect(computePosterLayout(tree, {}).soil?.custom).toBe(true);
     expect(computePosterLayout(tree, { focusId: tree.crownBaseId }).soil?.custom).toBe(true);

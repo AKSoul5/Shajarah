@@ -1003,7 +1003,15 @@ function layoutAttempt(
   };
 
   // ── 2. Trunk chain, crown base and offshoots ─────────────────────────
-  const crownBaseId = focusMember ? focusMember.id : opts.crownBaseId !== undefined ? opts.crownBaseId : tree.crownBaseId;
+  // A branch poster's canopy starts at its person; but for a person on the
+  // trunk below the family's own canopy start, at that start still: their
+  // branch is then the family's poster without the lines that do not come
+  // from them. (Started at the person, a long trunk of only sons became a
+  // canopy twenty generations deep, too dense to read at any size.)
+  const familyBaseId = opts.crownBaseId !== undefined ? opts.crownBaseId : tree.crownBaseId;
+  const focusBelowBase = !!focusMember && !!familyBaseId && familyBaseId !== focusMember.id
+    && !!(root.descendants() as HNode[]).find((n) => n.data.member?.id === familyBaseId)?.ancestors().some((a) => a.data.member?.id === focusMember.id);
+  const crownBaseId = focusMember && !focusBelowBase ? focusMember.id : familyBaseId;
   const explicitBase = crownBaseId
     ? (root.descendants() as HNode[]).find((n) => n.data.member?.id === crownBaseId)
     : undefined;
@@ -1617,10 +1625,21 @@ function layoutAttempt(
       const sideR = others.slice(c).reduce((sum, i) => sum + side(i), 0);
       let cut = c;
       if (Math.min(sideL, sideR) < Math.max(sideL, sideR) * LOPSIDED) {
+        // (never between two children of one mother: her box sits on one
+        // side, and lines to a child of hers on the other side crossed the
+        // centred line)
+        const motherOf = (i: number) => {
+          const m = kids[others[i]].data.member;
+          return m ? (m.fatherId === node.data.member?.id ? m.motherId : m.fatherId) ?? null : null;
+        };
+        // (only where mothers' boxes are drawn: spouses shown, or a
+        // daughter's family through her)
+        const boxesDrawn = !!opts.motherNames || through.has(node.data.member?.id ?? "");
+        const splitsMother = (k: number) => k > 0 && k < others.length && motherOf(k - 1) !== null && motherOf(k - 1) === motherOf(k);
         let best = Infinity, acc = 0;
         for (let k = 0; k <= others.length; k++) {
           const diff = Math.abs(sideL + sideR - 2 * acc);
-          if (diff < best) { best = diff; cut = k; }
+          if (diff < best && !(boxesDrawn && splitsMother(k))) { best = diff; cut = k; }
           if (k < others.length) acc += side(others[k]);
         }
       }
@@ -2409,7 +2428,12 @@ function layoutAttempt(
         for (const [a, b] of mineSegs) {
           const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
           for (const d of drawn) {
-            if (own.has(d.id) || byId.get(d.id)?.parentId === group[0].partnerId) continue;
+            // (the partner's other children's lines leave the partner with
+            // these: they may meet there, never cross further out, as a
+            // wife's lines across her husband's line to another son did)
+            if (own.has(d.id)) continue;
+            const sibling = byId.get(d.id)?.parentId === group[0].partnerId;
+            if (sibling && a === P) continue;
             if (d.bb[1] < x0 || d.bb[0] > x1 || d.bb[3] < y0 || d.bb[2] > y1) continue;
             for (let i = 1; i < d.pts.length; i++) if (crossesInside(a, b, d.pts[i - 1], d.pts[i])) return false;
           }
