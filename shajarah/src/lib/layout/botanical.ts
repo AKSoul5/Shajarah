@@ -2288,10 +2288,15 @@ function layoutAttempt(
     const w = widthOf(node.leafCount);
     return { w0: node.depth === 1 && !holderOf.has(node.id) ? w * 1.15 : w, w1: w * 0.7 };
   };
+  // A dotted line to a daughter's husband (or a knot) in the same dots as
+  // the heaviest of her children's lines from it: sized by all of them, its
+  // dots stood out as the heaviest on the poster.
+  const dottedKidWidth = (k: LiveNode) => dotWidth(k.shape === "leaf" ? widthOf(1) : widthOf(k.leafCount) * 0.8);
+  const holderDots = (h: Holder) => Math.max(dotWidth(widthOf(1)), ...h.kids.map(dottedKidWidth));
   const holderWidths = (h: Holder) => {
     const w = widthOf(Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0)));
     if (h.dotted) {
-      const wd = dotWidth(w * 0.8);
+      const wd = holderDots(h);
       return { w0: wd, w1: wd };
     }
     return { w0: !h.lone && h.anchorOf.region === "crown" && h.anchorOf.depth === 1 ? w * 1.15 : w, w1: w * 0.85 };
@@ -2377,7 +2382,13 @@ function layoutAttempt(
         const pad = h.fontSize * 0.4;
         const me = { x: J.x, y: J.y, w: h.w + pad * 2, h: h.h + pad * 2 };
         const others = [...obstacles, ...also.map(at)];
-        if (others.some((o) => Math.abs(o.x - J.x) < (o.w + h.w) / 2 + pad && Math.abs(o.y - J.y) < (o.h + h.h) / 2 + pad)) return false;
+        // (and further from its own children, so the line to each shows:
+        // a box right against a child's name looked squeezed between names)
+        const kidIds = new Set(h.kids.map((k) => k.id));
+        if (others.some((o) => {
+          const gap = o.id && kidIds.has(o.id) ? h.fontSize * 0.9 : pad;
+          return Math.abs(o.x - J.x) < (o.w + h.w) / 2 + gap && Math.abs(o.y - J.y) < (o.h + h.h) / 2 + gap;
+        })) return false;
         if (!linesToo) return true;
         // the partner's line to it, and its lines to the children
         if (others.some((o) => o !== partnerBox && lineHits(P, J, o, [partnerBox, me]))) return false;
@@ -2410,6 +2421,7 @@ function layoutAttempt(
         return { x: d.x * Math.cos(a) - d.y * Math.sin(a), y: d.x * Math.sin(a) + d.y * Math.cos(a) };
       };
       const TS = [0.45, 0.38, 0.52, 0.31, 0.6, 0.25, 0.68, 0.2, 0.76, 0.84, 0.9, 0.14];
+      const KNOT_TS = [0.22, 0.28, 0.16, 0.34, 0.4, 0.45, 0.52, 0.6, 0.68, 0.76];
       const DEGS = [0, 8, -8, 16, -16, 24, -24, 32, -32, 42, -42];
       const spot = (h: Holder, ts: number[], also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true, shared = true) => {
         // towards her children, turned a little either way, or towards one of them
@@ -2504,13 +2516,17 @@ function layoutAttempt(
       }
       // all at one distance; failing that, each where it finds room
       let got: { h: Holder; from: Vec; J: Vec }[] | null = null;
-      for (const t of TS) if ((got = tryAt([t]))) break;
+      // (a knot, where children of an unrecorded father part, nearer their
+      // mother: close to their own row, their dotted lines ran nearly level
+      // under the names, a band of dots)
+      const order = group.every((h) => h.knot) ? KNOT_TS : TS;
+      for (const t of order) if ((got = tryAt([t]))) break;
       if (!got) {
         got = [];
         // (where no spot keeps every line clear, one clear of every name:
         // the clarity check reports the line)
         for (const h of group) {
-          const J = spot(h, TS, [...placed, ...got], true, false) ?? spot(h, TS, [...placed, ...got], false, false);
+          const J = spot(h, order, [...placed, ...got], true, false) ?? spot(h, order, [...placed, ...got], false, false);
           if (J) got.push({ h, from: P, J });
         }
       }
@@ -3166,7 +3182,7 @@ function layoutAttempt(
     const leaves = Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0));
     const w = widthOf(leaves);
     if (h.dotted) {
-      const wd = dotWidth(w * 0.8);
+      const wd = holderDots(h);
       const p = (v: Vec) => `${v.x.toFixed(1)} ${v.y.toFixed(1)}`;
       branches.push({ d: `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`, w: wd, lineage: h.lineage ?? null, dotted: true });
       edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: wd, w1: wd, lineage: h.lineage ?? null });
@@ -3200,10 +3216,15 @@ function layoutAttempt(
       // From a fork each line's dots begin a little way out, where the
       // lines have parted enough for their dots to stay apart: many lines'
       // first dots crowded round the fork read as a blot.
+      // (likewise from a knot, where children of an unrecorded father part)
+      const knot = holder?.knot && holder.kids.length >= 3 ? holder : null;
       let drawn = c;
-      if (forked) {
-        const kids = growing.filter((k) => forks.get(holderOf.get(k.id)?.id ?? parentIdOf(k)) === fork && dotted.has(k.member.id));
-        const angles = kids.map((k) => Math.atan2(k.y - fork!.at.y, k.x - fork!.at.x)).sort((a, b) => a - b);
+      if (forked || knot) {
+        const at: Vec = forked ? fork!.at : { x: knot!.x, y: knot!.y };
+        const kids = forked
+          ? growing.filter((k) => forks.get(holderOf.get(k.id)?.id ?? parentIdOf(k)) === fork && dotted.has(k.member.id))
+          : knot!.kids;
+        const angles = kids.map((k) => Math.atan2(k.y - at.y, k.x - at.x)).sort((a, b) => a - b);
         let gapA = Math.PI;
         for (let i = 1; i < angles.length; i++) gapA = Math.min(gapA, Math.max(0.05, angles[i] - angles[i - 1]));
         const R = Math.min(clamp((w * 1.6) / gapA, w * 1.2, w * 6), len(sub(c.p1, c.p0)) * 0.3);
