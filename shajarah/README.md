@@ -74,6 +74,31 @@ installed and runs its smoke test. If that fails the new release is
 deleted again, so no copy updates to it. (Copies older than 1.0.7 have no
 updater: install 1.0.7 once by hand.)
 
+### The menu bar
+
+The program has a menu bar (File, Edit, View, Help), always shown. Its
+items run the app's own actions, the same as the buttons on the page:
+
+- **File**: New Family (Ctrl+N), Open Project (Ctrl+O), Save Project File
+  (Ctrl+S) and Save Project File As (Ctrl+Shift+S), Import (GEDCOM, family
+  outline), Export Poster (SVG, PDF, PNG, tiled PDF), Exit. Open and Import
+  use the Windows file dialog; saving and exporting ask where to save.
+- **Edit**: Undo (Ctrl+Z) and Redo (Ctrl+Y) step through the family's
+  history and name the step; while typing in a field they undo the typing
+  instead. Cut, Copy, Paste, Select All.
+- **View**: Member List (`[`, ticked as the page shows it), Zoom In
+  (Ctrl+=), Zoom Out (Ctrl+-), Fit Poster to Window (Ctrl+0), Full Screen
+  (F11).
+- **Help**: Documentation (this README), Release Notes, About (version).
+
+Items that need a family open are greyed out on the start page. The page
+and the program talk through a narrow bridge (`desktop/electron/preload.js`):
+the page receives only known commands, and reports only which page is open,
+what undo and redo would do, and whether the member list is shown. The page
+has no access to Node or the file system (context isolation on, Node
+integration off, sandboxed). In a browser there is no menu bar and nothing
+changes.
+
 The project's home is **github.com/AKSoul5/Shajarah**, and releases come
 from there. Up to 1.0.31 they came from the earlier repository
 (AKSoul5/react-dhxenaid). Its last release, 1.0.32, is the bridge:
