@@ -114,8 +114,11 @@ describe("focus mode (one branch on its own poster)", () => {
 
   it("is the way out for a family too dense for one clear poster", () => {
     expect(full.clarity.ok && full.legibility.ok).toBe(false);
-    // (clearer, or legible where the whole family is clean only too small to read)
-    expect(focused.clarity.issues.length < full.clarity.issues.length || (focused.legibility.ok && !full.legibility.ok)).toBe(true);
+    // (clearer, or legible where the whole family is clean only too small
+    // to read, or, now that a poster too dense to be clean and legible is
+    // drawn clean with smaller names, set with clearly larger names)
+    expect(focused.clarity.issues.length < full.clarity.issues.length || (focused.legibility.ok && !full.legibility.ok)
+      || (focused.clarity.ok && full.clarity.ok && focused.legibility.smallestTextMm > full.legibility.smallestTextMm * 1.2)).toBe(true);
     // every other branch fits one clear, legible A1 poster on its own
     const opts = { ...layoutOptionsFor(resolveTheme(big.settings), "A1"), showFemales: true };
     for (const h of full.nodes.filter((n) => n.depth === 1 && !n.terminal && n.id !== head.id)) {
