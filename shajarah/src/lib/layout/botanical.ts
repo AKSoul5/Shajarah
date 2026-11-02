@@ -119,6 +119,13 @@ export interface LayoutOptions {
    * legible size is laid out clean, its names as large as that allows.
    */
   cleanFirst?: boolean;
+  /**
+   * Room between generations for spouses' boxes, everywhere: a child set
+   * at least a box's extent further out than his mother when his father's
+   * box is drawn between them. (Tried when a poster laid out without it has
+   * a child set back behind his father's box; see computePosterLayout.)
+   */
+  boxRoom?: boolean;
   /** Where the trunk starts; older ancestors go into the soil. Defaults to tree.trunkStartId. */
   trunkStartId?: string | null;
   /** In automatic mode: ancestors on the trunk before the rest move into the soil. */
@@ -203,6 +210,14 @@ export interface Branch {
    * line's centre, to be stroked `w` wide, not a filled outline.
    */
   dotted?: boolean;
+  /**
+   * A dotted line's length, so its dots are spaced evenly from one end to
+   * the other, and where along that spacing its first dot falls (0–1):
+   * lines parting at one bead start out of step, so their first dots do
+   * not pile up there.
+   */
+  length?: number;
+  phase?: number;
 }
 
 /**
@@ -354,6 +369,45 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const layout = posterLayout(tree, opts);
+  // A child set back behind his father's box (the line to him turning back
+  // into the tree): laid out again with room for the boxes between the
+  // generations, kept when it is clean, as legible, with fewer such.
+  if (opts.boxRoom === undefined) {
+    const back = setBack(layout);
+    if (back > 0) {
+      const roomy = posterLayout(tree, { ...opts, boxRoom: true });
+      const asGood = isCleanPoster(layout)
+        // (a clean poster stays clean and as legible, its names not much smaller)
+        ? isCleanPoster(roomy) && (roomy.legibility.ok || !layout.legibility.ok) && roomy.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.8
+        // (one already not clean: no more ambiguities, no smaller names)
+        : roomy.overlaps <= layout.overlaps && roomy.clarity.issues.length <= layout.clarity.issues.length
+          && roomy.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.98;
+      if (asGood && setBack(roomy) < back) return roomy;
+    }
+  }
+  return layout;
+}
+
+/**
+ * Children set no further out from the trunk than their father's box,
+ * between their mother and them.
+ */
+export function setBack(l: PosterLayout): number {
+  const fromTrunk = (p: { x: number; y: number }) => Math.hypot(p.x - l.origin.x, p.y - l.origin.y);
+  const byId = new Map(l.nodes.map((n) => [n.id, n]));
+  let n = 0;
+  for (const h of l.spouses ?? []) {
+    if (h.knot || !h.childIds?.length) continue;
+    for (const id of h.childIds) {
+      const k = byId.get(id);
+      if (k && fromTrunk(k) - k.h / 2 < fromTrunk(h) + h.h / 2 - 1) n++;
+    }
+  }
+  return n;
+}
+
+function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const started = Date.now();
   const layout = keepGuarded(tree, opts);
   if (isCleanPoster(layout) && layout.legibility.ok) return layout;
@@ -1207,6 +1261,8 @@ function layoutAttempt(
   // for the lines between them, however few names the family has.
   // (a generation growing from spouses' holders needs room for them too)
   const holderRoom = new Set<number>();
+  /** Members whose children's lines pass a spouse's box on their way out (a daughter's family through her, or spouses shown). */
+  const holderParents = new Set<string>();
   {
     const matri = tree.lineage === "MATRILINEAL";
     const partners = new Map<string, Set<string>>();
@@ -1216,7 +1272,10 @@ function layoutAttempt(
     }
     base.each((n) => {
       const id = n.data.member?.id;
-      if (n.children && id && (through.has(id) || (opts.motherNames && partners.has(id)))) holderRoom.add(n.depth - base.depth + 1);
+      if (n.children && id && (through.has(id) || (opts.motherNames && partners.has(id)))) {
+        holderRoom.add(n.depth - base.depth + 1);
+        holderParents.add(id);
+      }
     });
   }
   const RING_GAP = 3.6;
@@ -2080,7 +2139,16 @@ function layoutAttempt(
       ring.forEach((n, i) => {
         n.ray = th[i];
         placed.push({ n, half: half(n, th[i]) });
-        const p = add(origin, scale(dirOf(th[i]), Math.min(radiusAt(th[i]), rMaxOnPage(n, th[i]))));
+        let r = radiusAt(th[i]);
+        // (with room for boxes: clearly further out than a mother whose
+        // husband's box goes between them, by the box's extent along the
+        // way out, a two-line box being wide, and the room it keeps clear)
+        const parent = opts.boxRoom && n.parentId ? byId.get(n.parentId) : undefined;
+        if (parent && parent.region === "crown" && holderParents.has(parent.id)) {
+          const d = dirOf(th[i]);
+          r = Math.max(r, len(sub(parent, origin)) + (parent.h + n.h) / 2 + Math.abs(d.x) * f * 7 + Math.abs(d.y) * f * 2.7 + f * 1.8);
+        }
+        const p = add(origin, scale(dirOf(th[i]), Math.min(r, rMaxOnPage(n, th[i]))));
         n.x = n.tx = p.x;
         n.y = n.ty = p.y;
       });
@@ -3227,8 +3295,14 @@ function layoutAttempt(
     };
     // a spouse's holder with no room: her children move a little further
     // out along their rays (where that overlaps nothing), then try again
-    for (let round = 0; round < 3 && holders.some((h) => !h.clear); round++) {
-      for (const h of holders.filter((x) => !x.clear)) {
+    // (likewise a child set no further out than his father's box: where
+    // the canopy is shallow the generations' rings run close, and the box
+    // between mother and child left the line to him turning back into the
+    // tree)
+    const fromTrunk = (p: { x: number; y: number }) => len(sub(p, origin));
+    const behind = (h: Holder) => !h.lone && !h.knot && h.kids.some((k) => fromTrunk(k) - k.h / 2 < fromTrunk(h) + h.h / 2);
+    for (let round = 0; round < 3 && holders.some((h) => !h.clear || behind(h)); round++) {
+      for (const h of holders.filter((x) => !x.clear || behind(x))) {
         for (const k of h.kids) {
           const saved = { x: k.x, y: k.y };
           outward(k, h.h * 1.6 + h.fontSize);
@@ -3444,7 +3518,7 @@ function layoutAttempt(
     if (h.dotted) {
       const wd = holderDots(h);
       const p = (v: Vec) => `${v.x.toFixed(1)} ${v.y.toFixed(1)}`;
-      branches.push({ d: `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`, w: wd, lineage: h.lineage ?? null, dotted: true });
+      branches.push({ d: `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`, w: wd, lineage: h.lineage ?? null, dotted: true, length: curveLength(c) });
       edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: wd, w1: wd, lineage: h.lineage ?? null });
     } else {
       const mainLimb = baseHolder(h);
@@ -3469,30 +3543,32 @@ function layoutAttempt(
       if (forked && !stemDrawn.has(from)) {
         stemDrawn.add(from);
         const sw = dotWidth(Math.max(...growing.filter((k) => forks.get(holderOf.get(k.id)?.id ?? parentIdOf(k)) === fork && dotted.has(k.member.id)).map((k) => widthOf(Math.max(1, k.leafCount)))));
-        branches.push({ d: `M${p(fork.from)}L${p(fork.at)}`, w: sw, lineage: node.lineage ?? null, dotted: true });
+        branches.push({ d: `M${p(fork.from)}L${p(fork.at)}`, w: sw, lineage: node.lineage ?? null, dotted: true, length: len(sub(fork.at, fork.from)) });
         // (a bead where the lines part)
         branches.push({ d: `M${p(fork.at)}l0.01 0`, w: sw * 1.6, lineage: node.lineage ?? null, dotted: true });
       }
-      // From a fork each line's dots begin a little way out, where the
-      // lines have parted enough for their dots to stay apart: many lines'
-      // first dots crowded round the fork read as a blot.
-      // (likewise from a knot, where children of an unrecorded father part)
+      // From a fork (or a knot, where children of an unrecorded father
+      // part) each line leaves straight from the bead, with no gap, its
+      // dots out of step with its neighbours' (a third of a dot apart in
+      // turn round the fan), so the dots near the bead do not pile up into
+      // a blot. (They once began a little way out, which read as a break.)
       const knot = holder?.knot && holder.kids.length >= 3 ? holder : null;
       let drawn = c;
+      let phase = 0;
       if (forked || knot) {
         const at: Vec = forked ? fork!.at : { x: knot!.x, y: knot!.y };
         const kids = forked
           ? growing.filter((k) => forks.get(holderOf.get(k.id)?.id ?? parentIdOf(k)) === fork && dotted.has(k.member.id))
           : knot!.kids;
-        const angles = kids.map((k) => Math.atan2(k.y - at.y, k.x - at.x)).sort((a, b) => a - b);
-        let gapA = Math.PI;
-        for (let i = 1; i < angles.length; i++) gapA = Math.min(gapA, Math.max(0.05, angles[i] - angles[i - 1]));
-        const R = Math.min(clamp((w * 1.6) / gapA, w * 1.2, w * 6), len(sub(c.p1, c.p0)) * 0.3);
+        const order = [...kids].sort((a, b) => Math.atan2(a.y - at.y, a.x - at.x) - Math.atan2(b.y - at.y, b.x - at.x));
+        phase = (Math.max(0, order.indexOf(node)) % 3) / 3;
+        // (clear of the bead itself)
+        const R = Math.min(w * 1.3, len(sub(c.p1, c.p0)) * 0.2);
         let t = 0;
         while (t < 0.6 && len(sub(cubicAt(c, t), c.p0)) < R) t += 0.01;
         drawn = cubicFrom(c, t);
       }
-      branches.push({ d: `M${p(drawn.p0)}C${p(drawn.c1)} ${p(drawn.c2)} ${p(drawn.p1)}`, w, lineage: node.lineage ?? null, dotted: true });
+      branches.push({ d: `M${p(drawn.p0)}C${p(drawn.c1)} ${p(drawn.c2)} ${p(drawn.p1)}`, w, lineage: node.lineage ?? null, dotted: true, length: curveLength(drawn), phase });
       const stemPts = forked ? [fork!.from, add(fork!.from, scale(sub(fork!.at, fork!.from), 0.5))] : [];
       edges.push({ parentId: from, childId: node.id, points: [...stemPts, ...sample(c)], w0: w, w1: w, lineage: node.lineage ?? null });
         continue;
@@ -3813,6 +3889,17 @@ function crossesInside(a: Vec, b: Vec, c: Vec, d: Vec): boolean {
 
 /** Splits a line in two at the space nearest its middle (not leaving a word like "m." alone). */
 /** The point at t on a cubic. */
+/** A cubic's length (to a fraction of a percent). */
+function curveLength(c: Cubic): number {
+  let total = 0, prev = c.p0;
+  for (let i = 1; i <= 32; i++) {
+    const q = cubicAt(c, i / 32);
+    total += Math.hypot(q.x - prev.x, q.y - prev.y);
+    prev = q;
+  }
+  return total;
+}
+
 function cubicAt(c: Cubic, t: number): Vec {
   const u = 1 - t;
   return {
