@@ -112,6 +112,13 @@ export interface LayoutOptions {
   soilStyle?: SoilStyleId;
   /** A foundation too long for its share leaves names out ("…") instead of taking more room. Default false. */
   soilShorten?: boolean;
+  /** Internal: false lays a shortened lineage out with the cut that fits its share (see computePosterLayout). */
+  soilKeep?: boolean;
+  /**
+   * Internal (see computePosterLayout): a poster that cannot be clean at a
+   * legible size is laid out clean, its names as large as that allows.
+   */
+  cleanFirst?: boolean;
   /** Where the trunk starts; older ancestors go into the soil. Defaults to tree.trunkStartId. */
   trunkStartId?: string | null;
   /** In automatic mode: ancestors on the trunk before the rest move into the soil. */
@@ -311,6 +318,8 @@ export interface PosterLayout {
   unplacedIds?: string[];
   /** The foundation keeps every name and so takes more than its share of the page (shortening it would give the canopy room). */
   soilOverShare?: boolean;
+  /** Set when a shortened lineage kept more of its nearest ancestors than its share held (see KEEP_MIN). */
+  soilKeptNearest?: boolean;
   /** How far above horizontal the canopy's sweep started (radians; see SWEEP_LIFT). */
   sweepLift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
@@ -345,6 +354,58 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const layout = keepGuarded(tree, opts);
+  if (isCleanPoster(layout) && layout.legibility.ok) return layout;
+  // Another balance of the canopy's two halves: the balance is judged once,
+  // early, from the first attempt (see sideLean); a poster left legible
+  // with a few ambiguous connections is often clean with its middle moved
+  // a little the other way. The first that is clean and legible is taken.
+  if (opts.sideBias === undefined && layout.overlaps === 0 && layout.legibility.ok && layout.clarity.issues.length <= BALANCE_ISSUES) {
+    for (const sideBias of BALANCES) {
+      const l = keepGuarded(tree, { ...opts, sideBias });
+      if (isCleanPoster(l) && l.legibility.ok) return l;
+    }
+  }
+  // Correct relationships first: a poster that cannot be both clean and
+  // legible on its paper is drawn clean, its names as large as that allows,
+  // rather than legible with a line that reads as joining the wrong people.
+  // (Its names below the legible size, the editor recommends a larger
+  // paper, where it is both.)
+  if (!isCleanPoster(layout)) {
+    const c = keepGuarded(tree, { ...opts, cleanFirst: true });
+    if (isCleanPoster(c)) return c;
+  }
+  return layout;
+}
+
+const isCleanPoster = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
+
+/**
+ * One layout, with v1.0.45's guard: keeping more of a shortened lineage's
+ * nearest ancestors (see KEEP_MIN) must never cost a legible poster. If the
+ * finished poster is not legible and clean, it is laid out again with the
+ * cut that fits the share, and that one is used when it is legible and no
+ * less clean (a clean poster is never traded for one with ambiguities).
+ */
+function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+  const layout = layoutOnce(tree, opts);
+  if (layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout))) {
+    const plain = layoutOnce(tree, { ...opts, soilKeep: false });
+    if (plain.legibility.ok && (isCleanPoster(plain) || !isCleanPoster(layout))) return plain;
+  }
+  return layout;
+}
+
+/**
+ * Balances tried for a poster left legible with a few ambiguities (as
+ * LayoutOptions.sideBias), most often clean first; and the most
+ * ambiguities a poster may have for them to be tried.
+ */
+const BALANCES = [-0.04, 0.06, -0.02];
+const BALANCE_ISSUES = 15;
+
+/** One layout of the poster (see computePosterLayout, which may lay it out again). */
+function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // Each attempt is verified for overlapping names AND for relationship
   // clarity (every line from the right parent to the right child, none
   // hidden under another name, no ambiguous crossings). Ambiguity means the
@@ -670,6 +731,29 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
       }
     }
   }
+  // Clean first (see computePosterLayout): the largest clean size met, or,
+  // failing that, the largest clean one found below the poster's own.
+  if (opts.cleanFirst && !isClean(best.layout)) {
+    const met = searches
+      .flatMap((sr) => [...sr.tried.entries()].map(([scale, l]) => ({ sr, scale, l })))
+      .filter(({ l }) => isClean(l))
+      .sort((a, b) => b.scale - a.scale)[0];
+    if (met) best = { layout: met.l, chosen: met.scale, strict: false, attempt: met.sr.attempt };
+    else {
+      let lo = MIN_SCALE, hi = best.chosen;
+      let found: PosterLayout | null = null;
+      const low = best.attempt(lo);
+      if (isClean(low)) {
+        found = low;
+        for (let i = 0; i < 7; i++) {
+          const mid = (lo + hi) / 2;
+          const l = best.attempt(mid);
+          if (isClean(l)) { lo = mid; found = l; } else hi = mid;
+        }
+        best = { layout: found, chosen: lo, strict: false, attempt: best.attempt };
+      }
+    }
+  }
   const result = best.layout;
   result.tooDense = result.clarity.issues.length > CLARITY_LIMIT;
   // The balanced centring (a leader up the centred branch, its brothers
@@ -680,7 +764,7 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
   // is the paper's size, which the arrangement does not change.)
   if (opts.centerLead === undefined && opts.centerSides === undefined && result.centerLine?.length
     && !isClean(result) && result.overlaps === 0 && result.clarity.issues.length <= 4) {
-    const plain = computePosterLayout(tree, { ...opts, centerLead: false, centerSides: "room" });
+    const plain = layoutOnce(tree, { ...opts, centerLead: false, centerSides: "room" });
     if (rank(plain) < rank(result)) return plain;
   }
   // The lifted sweep (a crown rising from the trunk) never costs a clean,
@@ -689,7 +773,7 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
   // LARGE_FAMILY names; a larger one was decided on its first attempt, as
   // laying it out twice would be slow.)
   if (opts.sweepLift === undefined && result.nodes.length <= LARGE_FAMILY && (result.sweepLift ?? WIDE_SWEEP) > 0 && !(isClean(result) && result.legibility.ok)) {
-    const wide = computePosterLayout(tree, { ...opts, sweepLift: WIDE_SWEEP });
+    const wide = layoutOnce(tree, { ...opts, sweepLift: WIDE_SWEEP });
     if (rank(wide) < rank(result)) return wide;
   }
   return result;
@@ -707,6 +791,19 @@ const SOIL_SHARE_SMALL = 0.25;
  * the trunk shows the nearest few ancestors, the rest go to the foundation.
  */
 const LOWER_SHARE = 0.3;
+/**
+ * A shortened lineage keeps at least KEEP_MIN of its nearest ancestors when
+ * the page allows, and aims for KEEP_AIM: the foundation then takes more
+ * than its share, as long as the canopy's names stay legible and lose no
+ * more than KEEP_COST of their size, or, when they are set far above the
+ * legible size (a small branch), stay at least KEEP_ROOM times it.
+ */
+const KEEP_MIN = 5;
+/** The least clear paper between the foundation and the footer's key, at print size (mm). */
+const SOIL_FOOT_MM = 4;
+const KEEP_AIM = 7;
+const KEEP_COST = 0.12;
+const KEEP_ROOM = 1.5;
 /** The most a canopy grows past its natural height to fill spare paper. */
 const CANOPY_GROWTH = 1.2;
 const TRUNK_SHARE = 0.2;
@@ -1257,6 +1354,14 @@ function layoutAttempt(
   const soilBudget = (f: number, p: Plan) =>
     branchMode ? Math.max(f * 6, avail * LOWER_SHARE - trunkSection(p.onTrunk.length, f)) : avail * soilShare;
   const soilCompaction = new WeakMap<Plan, Map<number, number>>();
+  // Clear paper under a foundation that ends in a lone ornament (a column's
+  // finial, the taproot's point), above the footer's key: at least
+  // SOIL_FOOT_MM at print size (the column's finial once sat 2.5 mm above
+  // the key on A3), more on a large poster. A panel or a ruled inscription
+  // keeps room of its own under its last line.
+  const soilFoot = soilDef.endsInOrnament ? Math.max(SOIL_FOOT_MM / unitMm, W * 0.006) : 0;
+  /** A shortened lineage keeps at least this many of its nearest ancestors (set below, once the poster's size is known). */
+  let keepNearest = 0;
   const soilFor = (f: number, p: Plan): { ctx: SoilContext; height: number } => {
     const full = soilContextFor(f, p);
     const budget = soilBudget(f, p);
@@ -1289,10 +1394,18 @@ function layoutAttempt(
       return { ctx, height: soilDef.height(ctx) };
     }
     const names = namesOf(full);
-    let lo = 1, hi = Math.max(1, names.prose ? wordsOf(names.prose).length : names.entries.length);
+    const total = names.prose ? wordsOf(names.prose).length : names.entries.length;
+    let lo = 1, hi = Math.max(1, total);
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
       if (soilDef.height(shortenSoil(full, mid)) <= budget) hi = mid; else lo = mid + 1;
+    }
+    // the smallest cut that fits the share keeps as many of the nearest
+    // ancestors as it can; a poster that can afford more keeps `keepNearest`
+    // of them (see below)
+    if (!names.prose && keepNearest > 0) {
+      const tail = Math.min(2, total);
+      lo = Math.min(lo, Math.max(0, total - tail - keepNearest));
     }
     const ctx = shortenSoil(full, lo);
     return { ctx, height: soilDef.height(ctx) };
@@ -1301,7 +1414,7 @@ function layoutAttempt(
     const trunkH = trunkSection(p.onTrunk.length, f);
     if (branchMode && trunkH > avail * TRUNK_SHARE) return Infinity;
     const useSoil = p.soil.length > 0 || !!customSoil;
-    return 1.8 * crownDims(f, areaScale).ry + baseRFor(f) + trunkH + (useSoil ? soilFor(f, p).height : f * 0.8);
+    return 1.8 * crownDims(f, areaScale).ry + baseRFor(f) + trunkH + (useSoil ? soilFor(f, p).height + soilFoot : f * 0.8);
   };
   const avail = contentBottom - contentTop;
   // Candidate arrangements, most faithful first.
@@ -1347,6 +1460,25 @@ function layoutAttempt(
   let f: number;
   if (plan) {
     f = bestF(plan);
+    // Shortening keeps what matters, not merely the fewest names. The cut
+    // that fits the foundation's share can leave only one or two of the
+    // nearest ancestors (a branch poster's share is small). Keep KEEP_AIM
+    // of them, or as many down to KEEP_MIN, when the poster can afford it:
+    // the canopy's names stay legible and lose at most KEEP_COST of their
+    // size. Otherwise the cut that fits the share stands.
+    if (opts.soilShorten && opts.soilKeep !== false && plan.soil.length > 0 && !customSoil) {
+      const base = f, chosen = plan;
+      for (let keep = KEEP_AIM; keep >= KEEP_MIN; keep--) {
+        keepNearest = keep;
+        if (totalFor(minFont, chosen) > avail) continue;
+        const fk = bestF(chosen);
+        // (a canopy set well above the legible size, a small branch's, can
+        // give more: down to KEEP_ROOM times the legible size)
+        if (fk >= Math.max(minFont, Math.min(base * (1 - KEEP_COST), minFont * KEEP_ROOM))) { f = fk; break; }
+        keepNearest = 0;
+      }
+      if (keepNearest && totalFor(minFont, chosen) > avail) keepNearest = 0;
+    }
   } else {
     // Cannot fit legibly on this paper: fit anyway, smaller, and report it.
     plan = plans[plans.length - 1];
@@ -3346,6 +3478,7 @@ function layoutAttempt(
           ...finalSoil!.ctx, cx: W / 2, groundY, trunkWidth, W,
           // the gold thread joining the trunk's ancestors continues from just below the lowest one
           threadFrom: shownTrunk.length ? labelBottom + trunkFont * 0.75 : groundY - f * 0.2,
+          trunkBaseY: (spread: number) => trunkBase(groundY, trunkWidth, TW, spread),
         }),
         area: { x: W / 2 - soilW / 2, w: soilW },
       }
@@ -3410,6 +3543,7 @@ function layoutAttempt(
     generationsPresent: [...gens].sort((a, b) => a - b),
     unplacedIds,
     soilOverShare,
+    soilKeptNearest: keepNearest > 0,
     sweepLift: lift,
     centerLine: [...centerPath].sort((a, b) => a.depth - b.depth).map((n) => n.data.member!.id),
     legibility,
@@ -3481,6 +3615,11 @@ function withLaqab(m: MemberDTO, rtl: boolean): string {
  * an S-curve, vertical where it leaves the trunk and where it ends, so
  * there is no pinch or corner.
  */
+/** How far a trunk's root flare reaches out (see trunkOutline). */
+const flareOf = (w: number, flareW: number, spread: number) => (flareW + (w - flareW) * 0.35) * spread;
+/** The trunk outline's base line: its flare ends a little below the ground line. */
+const trunkBase = (groundY: number, w: number, flareW: number, spread: number) => groundY + flareOf(w, flareW, spread) * 0.2;
+
 function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, topW = w, spread = 1, taper = 0): string {
   const h = groundY - o.y;
   const f = (n: number) => n.toFixed(1);
@@ -3513,7 +3652,7 @@ function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, topW = w, 
   // The trunk starts widening well above the ground and spreads gradually
   // (a concave sweep, like the buttressed foot of an old tree), not in a
   // sudden kink at the ground line.
-  const fl = (flareW + (w - flareW) * 0.35) * spread;
+  const fl = flareOf(w, flareW, spread);
   const rise = Math.min(fl * 1.8, Math.max(0, groundY - (o.y + flare)) * 0.75);
   const yr = groundY - rise;
   return [
@@ -3522,8 +3661,8 @@ function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, topW = w, 
     `C${L(topW * 0.42)} ${f(o.y + flare * 0.4)} ${L(w * 0.5)} ${f(o.y + flare * 0.6)} ${L(w * 0.5)} ${f(o.y + flare)}`,
     `L${L(w * 0.5)} ${f(yr)}`,
     `C${L(w * 0.5)} ${f(yr + rise * 0.45)} ${L(w * 0.5 + fl * 0.2)} ${f(groundY - rise * 0.12)} ${L(w * 0.5 + fl * 0.6)} ${f(groundY + fl * 0.04)}`,
-    `C${L(w * 0.5 + fl * 0.95)} ${f(groundY + fl * 0.13)} ${L(w * 0.5 + fl * 1.4)} ${f(groundY + fl * 0.18)} ${L(w * 0.5 + fl * 1.9)} ${f(groundY + fl * 0.2)}`,
-    `L${R(w * 0.5 + fl * 1.9)} ${f(groundY + fl * 0.2)}`,
+    `C${L(w * 0.5 + fl * 0.95)} ${f(groundY + fl * 0.13)} ${L(w * 0.5 + fl * 1.4)} ${f(groundY + fl * 0.18)} ${L(w * 0.5 + fl * 1.9)} ${f(trunkBase(groundY, w, flareW, spread))}`,
+    `L${R(w * 0.5 + fl * 1.9)} ${f(trunkBase(groundY, w, flareW, spread))}`,
     `C${R(w * 0.5 + fl * 1.4)} ${f(groundY + fl * 0.18)} ${R(w * 0.5 + fl * 0.95)} ${f(groundY + fl * 0.13)} ${R(w * 0.5 + fl * 0.6)} ${f(groundY + fl * 0.04)}`,
     `C${R(w * 0.5 + fl * 0.2)} ${f(groundY - rise * 0.12)} ${R(w * 0.5)} ${f(yr + rise * 0.45)} ${R(w * 0.5)} ${f(yr)}`,
     `L${R(w * 0.5)} ${f(o.y + flare)}`,

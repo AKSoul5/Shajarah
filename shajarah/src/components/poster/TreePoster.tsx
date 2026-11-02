@@ -174,11 +174,7 @@ export const TreePoster = memo(
         <defs>
           <SatinGradient id={`${pal.uid}-satin-m`} color={theme.male} />
           <SatinGradient id={`${pal.uid}-satin-f`} color={theme.female} />
-          <linearGradient id={`${pal.uid}-trunk`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor={shade(bark, -0.1)} />
-            <stop offset="0.45" stopColor={shade(bark, 0.1)} />
-            <stop offset="1" stopColor={shade(bark, -0.18)} />
-          </linearGradient>
+          <TrunkGradient id={`${pal.uid}-trunk`} bark={bark} d={layout.trunkPath} />
           <linearGradient id={`${pal.uid}-gold-text`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor={pal.titleHi} />
             <stop offset="1" stopColor={pal.titleLo} />
@@ -747,7 +743,10 @@ function Foundation({ layout, pal, bark, click }: {
   const colour = (ink: SoilInk | undefined): string | undefined => {
     if (!ink) return undefined;
     if (pal.mono) return ink === "ivory" || ink === "trunk" || ink === "paper" ? "#ffffff" : "#111111";
-    return { ink: pal.ink, gold: pal.ornament, goldLight: pal.thread, muted: pal.muted, bark, trunk: `url(#${pal.uid}-trunk)`, ivory: pal.ivory, line: pal.line, paper: pal.paper }[ink];
+    // (the trunk's shading is laid across the page, so the taproot and the
+    // roots continue it with no seam)
+    const trunk = `url(#${pal.uid}-trunk)`;
+    return { ink: pal.ink, gold: pal.ornament, goldLight: pal.thread, muted: pal.muted, bark, trunk, root: trunk, ivory: pal.ivory, line: pal.line, paper: pal.paper }[ink];
   };
   return (
     <g data-soil={soil.style}>
@@ -1159,11 +1158,7 @@ export const SoilPreview = memo(function SoilPreview({ style, theme, rtl = true,
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={className} fontFamily={FONT} role="img" aria-label={def.label}>
       <defs>
-        <linearGradient id={`${pal.uid}-trunk`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor={shade(bark, -0.1)} />
-          <stop offset="0.45" stopColor={shade(bark, 0.1)} />
-          <stop offset="1" stopColor={shade(bark, -0.18)} />
-        </linearGradient>
+        <TrunkGradient id={`${pal.uid}-trunk`} bark={bark} d={trunk} />
       </defs>
       <rect width={W} height={H} fill={pal.paper} />
       {soil.ground && <path d={soil.ground} fill="none" stroke={bark} strokeWidth={2.4} strokeLinecap="round" opacity={0.7} />}
@@ -1173,3 +1168,27 @@ export const SoilPreview = memo(function SoilPreview({ style, theme, rtl = true,
     </svg>
   );
 });
+
+/** The x-extent of an absolute path (its points and control points). */
+function xExtent(d: string): [number, number] {
+  const xs = [...d.matchAll(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
+  return xs.length ? [Math.min(...xs), Math.max(...xs)] : [0, 1];
+}
+
+/**
+ * The trunk's shading, a soft light down its middle, laid across the page
+ * from the trunk's left edge to its right: the trunk looks as it always has,
+ * and anything else filled with it (the taproot, the spine, the roots)
+ * takes the same shade at the same place, so it continues the trunk with no
+ * seam where they meet.
+ */
+function TrunkGradient({ id, bark, d }: { id: string; bark: string; d: string }) {
+  const [x0, x1] = xExtent(d);
+  return (
+    <linearGradient id={id} gradientUnits="userSpaceOnUse" x1={x0.toFixed(1)} y1="0" x2={x1.toFixed(1)} y2="0">
+      <stop offset="0" stopColor={shade(bark, -0.1)} />
+      <stop offset="0.45" stopColor={shade(bark, 0.1)} />
+      <stop offset="1" stopColor={shade(bark, -0.18)} />
+    </linearGradient>
+  );
+}

@@ -9,7 +9,7 @@
 // same axis ("بن … بن آدم"): no panels, no boxes.
 
 import {
-  RUQAA_WIDTH, clamp, nameBase, drawInscription, fitCount, fx, inscriptionFor, namesOf, ornament, restAsText, smallestName, unionBox, wordsOf,
+  RUQAA_WIDTH, clamp, nameBase, drawInscription, fitCount, fx, inscriptionFor, namesOf, ornament, restAsText, smallestName, unionBox,
 } from "./common";
 import type { SoilContext, SoilShape, SoilStyleDef, SoilText } from "./types";
 
@@ -28,15 +28,20 @@ interface Row {
   /** Baseline, from the ground line. */
   y: number;
   memberId: string | null;
-  /** Set in calligraphy; a long name (or the marker for names left out) in Amiri, as written. */
+  /** Set in calligraphy (the whole column alike, see columnFont). */
   ruqaa: boolean;
   omitted: boolean;
 }
 
 /** The column keeps at least this many names, however long the lineage (the inscription takes the rest). */
 const MIN_ROWS = 5;
-/** Calligraphy suits a short name; a long or compound one is set in Amiri so it stays easy to read. */
-const suitsRuqaa = (label: string) => wordsOf(label).length <= 2 && label.length <= 14;
+/**
+ * One typeface for the whole column, never switched name by name: Ruqaa
+ * calligraphy for Arabic (Amiri in a design whose titles are set in Kufi, see
+ * SoilText.font), Amiri for a Latin-script lineage. A long name is fitted by
+ * its size (never below the legibility floor), not by another font.
+ */
+const columnRuqaa = (ctx: SoilContext) => ctx.rtl;
 
 /** Every position of the column, from the ground line down. */
 function measure(ctx: SoilContext) {
@@ -53,7 +58,7 @@ function measure(ctx: SoilContext) {
     for (let i = 0; i < k; i++) {
       const t = k > 1 ? i / (k - 1) : 0;
       const omitted = !!entries[i].omitted;
-      const ruqaa = !omitted && suitsRuqaa(entries[i].label);
+      const ruqaa = columnRuqaa(ctx);
       // a long name is set smaller to fit the width (never below the floor)
       const fit = (ctx.maxWidth * 0.8) / Math.max(1e-6, ctx.textWidth(entries[i].label, 1) * (ruqaa ? RUQAA_WIDTH : 1));
       const fs = Math.max(ctx.floor, Math.min(fsTop + (fsBottom - fsTop) * t, fit));
@@ -80,6 +85,7 @@ function measure(ctx: SoilContext) {
 
 export const column: SoilStyleDef = {
   id: "column",
+  endsInOrnament: true,
   label: "Calligraphic Column",
   description: "A vertical calligraphic inscription on a fine thread, growing out of the trunk.",
   height: (ctx) => measure(ctx).height,

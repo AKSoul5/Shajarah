@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "qa:layout": "QA_LAYOUT=1 QA_OUT=qa-report vitest run tests/qa && node scripts/qa-report.mjs qa-report"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { computePosterLayout } from "@/lib/layout/botanical";
 import { usePosterLayout } from "./usePosterLayout";
+import { useReadablePaper } from "./useReadablePaper";
 import { ViewMenu } from "./ViewMenu";
 import { UndoControls } from "./UndoControls";
 import { PersonMenu, type PersonMenuItem } from "./PersonMenu";
@@ -27,7 +28,7 @@ import { emptyHistory, forget, record, redo, undo, type History } from "@/lib/hi
 import { RelationsPanel } from "./RelationsPanel";
 import { StylePanel } from "./StylePanel";
 import { compactTheme, layoutOptionsFor, resolveTheme } from "@/lib/theme";
-import { isPaperSize, PAPER_ORDER, PAPER_SIZES, paperForScale, type PaperSize } from "@/lib/paper";
+import { isPaperSize, PAPER_ORDER, PAPER_SIZES, type PaperSize } from "@/lib/paper";
 import { ConflictError, apiRepository, localRepository, type FamilyRepository } from "./repository";
 import { readProjectFile, withNewIds } from "@/lib/project";
 import { openProjectFile } from "../projectFiles";
@@ -81,6 +82,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     showFemales, seed,
     ...layoutOptionsFor(theme, posterSize),
   });
+  // drawn clean but with names too small: the paper on which it is both
+  const readablePaper = useReadablePaper(deferredTree, layoutPending ? null : layout, posterSize, (p) => ({ showFemales, seed, ...layoutOptionsFor(theme, p) }));
+  // a clean poster whose smallest names print below the legible size (the
+  // export menu says so, as the notice on the poster does)
+  const smallText = layout && layout.clarity.ok && !layout.legibility.ok
+    ? { smallestMm: layout.legibility.smallestTextMm, minMm: layout.legibility.minTextMm }
+    : undefined;
 
   // ── Undo/redo: snapshots of the whole tree (src/lib/history.ts). The
   // refs hold the latest values for callbacks that outlive a render.
@@ -604,7 +612,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               ))}
             </select>
           </label>
-          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} />
+          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
         </div>
       </header>
       {conflict && (
@@ -1045,7 +1053,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
                 ✕ Exit full screen
               </button>
-              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} />
+              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
             </div>
           )}
           {view === "poster" && layout && (
@@ -1210,12 +1218,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 onChoose={(p) => updateSettings({ posterSize: p })}
               />
             )}
-            {layout.clarity.ok && !layout.legibility.ok && (
+            {/* (not while the next layout is on its way: it may be another paper's) */}
+            {layout.clarity.ok && !layout.legibility.ok && !layoutPending && (
               <LegibilityNotice
                 smallestMm={layout.legibility.smallestTextMm}
                 minMm={layout.legibility.minTextMm}
                 paper={posterSize}
-                suggestion={paperForScale(posterSize, layout.legibility.scaleNeeded)}
+                suggestion={readablePaper}
                 fallbacks={fallbacks}
                 onChoose={(p) => updateSettings({ posterSize: p })}
                 onShortenSoil={layout.soilOverShare && !theme.soilShorten ? () => updateSettings({ theme: { ...theme, soilShorten: true } }) : undefined}
@@ -1293,22 +1302,26 @@ function LegibilityNotice({
   smallestMm: number;
   minMm: number;
   paper: PaperSize;
-  suggestion: PaperSize | null;
+  /** The smallest larger paper on which the poster is clean and legible ("checking" while it is laid out on each). */
+  suggestion: PaperSize | null | "checking";
   fallbacks: Fallbacks;
   onChoose: (p: PaperSize) => void;
   /** When every name in a long foundation takes the canopy's room: shorten it instead ("…"). */
   onShortenSoil?: () => void;
 }) {
+  const [otherWays, setOtherWays] = useState(false);
   return (
     <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
       <p className="font-semibold">Too dense for {paper}</p>
       <p className="mt-1">
         The smallest names would print at {smallestMm.toFixed(1)} mm (minimum {minMm.toFixed(1)} mm).
-        {suggestion
-          ? ` On ${suggestion} every name stays readable.`
-          : " Even 2A0 is too small for the whole family on one sheet."}
+        {suggestion === "checking"
+          ? " Checking which paper keeps every name readable…"
+          : suggestion
+            ? ` On ${suggestion} every name stays readable.`
+            : " No single larger sheet keeps every name readable with every line clear."}
       </p>
-      {suggestion && (
+      {suggestion && suggestion !== "checking" && (
         <button type="button" className="btn-outline mt-2 py-1 text-xs" onClick={() => onChoose(suggestion)}>
           Use {suggestion}
         </button>
@@ -1321,7 +1334,14 @@ function LegibilityNotice({
           </button>
         </>
       )}
-      {!suggestion && <FallbackActions {...fallbacks} />}
+      {suggestion === null && <FallbackActions {...fallbacks} />}
+      {/* (keeping this paper: a poster of one branch, measured only when asked) */}
+      {suggestion && !otherWays && (
+        <button type="button" className="mt-2 block text-start underline" onClick={() => setOtherWays(true)}>
+          Or keep {paper}: a poster of one branch, or fewer names…
+        </button>
+      )}
+      {suggestion && otherWays && <FallbackActions {...fallbacks} />}
     </div>
   );
 }
