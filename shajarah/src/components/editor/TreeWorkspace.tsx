@@ -81,6 +81,11 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     showFemales, seed,
     ...layoutOptionsFor(theme, posterSize),
   });
+  // a clean poster whose smallest names print below the legible size (the
+  // export menu says so, as the notice on the poster does)
+  const smallText = layout && layout.clarity.ok && !layout.legibility.ok
+    ? { smallestMm: layout.legibility.smallestTextMm, minMm: layout.legibility.minTextMm }
+    : undefined;
 
   // ── Undo/redo: snapshots of the whole tree (src/lib/history.ts). The
   // refs hold the latest values for callbacks that outlive a render.
@@ -604,7 +609,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               ))}
             </select>
           </label>
-          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} />
+          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
         </div>
       </header>
       {conflict && (
@@ -1045,7 +1050,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
                 ✕ Exit full screen
               </button>
-              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} />
+              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
             </div>
           )}
           {view === "poster" && layout && (
@@ -1299,6 +1304,7 @@ function LegibilityNotice({
   /** When every name in a long foundation takes the canopy's room: shorten it instead ("…"). */
   onShortenSoil?: () => void;
 }) {
+  const [otherWays, setOtherWays] = useState(false);
   return (
     <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
       <p className="font-semibold">Too dense for {paper}</p>
@@ -1322,6 +1328,13 @@ function LegibilityNotice({
         </>
       )}
       {!suggestion && <FallbackActions {...fallbacks} />}
+      {/* (keeping this paper: a poster of one branch, measured only when asked) */}
+      {suggestion && !otherWays && (
+        <button type="button" className="mt-2 block text-start underline" onClick={() => setOtherWays(true)}>
+          Or keep {paper}: a poster of one branch, or fewer names…
+        </button>
+      )}
+      {suggestion && otherWays && <FallbackActions {...fallbacks} />}
     </div>
   );
 }

@@ -12,9 +12,14 @@ interface Props {
   filename: string;
   /** The poster size the layout was designed for. */
   defaultPaper?: PaperSize;
+  /**
+   * Set when the poster's smallest names print below the legible size on
+   * the paper it was laid out for (its clean layout needed them smaller).
+   */
+  smallText?: { smallestMm: number; minMm: number };
 }
 
-export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
+export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText }: Props) {
   const [open, setOpen] = useState(false);
   const [paper, setPaper] = useState<PaperSize>(defaultPaper);
   // (very large papers default to a lower resolution: they are seen from further away)
@@ -28,6 +33,8 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
   const rasterDpi = Math.min(dpi, maxDpi(paper));
   const px = pixelSize(paper, rasterDpi);
   const tiles = tileGrid(paper, sheet);
+  // (text scales with the paper chosen here)
+  const printedMm = smallText ? (smallText.smallestMm * PAPER_SIZES[paper].w) / PAPER_SIZES[defaultPaper].w : null;
 
   const run = async (kind: "svg" | "png" | "pdf" | "tiles") => {
     const svg = svgRef.current;
@@ -75,6 +82,12 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2" }: Props) {
             {rasterDpi < dpi && ` (${rasterDpi} DPI: the most one image can hold at ${paper}; a Tiled PDF keeps ${dpi} DPI)`}
             {paper !== defaultPaper && ` · the layout was designed for ${defaultPaper}; text scales with the paper`}
           </p>
+          {printedMm !== null && smallText && printedMm < smallText.minMm && (
+            <p role="note" className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+              On {paper} the smallest names print at {printedMm.toFixed(1)} mm, below the {smallText.minMm.toFixed(1)} mm that reads
+              comfortably. A larger paper, or a poster of one branch, keeps every name readable.
+            </p>
+          )}
           <div className="grid gap-2">
             <button type="button" className="btn-outline justify-between" disabled={!!busy} onClick={() => run("svg")}>
               <span>Vector SVG</span><span className="text-xs text-gray-500">{busy === "svg" ? "Working…" : "infinite resolution"}</span>
