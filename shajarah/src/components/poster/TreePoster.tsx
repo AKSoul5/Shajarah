@@ -1066,11 +1066,14 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   // Every generation's colour on the poster is explained: each named while
   // there are few, otherwise one row of chips numbered by generation.
   if (theme.colorBy === "generation" && generationsPresent.length) {
-    if (generationsPresent.length <= NAMED_GENERATIONS) {
-      for (const g of generationsPresent) {
-        const c = generationColor(g - generationOffset).fill;
-        items.push({ label: generationLabel(g - generationOffset, rtl), swatch: (x) => pill(x, c, shade(c, -0.35)) });
-      }
+    const named: Item[] = generationsPresent.map((g) => {
+      const c = generationColor(g - generationOffset).fill;
+      return { label: generationLabel(g - generationOffset, rtl), swatch: (x: number) => pill(x, c, shade(c, -0.35)) };
+    });
+    const rowWidth = (list: Item[]) => list.reduce((a, it) => a + (it.width ?? sw) + fs * 0.5 + textWidth(it.label, fs), 0) + KEY_GAP * fs * (list.length - 1);
+    // (named while few and while they fit the row, as far as KEY_MIN)
+    if (generationsPresent.length <= NAMED_GENERATIONS && rowWidth([...items, ...named]) <= keyRoom / KEY_MIN) {
+      items.push(...named);
     } else {
       // (narrower chips for many generations: as wide as the room the other
       // entries leave, so the key keeps inside the frame)

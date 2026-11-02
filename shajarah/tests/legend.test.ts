@@ -151,7 +151,9 @@ describe("every colour on the poster is in the key", () => {
       const { svg, layout } = render(family({ depth, width: 1 }), { colorBy: "generation" });
       const present = layout.generationsPresent;
       expect(present.length).toBeGreaterThan(0);
-      if (present.length <= 8) {
+      // named while there are few and they fit the row, else numbered chips
+      if (!svg.includes("data-generation=")) {
+        expect(present.length).toBeLessThanOrEqual(8);
         for (const g of present) expect(svg).toContain(generationLabel(g - layout.generationOffset, true));
       } else {
         // one chip per generation, numbered in reading order, in its colour
@@ -166,10 +168,12 @@ describe("every colour on the poster is in the key", () => {
   }
 
   it("the key fits inside the frame, the generation strip and every entry included", () => {
-    for (const framed of [true, false]) for (const rtl of [true, false]) {
-      const { svg } = render(family({ depth: 22, width: 1, arabic: rtl, spouseGenders: ["UNKNOWN"] }), { colorBy: "generation", frame: framed, motherNames: true });
+    // (named generations that would not fit the row turn into the numbered chips;
+    // a real poster's seven, "الجيل الثاني عشر" among them, once ran off the page)
+    for (const depth of [4, 7, 8, 22]) for (const framed of [true, false]) for (const rtl of [true, false]) {
+      const { svg } = render(family({ depth, width: 1, arabic: rtl, spouseGenders: ["UNKNOWN"] }), { colorBy: "generation", frame: framed, motherNames: true, branchColors: true });
       const m = svg.match(/data-key-width="([\d.]+)" data-key-room="([\d.]+)"/)!;
-      expect(Number(m[1]), `${framed ? "framed" : "unframed"} ${rtl ? "ar" : "en"}`).toBeLessThanOrEqual(Number(m[2]) + 0.1);
+      expect(Number(m[1]), `${depth} ${framed ? "framed" : "unframed"} ${rtl ? "ar" : "en"}`).toBeLessThanOrEqual(Number(m[2]) + 0.1);
     }
-  }, 120_000);
+  }, 240_000);
 });
