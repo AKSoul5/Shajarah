@@ -8,6 +8,7 @@ import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palet
 import { hashString } from "@/lib/layout/random";
 import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
+import { DesignFrame, TitleGround, TitleRule } from "./frames";
 import type { PosterTheme } from "@/lib/types";
 
 export interface PosterMeta {
@@ -134,12 +135,19 @@ export const TreePoster = memo(
     const { width: W, height: H, rtl } = layout;
     const pal = makePalette(theme, layout);
     const bark = pal.mono ? "#1a1a1a" : theme.branch;
+    // (a design that rims its names in its metal, Imperial Gold's gold,
+    // Platinum's steel, Emerald Dynasty's brass, keeps the branch colours on
+    // the branches; the others rim each name in its branch's colour)
+    const metalRim = !pal.mono && (pal.rimStyle === "metal" || pal.rimStyle === "gold");
     const withRim = (n: PosterNode) => {
       const f = pal.fill(n);
+      if (metalRim && theme.colorBy !== "generation") return { ...f, border: pal.rimStyle === "gold" ? pal.ornament : pal.rule };
       const rim = pal.rim(n.lineage);
       return rim ? { ...f, border: rim } : f;
     };
-    const artwork = theme.frame && !!frameSrc && !pal.mono;
+    // the gold-foil artwork is Imperial Gold's frame; every other design draws its own
+    const artwork = theme.frame && pal.frame === "foil" && !!frameSrc && !pal.mono;
+    const frameKind = pal.mono ? "hairline" : theme.frame ? pal.frame : "rule";
     const click = (id: string) => (onSelect ? {
       onClick: () => onSelect(id), style: { cursor: "pointer" }, "data-member": id,
       ...(onMenu ? { onContextMenu: (e: { preventDefault: () => void; clientX: number; clientY: number }) => { e.preventDefault(); onMenu(id, e.clientX, e.clientY); } } : {}),
@@ -172,13 +180,14 @@ export const TreePoster = memo(
           </linearGradient>
         </defs>
 
-        {/* Paper, then either the frame artwork or a fine gold rule */}
+        {/* Paper (with its grain, in the designs that have one), then the frame */}
         <rect width={W} height={H} fill={pal.paper} />
+        {pal.texture === "grain" && !artwork && <PaperGrain W={W} H={H} colour={pal.inkSoft} />}
         {artwork ? (
           // (softer: the paper shows through the gold and its texture)
           <image href={frameSrc!} x={0} y={0} width={W} height={H} preserveAspectRatio="none" opacity={theme.frameFinish === "soft" ? 0.6 : 1} />
         ) : (
-          <RuleFrame W={W} H={H} pal={pal} />
+          <DesignFrame W={W} H={H} pal={pal} kind={frameKind === "foil" ? "rule" : frameKind} accent={theme.male} />
         )}
 
         <Header layout={layout} meta={meta} theme={theme} pal={pal} />
@@ -245,7 +254,7 @@ export const TreePoster = memo(
           n.shape === "medallion" ? (
             <Medallion key={n.id} node={n} pal={pal} onClick={click(n.id)} ring={pal.rim(n.lineage)} />
           ) : (
-            <PersonNode key={n.id} node={n} {...withRim(n)} pal={pal} onClick={click(n.id)} />
+            <PersonNode key={n.id} node={n} {...withRim(n)} pal={pal} onClick={click(n.id)} detail={pal.mono || theme.colorBy === "generation" ? null : pal.rimStyle} />
           ),
         )}
         {layout.base && <Medallion node={layout.base} pal={pal} onClick={click(layout.base.id)} strong />}
@@ -485,29 +494,28 @@ function leafPath(L: number, w: number): string {
     + `C${f(L * 0.28)} ${f(w * 0.62)} ${f(-L * 0.22)} ${f(w * 0.78)} ${f(-L / 2)} 0Z`;
 }
 
-/** A fine double gold rule with small corner lozenges. */
-function RuleFrame({ W, H, pal }: { W: number; H: number; pal: Palette }) {
-  const a = W * 0.025, b = W * 0.033, d = W * 0.007;
-  const corners: [number, number][] = [[a, a], [W - a, a], [a, H - a], [W - a, H - a]];
+/**
+ * A fine grain in the paper, as of laid and aged sheets: short fibres in a
+ * tile (the same every time), in the faintest ink.
+ */
+function PaperGrain({ W, H, colour }: { W: number; H: number; colour: string }) {
+  const t = W * 0.06;
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const fibres: string[] = [];
+  for (let i = 0; i < 46; i++) {
+    const x = rnd() * t, y = rnd() * t, a = rnd() * Math.PI, l = t * (0.04 + rnd() * 0.09);
+    fibres.push(`M${x.toFixed(1)} ${y.toFixed(1)}l${(Math.cos(a) * l).toFixed(1)} ${(Math.sin(a) * l).toFixed(1)}`);
+  }
   return (
-    <g fill="none" stroke={pal.line}>
-      <rect x={a} y={a} width={W - 2 * a} height={H - 2 * a} strokeWidth={W * 0.0022} />
-      <rect x={b} y={b} width={W - 2 * b} height={H - 2 * b} strokeWidth={W * 0.0008} />
-      {corners.map(([x, y]) => (
-        <path key={`${x},${y}`} d={`M${x} ${y - d}L${x + d} ${y}L${x} ${y + d}L${x - d} ${y}Z`} fill={pal.line} stroke="none" />
-      ))}
-    </g>
-  );
-}
-
-/** Gilt rule with a central lozenge, used under the title. */
-function Divider({ x, y, w, pal }: { x: number; y: number; w: number; pal: Palette }) {
-  const d = w * 0.02;
-  return (
-    <g stroke={pal.line} fill="none" strokeWidth={w * 0.004}>
-      <path d={`M${x - w / 2} ${y}H${x - d * 2.2}M${x + d * 2.2} ${y}H${x + w / 2}`} />
-      <path d={`M${x} ${y - d}L${x + d * 1.6} ${y}L${x} ${y + d}L${x - d * 1.6} ${y}Z`} fill={pal.line} />
-    </g>
+    <>
+      <defs>
+        <pattern id="sh-grain" width={t} height={t} patternUnits="userSpaceOnUse">
+          <path d={fibres.join("")} stroke={colour} strokeWidth={W * 0.0004} strokeLinecap="round" />
+        </pattern>
+      </defs>
+      <rect width={W} height={H} fill="url(#sh-grain)" opacity={0.1} />
+    </>
   );
 }
 
@@ -637,7 +645,7 @@ function SubLines({ node, y, fontSize, fill, opacity }: { node: PosterNode; y: n
 }
 
 function PersonNode({
-  node, fill, border, text, pal, onClick,
+  node, fill, border, text, pal, onClick, detail = null,
 }: {
   node: PosterNode;
   fill: string;
@@ -645,6 +653,8 @@ function PersonNode({
   text: string;
   pal: Palette;
   onClick: object;
+  /** The design's rim: engraved (a second line inside), metal (a fine highlight inside), or plain. */
+  detail?: PosterPalette["rimStyle"] | null;
 }) {
   const fs = node.fontSize;
   const sw = fs * 0.06;
@@ -678,6 +688,17 @@ function PersonNode({
     default:
       body = <rect x={-node.w / 2} y={-node.h / 2} width={node.w} height={node.h} rx={node.h / 2} fill={fill} stroke={border} strokeWidth={sw} />;
   }
+  // the design's rim detail, inside the outline (never on leaves)
+  const inner = (() => {
+    if (!detail || detail === "fill" || detail === "gold" || node.shape === "leaf") return null;
+    const g = sw * (detail === "engraved" ? 2.4 : 1.4);
+    const props = detail === "engraved"
+      ? { fill: "none", stroke: border, strokeWidth: sw * 0.45, opacity: 0.65 }
+      : { fill: "none", stroke: "#ffffff", strokeWidth: sw * 0.55, opacity: 0.55 };
+    if (node.shape === "oval") return <ellipse rx={node.w / 2 - g} ry={node.h / 2 - g} {...props} />;
+    if (node.shape === "circle" && !(node.w > node.h + 0.5)) return <circle r={node.w / 2 - g} {...props} />;
+    return <rect x={-node.w / 2 + g} y={-node.h / 2 + g} width={node.w - 2 * g} height={node.h - 2 * g} rx={node.h / 2 - g} {...props} />;
+  })();
   // a parent: a second, gold ring just outside the name (the key's "له ذرية")
   const ring = node.terminal ? null : (() => {
     const g = fs * 0.16, stroke = pal.ornament, w = sw * 1.1;
@@ -695,6 +716,7 @@ function PersonNode({
       <title>{node.label}</title>
       {ring}
       {body}
+      {inner}
       <g transform={flip ? "rotate(180)" : undefined}>
         <text y={nameY(node)} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={node.terminal ? 400 : 700} fill={text}>
           {node.label}
@@ -870,6 +892,9 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
           ﷽
         </text>
       )}
+      {meta.title && !pal.mono && (
+        <TitleGround cx={W / 2} cy={titleY - titleFs * 0.42} tw={(textWidth(meta.title, 1) || 1) * titleFs * (kufi ? 1.45 : 1.1)} fs={titleFs} W={W} pal={pal} maxW={avail} />
+      )}
       {meta.title && (
         <text x={W / 2} y={titleY} textAnchor="middle" fontFamily={kufi ? KUFI : RUQAA} fontSize={titleFs} fontWeight={kufi ? 400 : 700}
           fill={pal.mono ? pal.ink : "url(#sh-gold-text)"} direction={rtl ? "rtl" : "ltr"}>
@@ -888,7 +913,10 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
           {rtl ? `فرع ${layout.focus.label}` : `Branch of ${layout.focus.label}`}
         </text>
       )}
-      <Divider x={W / 2} y={lastY + H * 0.014} w={Math.min(W * 0.26, avail * 0.6)} pal={pal} />
+      {/* (a cartouche or panel round the title takes the rule's place) */}
+      {(pal.mono || (pal.titleStyle !== "cartouche" && pal.titleStyle !== "panel")) && (
+        <TitleRule x={W / 2} y={lastY + H * 0.014} w={Math.min(W * 0.26, avail * 0.6)} pal={pal} accent={theme.male} />
+      )}
       {edition && (
         <text x={W / 2} y={lastY + H * 0.014 + W * 0.016} textAnchor="middle" dominantBaseline="central" fontSize={W * 0.0105}
           fill={pal.edition} letterSpacing={W * 0.0004} direction={rtl ? "rtl" : "ltr"}>

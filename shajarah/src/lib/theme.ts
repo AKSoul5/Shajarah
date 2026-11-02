@@ -250,6 +250,16 @@ export interface PosterPalette {
   legendParent: string;
   /** One colour per main branch, in order round the canopy. */
   lineage: readonly string[];
+  /**
+   * The design's visual language: its frame (drawn when the poster's frame
+   * is on; "foil" is the gold-foil artwork, the others vector drawings in
+   * the palette), the treatment under or around the title, how names are
+   * rimmed, and the paper's surface.
+   */
+  frame: "rule" | "foil" | "manuscript" | "metal" | "botanical" | "regal" | "hairline";
+  titleStyle: "divider" | "cartouche" | "panel" | "steel" | "sprig" | "star" | "hairline";
+  rimStyle: "fill" | "engraved" | "metal" | "gold";
+  texture: "none" | "grain";
 }
 
 /** The colours every preset was drawn in before each had its own palette. */
@@ -260,6 +270,7 @@ const BASE_PALETTE: Omit<PosterPalette, "inkOnly"> = {
   canopyWash: "#efe3c3", canopyWashOpacity: 0.35,
   spouseFill: "#f8ece6", spouseRim: "#9a6656", spouseInk: "#6e4438", legendParent: "#e8e0cc",
   lineage: LINEAGE_COLORS,
+  frame: "foil", titleStyle: "divider", rimStyle: "fill", texture: "none",
 };
 
 /** Black ink on white: every colour, metal and wash dropped. */
@@ -270,6 +281,7 @@ const INK_PALETTE: Omit<PosterPalette, "inkOnly"> = {
   canopyWash: "#ffffff", canopyWashOpacity: 0,
   spouseFill: "#ffffff", spouseRim: "#111111", spouseInk: "#111111", legendParent: "#ffffff",
   lineage: ["#1a1a1a"],
+  frame: "hairline", titleStyle: "hairline", rimStyle: "fill", texture: "none",
 };
 
 /**
@@ -287,24 +299,27 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     canopyWash: "#ece2cb", canopyWashOpacity: 0.4,
     spouseFill: "#f3ece0", spouseRim: "#8a7350", spouseInk: "#4a3b2a", legendParent: "#e6dcc6",
     lineage: ["#5a6a5c", "#8a6a2e", "#7a4a52", "#3f5a7e"],
+    frame: "rule", titleStyle: "divider", rimStyle: "fill", texture: "none",
   },
   // opulent: rich parchment, espresso, foil gold kept to frame, title and ornament
   luxe: {
     paper: "#efe3c8", ivory: "#f8f0dc", rule: "#9a7029", ornament: "#9a7029", thread: "#d6b45c",
     figure: "#6a4a19", edition: "#6a4a19", titleHi: "#b8862e", titleLo: "#49301f", titleFont: "ruqaa",
     ink: "#2d2119", inkSoft: "#49301f", muted: "#49301f", footerInk: "#49301f", creditInk: "#5a4330",
-    canopyWash: "#e4cf9f", canopyWashOpacity: 0.35,
+    canopyWash: "#e4cf9f", canopyWashOpacity: 0.22,
     spouseFill: "#f4e7cc", spouseRim: "#8d6626", spouseInk: "#49301f", legendParent: "#e5d4ad",
     lineage: ["#86601d", "#4f4a2a", "#7a3e34", "#3f4f5c"],
+    frame: "foil", titleStyle: "cartouche", rimStyle: "metal", texture: "none",
   },
   // historic: aged parchment, ink brown, brass
   heritage: {
     paper: "#e9d9b9", ivory: "#f5ebd5", rule: "#7f6131", ornament: "#7f6131", thread: "#c9a45c",
     figure: "#553d1f", edition: "#553d1f", titleHi: "#7f6131", titleLo: "#382719", titleFont: "ruqaa",
     ink: "#2b1e12", inkSoft: "#5a3e27", muted: "#5a3e27", footerInk: "#4a3320", creditInk: "#54402b",
-    canopyWash: "#dcc69c", canopyWashOpacity: 0.35,
+    canopyWash: "#dcc69c", canopyWashOpacity: 0.2,
     spouseFill: "#f2e5c9", spouseRim: "#7f6131", spouseInk: "#4a3320", legendParent: "#e0cfa8",
     lineage: ["#6b3e26", "#4b5a3a", "#3e4e63", "#80691f"],
+    frame: "manuscript", titleStyle: "panel", rimStyle: "engraved", texture: "grain",
   },
   // contemporary: porcelain, platinum, champagne, steel
   "silver-gold": {
@@ -314,6 +329,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     canopyWash: "#e9ebe8", canopyWashOpacity: 0.5,
     spouseFill: "#f2f1ec", spouseRim: "#7b6a44", spouseInk: "#3a4149", legendParent: "#e4e6e8",
     lineage: ["#3f5f86", "#836a33", "#4f6f55", "#7a4f6a"],
+    frame: "metal", titleStyle: "steel", rimStyle: "metal", texture: "none",
   },
   // organic: deep teal, dusty rose, walnut, antique gold for the lineage
   classic: {
@@ -323,6 +339,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     canopyWash: "#dfe6d6", canopyWashOpacity: 0.45,
     spouseFill: "#f5e5e6", spouseRim: "#9a6656", spouseInk: "#5a3730", legendParent: "#e5ded0",
     lineage: ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380"],
+    frame: "botanical", titleStyle: "sprig", rimStyle: "fill", texture: "none",
   },
   // regal: forest emerald, brass, deep green
   emerald: {
@@ -332,6 +349,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     canopyWash: "#d7e6dc", canopyWashOpacity: 0.5,
     spouseFill: "#edf2ea", spouseRim: "#2c6a4e", spouseInk: "#123f30", legendParent: "#e1e4d6",
     lineage: ["#236347", "#856522", "#2f5e73", "#6e4a5c"],
+    frame: "regal", titleStyle: "star", rimStyle: "gold", texture: "none",
   },
   // minimal: black ink on soft white
   mono: { ...INK_PALETTE, paper: "#fafaf8", titleFont: "kufi" },
