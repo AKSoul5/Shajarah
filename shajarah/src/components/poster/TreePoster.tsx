@@ -6,7 +6,7 @@ import { soilStyle, type SoilContext, type SoilInk, type SoilStyleId } from "@/l
 import { textWidth } from "@/lib/layout/botanical";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
-import { lineageColor, lineagePattern, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
+import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
 import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
 import type { PosterTheme } from "@/lib/types";
@@ -79,8 +79,6 @@ interface Palette extends PosterPalette {
   branch: (lineage: number | null | undefined) => string;
   /** Rim colour carrying the lineage, or null to keep the role's own rim. */
   rim: (lineage: number | null | undefined) => string | null;
-  /** In black ink with branches marked: a lineage's line pattern (dash, gap …, in dash units), or null for a solid line. */
-  pattern: (lineage: number | null | undefined) => readonly number[] | null;
 }
 
 function makePalette(theme: PosterTheme, layout: PosterLayout, uid = "sh"): Palette {
@@ -92,14 +90,12 @@ function makePalette(theme: PosterTheme, layout: PosterLayout, uid = "sh"): Pale
   // how many main branches the poster has (the seventh and eighth colours
   // only for one with that many; see lineageColor)
   const count = 1 + Math.max(-1, ...layout.nodes.map((n) => n.lineage ?? -1));
-  const patterned = theme.branchColors && mono && count >= 2;
   return {
     ...tokens,
     uid,
     mono,
     branch: (i) => (coloured ? lineageColor(i, bark, tokens.lineage, count) : bark),
     rim: (i) => (coloured && i != null ? lineageColor(i, bark, tokens.lineage, count) : null),
-    pattern: (i) => (patterned ? lineagePattern(i) : null),
     line: tokens.rule,
     fill: (n) => {
       if (mono) return { fill: "#ffffff", border: "#111111", text: "#111111" };
@@ -231,20 +227,14 @@ export const TreePoster = memo(
         {/* Every branch has a fine paper-coloured edge, so where lines cross
             the upper one visibly passes over the lower (never a shared junction) */}
         <g stroke={pal.paper} strokeWidth={W * 0.0018} strokeLinejoin="round" paintOrder="stroke">
-          {layout.branches.map((b, i) => {
-            if (b.dotted) {
+          {layout.branches.map((b, i) =>
+            b.dotted ? (
               // a family shown through a daughter: round dots along the line
-              return <path key={i} d={b.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.w} strokeLinecap="round" strokeDasharray={`0.01 ${(b.w * 2.4).toFixed(1)}`} opacity={0.9} />;
-            }
-            // in black ink, each main branch in its own line pattern: the
-            // centre line stroked evenly (a dashed outline reads as two lines)
-            const pattern = pal.pattern(b.lineage);
-            if (pattern && b.line) {
-              const unit = Math.max(W * 0.0045, b.line.w * 1.5);
-              return <path key={i} d={b.line.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.line.w} strokeLinecap="butt" strokeDasharray={pattern.map((x) => (x * unit).toFixed(1)).join(" ")} />;
-            }
-            return <path key={i} d={b.d} fill={pal.branch(b.lineage)} />;
-          })}
+              <path key={i} d={b.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.w} strokeLinecap="round" strokeDasharray={`0.01 ${(b.w * 2.4).toFixed(1)}`} opacity={0.9} />
+            ) : (
+              <path key={i} d={b.d} fill={pal.branch(b.lineage)} />
+            ),
+          )}
         </g>
 
         {/* The ancestral chain on the trunk, eldest at the bottom, joined by a gold
@@ -1027,20 +1017,6 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
           {[0, 1, 2].map((k) => (
             <rect key={k} x={x + (k * sw) / 3} y={y - fs * 0.12} width={sw / 3.4} height={fs * 0.24} rx={fs * 0.1} fill={pal.branch(k)} />
           ))}
-        </g>
-      ),
-    });
-  }
-  if (theme.branchColors && pal.mono && new Set(layout.nodes.map((n) => n.lineage).filter((x) => x != null)).size >= 2) {
-    items.push({
-      label: rtl ? "لكل فرع نمط خطه" : "Each branch its line pattern",
-      swatch: (x) => (
-        <g>
-          {[0, 1, 2].map((k) => {
-            const p = pal.pattern(k);
-            const y0 = y - fs * 0.3 + k * fs * 0.3;
-            return <line key={k} x1={x + fs * 0.1} y1={y0} x2={x + sw - fs * 0.1} y2={y0} stroke={pal.branch(k)} strokeWidth={fs * 0.12} strokeDasharray={p?.map((v) => (v * fs * 0.18).toFixed(2)).join(" ")} />;
-          })}
         </g>
       ),
     });

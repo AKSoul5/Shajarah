@@ -226,7 +226,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
               [
                 ["frame", theme.preset === "luxe" ? "Gold-foil frame (the artwork)" : "The design's frame"],
                 ["femaleCapsule", "Daughters as gold capsules"],
-                ["branchColors", isInkOnly(theme) ? "Mark each main branch with its own line pattern" : "Colour each main branch (lineage colours)"],
+                ["branchColors", "Colour each main branch (lineage colours)"],
                 ["branchTint", "A faint wash behind each main branch"],
                 ["bismillah", "Basmala header ﷽"],
                 ["edition", "Edition year under the title (طبعة …)"],

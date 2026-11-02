@@ -69,7 +69,7 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string; d
     preset: "mono", colorBy: "gender",
     male: "#ffffff", female: "#e6e6e6", ancestor: "#111111", branch: "#1a1a1a",
     background: "white", inkOnly: true, metallic: false, nodeRim: "#111111",
-    nodeShape: "oval", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "paragraph",
+    nodeShape: "oval", femaleCapsule: false, branchColors: false, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "paragraph",
     bismillah: true, edition: true, verse: false, hadith: false, frame: false,
   },
 };
@@ -218,24 +218,6 @@ export function lineageColor(i: number | null | undefined, fallback: string, col
   return colours[i % n];
 }
 
-/**
- * In black ink, a line pattern for each main branch instead of a colour (in
- * units of the line's dash length): solid, long dash, short dash, dash-dot,
- * long-short, dash-dot-dot. Never pure dots: those mark a family shown
- * through a daughter.
- */
-export const LINEAGE_PATTERNS: readonly (readonly number[] | null)[] = [
-  null,
-  [4, 1.5],
-  [1.6, 1.2],
-  [3, 1.2, 0.5, 1.2],
-  [4, 1.2, 1.6, 1.2],
-  [3, 1.1, 0.5, 1.1, 0.5, 1.1],
-];
-
-export function lineagePattern(i: number | null | undefined): readonly number[] | null {
-  return i == null ? null : LINEAGE_PATTERNS[i % LINEAGE_PATTERNS.length];
-}
 
 /**
  * Every colour a poster is drawn in, beyond the ones a person can choose
