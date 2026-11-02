@@ -930,10 +930,14 @@ Every preset but the black-and-white one colours each main branch
 youngest names. (Colouring the names by generation instead is under
 **Colour nodes by**.)
 
-- **Four branch colours, of like weight:** deep teal, antique gold, dusty
-  plum and slate blue, in turn, so neighbouring branches always differ.
-  (Six or seven colours read as a rainbow; branches four apart are far
-  apart.)
+- **Up to eight branch colours, of like weight, per design:** each design
+  has its own eight, the first four the ones it always had (in Refined
+  Heritage: deep teal, antique gold, dusty plum and slate blue). A poster
+  uses six in turn, so neighbouring branches always differ and no two of
+  the first six branches share a colour; the seventh and eighth are used
+  only by a family with that many main branches. Every colour is checked
+  to stay distinct from the others and readable on the design's paper.
+  Modern Archive keeps plain black lines.
 - **Limbs no heavier than they need be:** a line's width still follows how
   many people it carries, but the widest is at most 1.2% of the page, so
   the names, not the wood, carry the poster.
