@@ -77,7 +77,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                       on ? "border-bark-700 ring-2 ring-bark-700/40" : "border-parchment-300"
                     }`}
                   >
-                    <span className="block aspect-[1/1.41] overflow-hidden bg-parchment-50">
+                    <span aria-hidden className="block aspect-[1/1.41] overflow-hidden bg-parchment-50">
                       {layout && meta
                         ? <ThemePreview layout={layout} meta={meta} theme={designOf(p)} frameSrc={frameSrc} />
                         : <span className="block h-full w-full" style={{ background: `linear-gradient(135deg, ${t.male}, ${t.female})` }} />}

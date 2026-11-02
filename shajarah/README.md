@@ -802,19 +802,42 @@ artwork, which is embedded into the exported file.
 
 ## Styles
 
-**Style** has seven presets, and every setting can be overridden.
+**Style** has seven designs, each art-directed as a whole, and every
+setting can still be overridden. The menu shows each design as a small
+drawing of the family's own poster, with its name and a line about it.
 Settings are saved per tree in `settings.theme`; the poster size is saved
 in `settings.posterSize`.
 
-| Preset | Look |
-| --- | --- |
-| Refined ivory (default) | fine gold rule on ivory, satin-silver leaves for sons, soft-gold capsules for daughters, ivory medallions, one muted colour per main branch, basmala and Ruqaa title |
-| Luxe | the same tree inside the Canva gold-foil frame, with the verse and hadith medallions |
-| Heritage | ivory and gold ovals with gold rims, gold scalloped medallions, basmala, verse and hadith medallions |
-| Silver & Gold | metallic silver (male) and gold (female) ovals, framed ancestor badges |
-| Classic botanical | a heritage palette: deep-teal leaves for sons, dusty-rose capsules for daughters, antique-gold medallions, walnut bark with the names carved in it |
-| Parchment & Emerald | emerald and gold leaves on parchment |
-| Minimal black & white | white ovals, fine line branches, like hand-drawn family charts |
+| Design (saved id) | Paper and colours | Frame and title | Names |
+| --- | --- | --- | --- |
+| Refined Heritage (`refined`, default) | warm ivory, walnut branches, antique gold | fine double rule with quarter-arc corners; Ruqaa title over a lozenge rule | satin silver and champagne |
+| Imperial Gold (`luxe`) | rich parchment, deep espresso, foil gold | the Canva gold-foil frame; the title in a cartouche | foil gold and brushed silver, rimmed in gold |
+| Ancestral Manuscript (`heritage`) | aged parchment with a faint grain, ink brown, brass | a band of lozenges between brass rules, stars in the corner squares; the title in a panel | ivory and tan ovals, engraved rims |
+| Platinum (`silver-gold`) | porcelain white, steel, champagne | one brushed-steel rule, stepped corners; Noto Kufi title over a steel rule | brushed platinum and champagne, rimmed in steel |
+| Botanical Classic (`classic`) | soft botanical paper, deep teal, dusty rose, walnut | fine gold rules with leafy sprigs and rosebuds; a leaf sprig under the title | teal leaves, dusty-rose daughters |
+| Emerald Dynasty (`emerald`) | warm light paper, forest emerald, brass, an emerald wash | an emerald band between brass rules, brass stars; a brass star under the title | emerald and gold, rimmed in brass |
+| Modern Archive (`mono`) | black ink on soft white | one hairline; Noto Kufi title | white ovals, strong outlines |
+
+- **One palette per design** (`PRESET_PALETTES` in src/lib/theme.ts): the
+  paper, inks, rules, trunk thread, title, canopy wash, spouses' cards,
+  lineage colours, frame, title treatment, rims and paper surface.
+  Nothing on the poster is drawn outside it (the editor's own marks
+  aside).
+- **Readable at print size:** text is at least 4.5:1 against what it sits
+  on; rules, rims, branches and lineage colours at least 3:1 against the
+  paper (tests/palettes.test.ts). A name's rim is darkened as far as it
+  takes, so a pale colour someone picks can't melt into the paper.
+- **Black ink only** is its own switch, apart from the paper colour.
+- **Saved posters:** a theme is saved as its design and only what differs
+  from it. Posters saved before the redesign take it: values still equal
+  to the old defaults follow the new design, and colours their owners
+  changed stay. **Reset to the design** restores its colours, paper and
+  finish, and keeps spouses, ornaments and labels.
+- **Fonts:** Amiri for names, Aref Ruqaa for most titles, Noto Kufi Arabic
+  for Platinum's and Modern Archive's. All three are bundled and embedded
+  in exports.
+- **Layout:** the frames stay in the margin the layout keeps for a frame,
+  so no design moves a name.
 
 Every preset but the black-and-white one colours each main branch
 (lineage colours), so a line can be followed from the trunk to its

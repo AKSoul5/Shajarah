@@ -883,10 +883,15 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
   const titleY = theme.bismillah
     ? Math.max(hd.title, hd.basmala + basmalaFs * 0.61 + titleFs * 1.23 + W * 0.012)
     : layout.frame.framed ? hd.title : H * 0.052;
-  const subY = titleY + H * 0.024;
+  // (a cartouche or panel round the title: what follows starts below it)
+  const grounded = !pal.mono && (pal.titleStyle === "cartouche" || pal.titleStyle === "panel");
+  const groundBottom = titleY + titleFs * 0.62;
+  const subFs = Math.min(W * 0.017, titleFs * 0.55);
+  const below = (y: number, fs: number) => (grounded ? Math.max(y, groundBottom + fs * 1.15) : y);
+  const subY = below(titleY + H * 0.024, subFs);
   // a branch poster's "فرع …" line takes the subtitle's place
   const subtitle = layout.focus ? null : meta.subtitle;
-  const focusY = titleY + H * 0.024;
+  const focusY = below(titleY + H * 0.024, Math.min(W * 0.015, (titleFs || W * 0.03) * 0.48));
   const lastY = layout.focus ? focusY : subtitle ? subY : titleY;
   const edition = theme.edition ? editionLine(meta.updated, rtl) : null;
   return (
@@ -898,7 +903,7 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
         </text>
       )}
       {meta.title && !pal.mono && (
-        <TitleGround cx={W / 2} cy={titleY - titleFs * 0.42} tw={(textWidth(meta.title, 1) || 1) * titleFs * (kufi ? 1.45 : 1.1)} fs={titleFs} W={W} pal={pal} maxW={avail} />
+        <TitleGround cx={W / 2} cy={titleY - titleFs * 0.38} tw={(textWidth(meta.title, 1) || 1) * titleFs * (kufi ? 1.45 : 1.1)} fs={titleFs} W={W} pal={pal} maxW={avail} />
       )}
       {meta.title && (
         <text x={W / 2} y={titleY} textAnchor="middle" fontFamily={kufi ? KUFI : RUQAA} fontSize={titleFs} fontWeight={kufi ? 400 : 700}
@@ -907,7 +912,7 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
         </text>
       )}
       {subtitle && (
-        <text x={W / 2} y={subY} textAnchor="middle" fontSize={Math.min(W * 0.017, titleFs * 0.55)} fill={pal.inkSoft} direction={rtl ? "rtl" : "ltr"}>
+        <text x={W / 2} y={subY} textAnchor="middle" fontSize={subFs} fill={pal.inkSoft} direction={rtl ? "rtl" : "ltr"}>
           {subtitle}
         </text>
       )}
@@ -923,7 +928,7 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
         <TitleRule x={W / 2} y={lastY + H * 0.014} w={Math.min(W * 0.26, avail * 0.6)} pal={pal} accent={theme.male} />
       )}
       {edition && (
-        <text x={W / 2} y={lastY + H * 0.014 + W * 0.016} textAnchor="middle" dominantBaseline="central" fontSize={W * 0.0105}
+        <text x={W / 2} y={grounded ? Math.max(lastY === titleY ? groundBottom : lastY, groundBottom) + W * 0.016 : lastY + H * 0.014 + W * 0.016} textAnchor="middle" dominantBaseline="central" fontSize={W * 0.0105}
           fill={pal.edition} letterSpacing={W * 0.0004} direction={rtl ? "rtl" : "ltr"}>
           {edition}
         </text>
