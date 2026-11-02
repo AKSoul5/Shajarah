@@ -124,8 +124,79 @@ export function metalStops(c: string): [string, string, string] {
  */
 export const LINEAGE_COLORS = ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380"] as const;
 
-export function lineageColor(i: number | null | undefined, fallback: string): string {
-  return i == null ? fallback : LINEAGE_COLORS[i % LINEAGE_COLORS.length];
+export function lineageColor(i: number | null | undefined, fallback: string, colours: readonly string[] = LINEAGE_COLORS): string {
+  return i == null ? fallback : colours[i % colours.length];
+}
+
+/**
+ * Every colour a poster is drawn in, beyond the ones a person can choose
+ * (son, daughter, ancestor, branch, rim). Each preset has its own; nothing
+ * on the poster is drawn in a colour outside its palette (the editor's own
+ * marks aside: selection, search, the relationship trace).
+ */
+export interface PosterPalette {
+  /** Black ink only (see PosterTheme.inkOnly). */
+  inkOnly: boolean;
+  /** The paper, and the ivory of cards, badges and medallions. */
+  paper: string;
+  ivory: string;
+  /** Fine rules and rims (the poster's metal); ornament drawn in it. */
+  rule: string;
+  ornament: string;
+  /** The thread up the trunk and the light metal of the foundation. */
+  thread: string;
+  /** Small figures and the edition line, in a deeper shade of the metal. */
+  figure: string;
+  edition: string;
+  /** The title's two-stop fill (top, bottom). */
+  titleHi: string;
+  titleLo: string;
+  /** Text: names and labels; the subtitle and soft lines; the foundation's muted words; the footer's labels; the credit. */
+  ink: string;
+  inkSoft: string;
+  muted: string;
+  footerInk: string;
+  creditInk: string;
+  /** The wash behind the canopy (opacity 0: none). */
+  canopyWash: string;
+  canopyWashOpacity: number;
+  /** Spouses' cards. */
+  spouseFill: string;
+  spouseRim: string;
+  spouseInk: string;
+  /** The key's swatch for a parent. */
+  legendParent: string;
+  /** One colour per main branch, in order round the canopy. */
+  lineage: readonly string[];
+}
+
+/** The colours every preset was drawn in before each had its own palette. */
+const BASE_PALETTE: Omit<PosterPalette, "inkOnly"> = {
+  paper: "#f7f1e3", ivory: "#fcf8ee", rule: "#b08a2e", ornament: "#b08a2e", thread: "#d9b45a",
+  figure: "#8a6a1f", edition: "#8a6a1f", titleHi: "#b98d2c", titleLo: "#6e4f12",
+  ink: "#2a1c0c", inkSoft: "#6b4a22", muted: "#6b4a22", footerInk: "#5a4630", creditInk: "#8a6d40",
+  canopyWash: "#efe3c3", canopyWashOpacity: 0.35,
+  spouseFill: "#f8ece6", spouseRim: "#9a6656", spouseInk: "#6e4438", legendParent: "#e8e0cc",
+  lineage: LINEAGE_COLORS,
+};
+
+/** Black ink on white: every colour, metal and wash dropped. */
+const INK_PALETTE: Omit<PosterPalette, "inkOnly"> = {
+  paper: "#ffffff", ivory: "#ffffff", rule: "#111111", ornament: "#111111", thread: "#111111",
+  figure: "#111111", edition: "#555555", titleHi: "#111111", titleLo: "#111111",
+  ink: "#111111", inkSoft: "#444444", muted: "#111111", footerInk: "#111111", creditInk: "#666666",
+  canopyWash: "#ffffff", canopyWashOpacity: 0,
+  spouseFill: "#ffffff", spouseRim: "#111111", spouseInk: "#111111", legendParent: "#ffffff",
+  lineage: ["#1a1a1a"],
+};
+
+/** Whether a theme is drawn in black ink only (white paper meant it, before the setting existed). */
+export const isInkOnly = (theme: Pick<PosterTheme, "inkOnly" | "background">) => theme.inkOnly ?? theme.background === "white";
+
+/** The full palette a theme is drawn in. */
+export function paletteOf(theme: PosterTheme): PosterPalette {
+  const inkOnly = isInkOnly(theme);
+  return { inkOnly, ...(inkOnly ? INK_PALETTE : BASE_PALETTE) };
 }
 
 /** WCAG contrast ratio between two colours. */
@@ -153,7 +224,7 @@ export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
     labelMode: theme.labelMode,
     showYears: theme.showYears,
     motherNames: theme.motherNames,
-    branchScale: theme.background === "white" ? 0.35 : 1,
+    branchScale: isInkOnly(theme) ? 0.35 : 1,
     cornerMedallions: theme.verse || theme.hadith,
     framed: theme.frame,
     soilStyle: theme.soilStyle,

@@ -42,6 +42,12 @@ export interface PosterTheme {
   ancestor: string;
   branch: string;
   background: "parchment" | "white";
+  /**
+   * Black ink only: no colour, no metal, no frame artwork (Modern Archive).
+   * Separate from the paper: white paper alone keeps a theme's colours.
+   * Unset on themes saved before it existed: then white paper meant this.
+   */
+  inkOnly?: boolean;
   /** Metallic gradients on nodes (silver / gold look). */
   metallic: boolean;
   /** "auto": leaves for a small canopy, ovals for a large one (see AUTO_LEAF_LIMIT). */

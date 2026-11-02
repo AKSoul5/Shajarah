@@ -6,7 +6,7 @@ import type { SoilInk } from "@/lib/layout/soil";
 import { textWidth } from "@/lib/layout/botanical";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
-import { lineageColor, satinStops, shade, textOn } from "@/lib/theme";
+import { lineageColor, paletteOf, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
 import type { PosterTheme } from "@/lib/types";
 
@@ -55,17 +55,13 @@ interface Props {
 const FONT = "Amiri, 'Traditional Arabic', 'Noto Naskh Arabic', 'Times New Roman', serif";
 /** Calligraphic face for headings. */
 const RUQAA = "'Aref Ruqaa', Amiri, 'Traditional Arabic', serif";
+// The editor's own marks (dragging a name) keep fixed colours; the poster
+// itself is drawn only in its theme's palette (see paletteOf).
 const PAPER = "#f7f1e3";
-const IVORY = "#fcf8ee";
 const GOLD = "#b08a2e";
-/** Deeper gold for figures on ivory (readable at small sizes). */
-const GOLD_DEEP = "#8a6a1f";
 const INK = "#2a1c0c";
-/** Spouses' cartouches: a soft rose, apart from the line's own names. */
-const SPOUSE_FILL = "#f8ece6";
-const SPOUSE_RIM = "#9a6656";
 
-interface Palette {
+interface Palette extends PosterPalette {
   mono: boolean;
   ink: string;
   /** Fine gold lines (rules, rims). */
@@ -79,16 +75,17 @@ interface Palette {
 }
 
 function makePalette(theme: PosterTheme, layout: PosterLayout): Palette {
-  const mono = theme.background === "white";
+  const tokens = paletteOf(theme);
+  const mono = tokens.inkOnly;
   const satin = (gender: string) => (gender === "FEMALE" ? "url(#sh-satin-f)" : "url(#sh-satin-m)");
   const coloured = theme.branchColors && !mono;
   const bark = mono ? "#1a1a1a" : theme.branch;
   return {
+    ...tokens,
     mono,
-    branch: (i) => (coloured ? lineageColor(i, bark) : bark),
-    rim: (i) => (coloured && i != null ? lineageColor(i, bark) : null),
-    ink: mono ? "#111111" : INK,
-    line: mono ? "#111111" : GOLD,
+    branch: (i) => (coloured ? lineageColor(i, bark, tokens.lineage) : bark),
+    rim: (i) => (coloured && i != null ? lineageColor(i, bark, tokens.lineage) : null),
+    line: tokens.rule,
     fill: (n) => {
       if (mono) return { fill: "#ffffff", border: "#111111", text: "#111111" };
       const female = n.member.gender === "FEMALE";
@@ -168,13 +165,13 @@ export const TreePoster = memo(
             <stop offset="1" stopColor={shade(bark, -0.18)} />
           </linearGradient>
           <linearGradient id="sh-gold-text" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#b98d2c" />
-            <stop offset="1" stopColor="#6e4f12" />
+            <stop offset="0" stopColor={pal.titleHi} />
+            <stop offset="1" stopColor={pal.titleLo} />
           </linearGradient>
         </defs>
 
         {/* Paper, then either the frame artwork or a fine gold rule */}
-        <rect width={W} height={H} fill={pal.mono ? "#ffffff" : PAPER} />
+        <rect width={W} height={H} fill={pal.paper} />
         {artwork ? (
           // (softer: the paper shows through the gold and its texture)
           <image href={frameSrc!} x={0} y={0} width={W} height={H} preserveAspectRatio="none" opacity={theme.frameFinish === "soft" ? 0.6 : 1} />
@@ -191,7 +188,7 @@ export const TreePoster = memo(
         })}
 
         {/* A faint wash behind the canopy gives a sparse tree its shape */}
-        {layout.canopy && !pal.mono && <path d={layout.canopy} fill="#efe3c3" opacity={0.35} />}
+        {layout.canopy && pal.canopyWashOpacity > 0 && <path d={layout.canopy} fill={pal.canopyWash} opacity={pal.canopyWashOpacity} />}
         {theme.branchTint && theme.branchColors && !pal.mono && <BranchTints layout={layout} pal={pal} />}
 
         {/* Ground and roots */}
@@ -214,7 +211,7 @@ export const TreePoster = memo(
         <path d={layout.trunkPath} fill={pal.mono ? "#ffffff" : "url(#sh-trunk)"} stroke={pal.mono ? "#111" : "none"} strokeWidth={W * 0.0015} />
         {/* Every branch has a fine paper-coloured edge, so where lines cross
             the upper one visibly passes over the lower (never a shared junction) */}
-        <g stroke={pal.mono ? "#ffffff" : PAPER} strokeWidth={W * 0.0018} strokeLinejoin="round" paintOrder="stroke">
+        <g stroke={pal.paper} strokeWidth={W * 0.0018} strokeLinejoin="round" paintOrder="stroke">
           {layout.branches.map((b, i) =>
             b.dotted ? (
               // a family shown through a daughter: round dots along the line
@@ -230,7 +227,7 @@ export const TreePoster = memo(
         {layout.trunkLabels.length > 0 && (
           <polyline
             points={[...layout.trunkLabels, layout.origin].map((l) => `${l.x.toFixed(1)},${l.y.toFixed(1)}`).join(" ")}
-            fill="none" stroke={pal.mono ? "#111" : "#d9b45a"} strokeWidth={layout.trunkLabels[0].fontSize * 0.12} strokeLinejoin="round"
+            fill="none" stroke={pal.thread} strokeWidth={layout.trunkLabels[0].fontSize * 0.12} strokeLinejoin="round"
           />
         )}
         {layout.trunkLabels.map((l) => <TrunkBadge key={l.member.id} label={l} pal={pal} onClick={click(l.member.id)} />)}
@@ -421,7 +418,7 @@ function TrunkBadge({ label: l, pal, onClick }: { label: PosterLayout["trunkLabe
     <g {...onClick}>
       <title>{l.label}</title>
       <rect x={l.x - l.w / 2} y={l.y - l.h / 2} width={l.w} height={l.h} rx={l.h / 2}
-        fill={pal.mono ? "#fff" : IVORY} stroke={pal.line} strokeWidth={l.fontSize * 0.07} />
+        fill={pal.ivory} stroke={pal.line} strokeWidth={l.fontSize * 0.07} />
       <text x={l.x} y={l.y} textAnchor="middle" dominantBaseline="central" fontSize={l.fontSize} fontWeight={700} fill={pal.ink}>
         {l.label}
       </text>
@@ -449,7 +446,7 @@ function LineageTrace({ layout, pal, ids, selectedId, W, H, click }: {
   const f = (n: number) => n.toFixed(1);
   return (
     <g data-ui="lineage">
-      <rect width={W} height={H} fill={pal.mono ? "#ffffff" : PAPER} opacity={0.72} pointerEvents="none" />
+      <rect width={W} height={H} fill={pal.paper} opacity={0.72} pointerEvents="none" />
       <g fill="none" stroke={TRACE} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none">
         {edges.map((e) => (
           <polyline key={`${e.parentId}-${e.childId}`} points={e.points.map((p) => `${f(p.x)},${f(p.y)}`).join(" ")}
@@ -527,9 +524,9 @@ function Medallion({ node, pal, onClick, strong, ring }: { node: PosterNode; pal
         <ellipse rx={rx} ry={ry} fill="#fff" stroke="#111" strokeWidth={fs * 0.09} />
       ) : (
         <>
-          {strong && <path d={scallopPath(0, 0, rx + ry * 0.07, ry * 1.07, 28, 0.025)} fill="none" stroke={GOLD} strokeWidth={fs * 0.05} />}
-          <ellipse rx={rx} ry={ry} fill={own?.fill ?? IVORY} stroke={ring ?? GOLD} strokeWidth={fs * (ring ? 0.12 : 0.09)} />
-          <ellipse rx={rx - inset} ry={ry - inset} fill="none" stroke={GOLD} strokeWidth={fs * 0.03} />
+          {strong && <path d={scallopPath(0, 0, rx + ry * 0.07, ry * 1.07, 28, 0.025)} fill="none" stroke={pal.ornament} strokeWidth={fs * 0.05} />}
+          <ellipse rx={rx} ry={ry} fill={own?.fill ?? pal.ivory} stroke={ring ?? pal.ornament} strokeWidth={fs * (ring ? 0.12 : 0.09)} />
+          <ellipse rx={rx - inset} ry={ry - inset} fill="none" stroke={pal.ornament} strokeWidth={fs * 0.03} />
         </>
       )}
       <text y={nameY(node)} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={700} fill={own && !pal.mono ? own.text : pal.ink}>
@@ -559,8 +556,6 @@ function manuscriptPath(w: number, h: number, tip: number): string {
 const lozengePath = (x: number, y: number, s: number) =>
   `M${(x - s).toFixed(1)} ${y.toFixed(1)}L${x.toFixed(1)} ${(y - s * 1.3).toFixed(1)}L${(x + s).toFixed(1)} ${y.toFixed(1)}L${x.toFixed(1)} ${(y + s * 1.3).toFixed(1)}Z`;
 
-/** Spouses' names in a quieter ink than the line's own. */
-const SPOUSE_INK = "#6e4438";
 
 /**
  * A spouse's name on the branch, in one of three designs (theme.spouseStyle).
@@ -578,8 +573,8 @@ function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; p
       </g>
     );
   }
-  const ink = pal.mono ? "#111" : SPOUSE_INK;
-  const rule = pal.mono ? "#111" : GOLD;
+  const ink = pal.spouseInk;
+  const rule = pal.rule;
   const dash = s.dotted ? `${(fs * 0.25).toFixed(1)} ${(fs * 0.18).toFixed(1)}` : undefined;
   const text = s.lines.map((line, i) => (
     <text key={i} y={(i - (s.lines.length - 1) / 2) * fs * 1.05 - (style === "inscribed" ? fs * 0.12 : 0)} textAnchor="middle" dominantBaseline="central"
@@ -587,13 +582,13 @@ function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; p
   ));
   let frame: ReactNode;
   if (style === "capsule") {
-    frame = <rect x={-s.w / 2} y={-s.h / 2} width={s.w} height={s.h} rx={s.h / 2} fill={pal.mono ? "#fff" : SPOUSE_FILL} stroke={pal.mono ? "#111" : SPOUSE_RIM} strokeWidth={fs * 0.05} strokeDasharray={dash} />;
+    frame = <rect x={-s.w / 2} y={-s.h / 2} width={s.w} height={s.h} rx={s.h / 2} fill={pal.spouseFill} stroke={pal.spouseRim} strokeWidth={fs * 0.05} strokeDasharray={dash} />;
   } else if (style === "inscribed") {
     // no box: a soft paper ground keeps the name clear of branches, a fine gold rule with a lozenge under it
     const y = s.h / 2 - fs * 0.22, half = s.w / 2 - fs * 0.45;
     frame = (
       <>
-        <rect x={-s.w / 2} y={-s.h / 2} width={s.w} height={s.h} rx={fs * 0.5} fill={pal.mono ? "#fff" : PAPER} />
+        <rect x={-s.w / 2} y={-s.h / 2} width={s.w} height={s.h} rx={fs * 0.5} fill={pal.paper} />
         <path d={`M${(-half).toFixed(1)} ${y.toFixed(1)}H${(-fs * 0.3).toFixed(1)}M${(fs * 0.3).toFixed(1)} ${y.toFixed(1)}H${half.toFixed(1)}`} stroke={rule} strokeWidth={fs * 0.045} strokeDasharray={dash} strokeLinecap="round" />
         <path d={lozengePath(0, y, fs * 0.13)} fill={rule} />
       </>
@@ -602,8 +597,8 @@ function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; p
     const tip = Math.min(fs * 0.85, s.h * 0.55);
     frame = (
       <>
-        <path d={manuscriptPath(s.w, s.h, tip)} fill={pal.mono ? "#fff" : IVORY} stroke={rule} strokeWidth={fs * 0.06} strokeDasharray={dash} />
-        {!pal.mono && <path d={lozengePath(-s.w / 2 + tip * 0.42, 0, fs * 0.09) + lozengePath(s.w / 2 - tip * 0.42, 0, fs * 0.09)} fill={SPOUSE_RIM} opacity={0.8} />}
+        <path d={manuscriptPath(s.w, s.h, tip)} fill={pal.ivory} stroke={rule} strokeWidth={fs * 0.06} strokeDasharray={dash} />
+        {!pal.mono && <path d={lozengePath(-s.w / 2 + tip * 0.42, 0, fs * 0.09) + lozengePath(s.w / 2 - tip * 0.42, 0, fs * 0.09)} fill={pal.spouseRim} opacity={0.8} />}
       </>
     );
   }
@@ -683,7 +678,7 @@ function PersonNode({
   }
   // a parent: a second, gold ring just outside the name (the key's "له ذرية")
   const ring = node.terminal ? null : (() => {
-    const g = fs * 0.16, stroke = pal.mono ? "#111111" : GOLD, w = sw * 1.1;
+    const g = fs * 0.16, stroke = pal.ornament, w = sw * 1.1;
     switch (node.shape) {
       case "leaf": return null;
       case "circle": return node.w > node.h + 0.5
@@ -723,7 +718,7 @@ function Foundation({ layout, pal, bark, click }: {
   const colour = (ink: SoilInk | undefined): string | undefined => {
     if (!ink) return undefined;
     if (pal.mono) return ink === "ivory" ? "#ffffff" : ink === "trunk" ? "#ffffff" : "#111111";
-    return { ink: pal.ink, gold: GOLD, goldLight: "#d9b45a", muted: "#6b4a22", bark, trunk: "url(#sh-trunk)", ivory: IVORY, line: pal.line }[ink];
+    return { ink: pal.ink, gold: pal.ornament, goldLight: pal.thread, muted: pal.muted, bark, trunk: "url(#sh-trunk)", ivory: pal.ivory, line: pal.line }[ink];
   };
   return (
     <g data-soil={soil.style}>
@@ -878,21 +873,21 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
         </text>
       )}
       {subtitle && (
-        <text x={W / 2} y={subY} textAnchor="middle" fontSize={Math.min(W * 0.017, titleFs * 0.55)} fill={pal.mono ? "#444" : "#6b4a22"} direction={rtl ? "rtl" : "ltr"}>
+        <text x={W / 2} y={subY} textAnchor="middle" fontSize={Math.min(W * 0.017, titleFs * 0.55)} fill={pal.inkSoft} direction={rtl ? "rtl" : "ltr"}>
           {subtitle}
         </text>
       )}
       {layout.focus && (
         // a branch-only poster says whose branch it is
         <text x={W / 2} y={focusY} textAnchor="middle" fontSize={Math.min(W * 0.015, (titleFs || W * 0.03) * 0.48)}
-          fill={pal.mono ? "#444" : "#6b4a22"} direction={rtl ? "rtl" : "ltr"}>
+          fill={pal.inkSoft} direction={rtl ? "rtl" : "ltr"}>
           {rtl ? `فرع ${layout.focus.label}` : `Branch of ${layout.focus.label}`}
         </text>
       )}
       <Divider x={W / 2} y={lastY + H * 0.014} w={Math.min(W * 0.26, avail * 0.6)} pal={pal} />
       {edition && (
         <text x={W / 2} y={lastY + H * 0.014 + W * 0.016} textAnchor="middle" dominantBaseline="central" fontSize={W * 0.0105}
-          fill={pal.mono ? "#555" : GOLD_DEEP} letterSpacing={W * 0.0004} direction={rtl ? "rtl" : "ltr"}>
+          fill={pal.edition} letterSpacing={W * 0.0004} direction={rtl ? "rtl" : "ltr"}>
           {edition}
         </text>
       )}
@@ -915,7 +910,7 @@ function TextMedallion({ x, y, r, content, pal }: { x: number; y: number; r: num
   const set = textInCircle(r * 0.8, content.heading, content.body, content.footer);
   return (
     <g>
-      <circle cx={x} cy={y} r={r} fill={pal.mono ? "#fff" : IVORY} stroke={pal.line} strokeWidth={r * 0.02} />
+      <circle cx={x} cy={y} r={r} fill={pal.ivory} stroke={pal.line} strokeWidth={r * 0.02} />
       <circle cx={x} cy={y} r={r * 0.93} fill="none" stroke={pal.line} strokeWidth={r * 0.007} />
       {set.lines.map((l, i) => (
         <text key={i} x={x} y={y + l.y} textAnchor="middle" dominantBaseline="central" direction="rtl" fontSize={l.size} fontWeight={l.bold ? 700 : 400} fill={pal.ink}>
@@ -963,12 +958,12 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     label: rtl ? "له ذرية" : "Has descendants",
     swatch: (x) => (
       <g>
-        <rect x={x - fs * 0.14} y={y - fs * 0.59} width={sw + fs * 0.28} height={fs * 1.18} rx={fs * 0.59} fill="none" stroke={pal.mono ? "#111" : GOLD} strokeWidth={fs * 0.09} />
-        {pill(x, byGender ? maleFill : pal.mono ? "#fff" : "#e8e0cc", byGender ? rim(theme.male) : pal.line)}
+        <rect x={x - fs * 0.14} y={y - fs * 0.59} width={sw + fs * 0.28} height={fs * 1.18} rx={fs * 0.59} fill="none" stroke={pal.ornament} strokeWidth={fs * 0.09} />
+        {pill(x, byGender ? maleFill : pal.legendParent, byGender ? rim(theme.male) : pal.line)}
       </g>
     ),
   });
-  if (layout.trunkLabels.length) items.push({ label: rtl ? "سلسلة الآباء" : "Ancestral line", swatch: (x) => pill(x, pal.mono ? "#fff" : IVORY, pal.line) });
+  if (layout.trunkLabels.length) items.push({ label: rtl ? "سلسلة الآباء" : "Ancestral line", swatch: (x) => pill(x, pal.ivory, pal.line) });
   if (theme.branchColors && !pal.mono && new Set(layout.nodes.map((n) => n.lineage).filter((x) => x != null)).size >= 2) {
     items.push({
       label: rtl ? "لكل فرع لونه" : "Each branch its colour",
@@ -995,8 +990,8 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
       label: rtl ? (kinds.size > 1 ? "زوج / زوجة" : kinds.has("MALE") ? "زوج" : "زوجة") : "Spouse",
       swatch: (x) => {
         const style = theme.spouseStyle ?? "manuscript";
-        const rule = pal.mono ? "#111" : style === "capsule" ? SPOUSE_RIM : GOLD;
-        const fill = pal.mono ? "#fff" : style === "capsule" ? SPOUSE_FILL : IVORY;
+        const rule = style === "capsule" ? pal.spouseRim : pal.rule;
+        const fill = style === "capsule" ? pal.spouseFill : pal.ivory;
         return (
           <g transform={`translate(${x + sw / 2} ${y})`}>
             {style === "inscribed" ? (
@@ -1024,15 +1019,15 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     : [["People", stats.total], ["Males", stats.males], ["Females", stats.females], ["Generations", stats.generations]];
   const cardW = fs * 4.4, cardH = fs * 1.95, cardGap = fs * 0.7, cardY = layout.frame.footerY - fs * 2.05;
   const cardsW = cards.length * cardW + (cards.length - 1) * cardGap;
-  const ink = pal.mono ? "#111" : "#5a4630";
-  const gold = pal.mono ? "#111" : GOLD;
+  const ink = pal.footerInk;
+  const gold = pal.rule;
   const cardEls = (rtl ? [...cards] : cards).map(([label, n], i) => {
     // (RTL: the first card on the right)
     const cx = rtl ? W / 2 + cardsW / 2 - cardW / 2 - i * (cardW + cardGap) : W / 2 - cardsW / 2 + cardW / 2 + i * (cardW + cardGap);
     return (
       <g key={label} transform={`translate(${cx.toFixed(1)} ${cardY.toFixed(1)})`}>
-        <rect x={-cardW / 2} y={-cardH / 2} width={cardW} height={cardH} rx={fs * 0.3} fill={pal.mono ? "#fff" : IVORY} stroke={gold} strokeWidth={fs * 0.05} />
-        <text y={-cardH * 0.13} textAnchor="middle" dominantBaseline="central" fontSize={fs * 1.05} fontWeight={700} fill={pal.mono ? "#111" : GOLD_DEEP}>{fmt(n)}</text>
+        <rect x={-cardW / 2} y={-cardH / 2} width={cardW} height={cardH} rx={fs * 0.3} fill={pal.ivory} stroke={gold} strokeWidth={fs * 0.05} />
+        <text y={-cardH * 0.13} textAnchor="middle" dominantBaseline="central" fontSize={fs * 1.05} fontWeight={700} fill={pal.figure}>{fmt(n)}</text>
         <text y={cardH * 0.28} textAnchor="middle" dominantBaseline="central" direction={rtl ? "rtl" : "ltr"} fontSize={fs * 0.62} fill={ink}>{label}</text>
       </g>
     );
@@ -1074,7 +1069,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     <g>
       {placed}
       {cardEls}
-      <text x={W / 2} y={layout.frame.footerY} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.72} fill={pal.mono ? "#666" : "#8a6d40"} direction={rtl ? "rtl" : "ltr"}>
+      <text x={W / 2} y={layout.frame.footerY} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.72} fill={pal.creditInk} direction={rtl ? "rtl" : "ltr"}>
         {/* (in Arabic a middle dot reads as the digit zero: a comma) */}
         {updated ? (rtl ? `${credit}، ${updated}` : `${credit}  ·  ${updated}`) : credit}
       </text>
