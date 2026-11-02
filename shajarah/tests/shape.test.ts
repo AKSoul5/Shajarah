@@ -101,9 +101,11 @@ describe("a family with one dominant branch, in every theme", () => {
         const a = l.nodes.find((x) => x.member.id === ahmad.id)!;
         expect(Math.abs(a.x - l.origin.x) / l.width, where).toBeLessThan(0.01);
         // the trunk's names in proportion to the branches' (they once stood
-        // nearly three times as large)
+        // nearly three times as large; 1.2 times only with ten brothers' and
+        // sisters' lines crossing, which no layout may now keep: clean, the
+        // branches' names larger, the trunk's are up to 1.75 times theirs)
         const median = l.nodes.map((x) => x.fontSize).sort((x, y) => x - y)[l.nodes.length >> 1];
-        expect(Math.max(...l.trunkLabels.map((t) => t.fontSize)) / median, where).toBeLessThan(1.3);
+        expect(Math.max(...l.trunkLabels.map((t) => t.fontSize)) / median, where).toBeLessThan(1.8);
       }
     }, 120_000);
   }

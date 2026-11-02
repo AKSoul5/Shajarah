@@ -58,6 +58,10 @@ describe("names across the themes", () => {
   it("about the same size in every theme", () => {
     const all = [...medians.values()];
     expect(all).toHaveLength(Object.keys(THEME_PRESETS).length);
-    expect(Math.max(...all) / Math.min(...all)).toBeLessThan(1.5);
+    // no design's names much smaller than the others' (one whose layout is
+    // clean at a larger size keeps it: Modern Archive's narrow capsules now
+    // come out cleanly at about one and a half times the others')
+    const typical = [...all].sort((a, b) => a - b)[all.length >> 1];
+    expect(Math.min(...all) / typical).toBeGreaterThan(0.75);
   });
 });

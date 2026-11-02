@@ -12,10 +12,10 @@
  *     its child's label.
  *  3. Occlusion — no connection passes under (behind) a label that is not
  *     its own parent or child, which would make it look attached to it.
- *  4. Crossings — two connections that cross must do so at a clear angle,
- *     away from labels, so the "line over line" reading is unambiguous
- *     (the renderer draws every branch with a paper-coloured edge, so the
- *     upper line visibly passes over the lower one).
+ *  4. Crossings — no two connections cross, at any angle and in any
+ *     generation: brothers' and sisters' lines from where they leave their
+ *     parent's name, any others anywhere. (A steep one away from names is
+ *     still told apart, for the layout's own repairs, as a clear crossing.)
  *  5. Merging — two unrelated connections must not run along each other,
  *     where they would read as one branch.
  *  6. False junctions — where a line becomes visible (leaving its parent's
@@ -48,7 +48,7 @@ export interface ClarityReport {
   ok: boolean;
   expected: number;
   drawn: number;
-  /** Crossings drawn with the clear over/under convention (allowed). */
+  /** Steep crossings away from names (each also an issue: no line crosses another). */
   clearCrossings: number;
   /** Where they are: the two connections, as parent → child member ids. */
   crossings?: { edge: [string, string]; other: [string, string]; at: Vec }[];
@@ -57,7 +57,7 @@ export interface ClarityReport {
 
 type Box = { id: string; x: number; y: number; w: number; h: number; leaf: boolean };
 
-/** Minimum angle for a crossing to read clearly as one line passing over another. */
+/** Minimum angle for a crossing to read clearly as one line passing over another (still an issue). */
 export const CLEAR_CROSSING_DEG = 30;
 
 export function validateRelationships(layout: PosterLayout, tree: TreeDTO): ClarityReport {
@@ -181,8 +181,8 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
       const pa = siblings ? a.points.slice(Math.floor(a.points.length / 2)) : a.points;
       const pb = siblings ? b.points.slice(Math.floor(b.points.length / 2)) : b.points;
       if (siblings) {
-        const r = siblingsPart(a.w0, b.w0);
-        const cross = crossingOf(apartFromStart(a.points, r), apartFromStart(b.points, r));
+        const pb = boxes.get(a.parentId);
+        const cross = crossingOf(leavingParent(a.points, pb, a.w0, b.w0), leavingParent(b.points, pb, a.w0, b.w0));
         if (cross && !all.some((box) => inside(cross.at, box, 0))) {
           issues.push({ kind: "crossing", edge: [a.parentId, a.childId], other: [b.parentId, b.childId], at: cross.at, detail: "between siblings" });
           continue;
@@ -197,6 +197,8 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
         if (cross.angle >= CLEAR_CROSSING_DEG && !nearLabel) {
           clearCrossings++;
           crossings.push({ edge: [a.parentId, a.childId], other: [b.parentId, b.childId], at: cross.at });
+          // (no line crosses another on the poster, however clearly)
+          issues.push({ kind: "crossing", edge: [a.parentId, a.childId], other: [b.parentId, b.childId], at: cross.at, detail: "clear" });
         }
         else issues.push({
           kind: "crossing", edge: [a.parentId, a.childId], other: [b.parentId, b.childId], at: cross.at,
@@ -251,14 +253,22 @@ function falseJunction(a: Edge, b: Edge, ends: Vec[]): Vec | null {
   return null;
 }
 
-/** How far from where they start two siblings' lines (of these widths) may still touch: they leave their parent together. */
-export const siblingsPart = (wa: number, wb: number) => 3 * (wa + wb) + 4;
-
-/** A line without its first stretch, within `r` of where it starts. */
-export function apartFromStart(pts: Vec[], r: number): Vec[] {
+/**
+ * A sibling's line from where it leaves its parent's name (or medallion):
+ * brothers' and sisters' lines start together there, and from there on
+ * they must not cross. (With no name to leave, a short stretch of the
+ * lines' widths.)
+ */
+export function leavingParent(pts: Vec[], parent: { x: number; y: number; w: number; h: number } | undefined, wa: number, wb: number): Vec[] {
+  // (a thin line crossing a thick one just past the parent's edge is
+  // plainly seen: only the name itself hides the start)
+  const pad = 2;
   const s = pts[0];
+  const within = (p: Vec) => parent
+    ? Math.abs(p.x - parent.x) <= parent.w / 2 + pad && Math.abs(p.y - parent.y) <= parent.h / 2 + pad
+    : Math.hypot(p.x - s.x, p.y - s.y) < 2 * (wa + wb) + 4;
   let i = 0;
-  while (i < pts.length - 2 && Math.hypot(pts[i + 1].x - s.x, pts[i + 1].y - s.y) < r) i++;
+  while (i < pts.length - 2 && within(pts[i + 1])) i++;
   return pts.slice(i + 1);
 }
 

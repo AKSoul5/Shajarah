@@ -50,7 +50,7 @@ import {
   add, circlePath, cubicPoint as cubicPointAt, cubicTangent, len, norm, ribbonPath, scale, sub,
   type Cubic, type Vec,
 } from "./geometry";
-import { apartFromStart, siblingsPart, validateRelationships, type ClarityReport } from "./clarity";
+import { leavingParent, validateRelationships, type ClarityReport } from "./clarity";
 import { soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from "./soil";
 import { namesOf, shortenSoil, wordsOf } from "./soil/common";
 import { mulberry32 } from "./random";
@@ -354,6 +354,7 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const started = Date.now();
   const layout = keepGuarded(tree, opts);
   if (isCleanPoster(layout) && layout.legibility.ok) return layout;
   // Another balance of the canopy's two halves: the balance is judged once,
@@ -362,6 +363,8 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
   // a little the other way. The first that is clean and legible is taken.
   if (opts.sideBias === undefined && layout.overlaps === 0 && layout.legibility.ok && layout.clarity.issues.length <= BALANCE_ISSUES) {
     for (const sideBias of BALANCES) {
+      // (each is a whole layout again: a slow one is not tried over and over)
+      if (Date.now() - started > BALANCE_BUDGET_MS) break;
       const l = keepGuarded(tree, { ...opts, sideBias });
       if (isCleanPoster(l) && l.legibility.ok) return l;
     }
@@ -392,6 +395,8 @@ function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   if (layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout))) {
     const plain = layoutOnce(tree, { ...opts, soilKeep: false });
     if (plain.legibility.ok && (isCleanPoster(plain) || !isCleanPoster(layout))) return plain;
+    // (both clean, neither legible: the larger names)
+    if (isCleanPoster(plain) && isCleanPoster(layout) && !layout.legibility.ok && plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.05) return plain;
   }
   return layout;
 }
@@ -401,6 +406,8 @@ function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
  * LayoutOptions.sideBias), most often clean first; and the most
  * ambiguities a poster may have for them to be tried.
  */
+/** Other balances are tried only while the poster has taken less than this. */
+const BALANCE_BUDGET_MS = 15_000;
 const BALANCES = [-0.04, 0.06, -0.02];
 const BALANCE_ISSUES = 15;
 
@@ -586,6 +593,12 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // the editor then recommends is the answer.)
   // (also when the names came out at less than half their size: dense
   // packing often holds them larger, and the larger clean one is kept)
+  // (siblings' lines crossing are counted pair by pair: one line out of
+  // order among its brothers and sisters is as many ambiguities as lines it
+  // crosses, but one tangle to untangle)
+  const oneTangle = (l: PosterLayout) => l.clarity.issues.length <= 12
+    && l.clarity.issues.every((i) => i.detail === "between siblings")
+    && new Set(l.clarity.issues.map((i) => i.edge?.[0])).size <= 2;
   const medianName = (l: PosterLayout) => l.nodes.map((n) => n.fontSize).sort((a, b) => a - b)[l.nodes.length >> 1] ?? 0;
   const small = isClean(best.layout) && best.layout.legibility.ok && best.chosen < UPWARD_BELOW;
   if ((!isClean(best.layout) || small) && best.layout.ringLoad > 1) {
@@ -602,15 +615,16 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   if (!(isClean(best.layout) && best.layout.legibility.ok)) {
     const near = searches
       .flatMap((sr) => [...sr.tried.entries()].map(([scale, l]) => ({ sr, scale, l })))
-      .filter(({ scale, l }) => l.overlaps === 0 && l.clarity.issues.length > 0 && l.clarity.issues.length <= 4
+      .filter(({ scale, l }) => l.overlaps === 0 && l.clarity.issues.length > 0 && (l.clarity.issues.length <= 4 || oneTangle(l))
         && (l.legibility.ok || !isClean(best.layout) || scale > best.chosen))
       .sort((a, b) => Number(b.l.legibility.ok) - Number(a.l.legibility.ok)
         || a.l.clarity.issues.length - b.l.clarity.issues.length || b.scale - a.scale)
       // (two legible ones; one illegible one, which can only lower the
       // larger paper recommended)
       .filter((c, i, all) => i < 2 && (c.l.legibility.ok || !all.slice(0, i).some((x) => !x.l.legibility.ok))
-        // (a second only when it is down to one ambiguity)
-        && (i === 0 || c.l.clarity.issues.length === 1));
+        // (a second only when it is down to a few ambiguities: which of two
+        // nearly clean sizes untangles is not known before)
+        && (i === 0 || c.l.clarity.issues.length <= 3));
     for (const { sr, scale, l: before } of near) {
       // (half as much for an illegible one)
       const checks = before.legibility.ok ? untangleChecks : Math.ceil(untangleChecks / 2);
@@ -668,7 +682,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       const scale = best.chosen * k;
       let l = best.attempt(scale, false, best.strict, best.untangle ?? 0, TRUNK_TO_CANOPY);
       // (a few ambiguities left: untangled)
-      if (!isClean(l) && !best.untangle && l.overlaps === 0 && l.clarity.issues.length <= 2) l = best.attempt(scale, false, best.strict, untangleChecks, TRUNK_TO_CANOPY);
+      if (!isClean(l) && !best.untangle && l.overlaps === 0 && (l.clarity.issues.length <= 2 || oneTangle(l))) l = best.attempt(scale, false, best.strict, untangleChecks, TRUNK_TO_CANOPY);
       if (better(l)) {
         best = { ...best, layout: l, chosen: scale, fit: TRUNK_TO_CANOPY };
         fitted = true;
@@ -747,13 +761,18 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         found = low;
         for (let i = 0; i < 7; i++) {
           const mid = (lo + hi) / 2;
-          const l = best.attempt(mid);
+          let l = best.attempt(mid);
+          // (one tangle short of clean: untangled, as the search does)
+          if (!isClean(l) && l.overlaps === 0 && (l.clarity.issues.length <= 4 || oneTangle(l))) l = best.attempt(mid, false, false, untangleChecks, undefined, true);
           if (isClean(l)) { lo = mid; found = l; } else hi = mid;
         }
         best = { layout: found, chosen: lo, strict: false, attempt: best.attempt };
       }
     }
   }
+  // (as good otherwise: the larger names)
+  const better = (a: PosterLayout, b: PosterLayout) => rank(a) < rank(b)
+    || (rank(a) === rank(b) && a.legibility.smallestTextMm > b.legibility.smallestTextMm * 1.05);
   const result = best.layout;
   result.tooDense = result.clarity.issues.length > CLARITY_LIMIT;
   // The balanced centring (a leader up the centred branch, its brothers
@@ -765,7 +784,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   if (opts.centerLead === undefined && opts.centerSides === undefined && result.centerLine?.length
     && !isClean(result) && result.overlaps === 0 && result.clarity.issues.length <= 4) {
     const plain = layoutOnce(tree, { ...opts, centerLead: false, centerSides: "room" });
-    if (rank(plain) < rank(result)) return plain;
+    if (better(plain, result)) return plain;
   }
   // The lifted sweep (a crown rising from the trunk) never costs a clean,
   // legible poster: when it does not give one, the old wide sweep is tried
@@ -774,7 +793,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // laying it out twice would be slow.)
   if (opts.sweepLift === undefined && result.nodes.length <= LARGE_FAMILY && (result.sweepLift ?? WIDE_SWEEP) > 0 && !(isClean(result) && result.legibility.ok)) {
     const wide = layoutOnce(tree, { ...opts, sweepLift: WIDE_SWEEP });
-    if (rank(wide) < rank(result)) return wide;
+    if (better(wide, result)) return wide;
   }
   return result;
 }
@@ -2812,9 +2831,32 @@ function layoutAttempt(
     [0.4, null, 0.12], [0.4, null, -0.12], [0.7, null, 0.22], [0.7, null, -0.22], [0.95, 0.1, 0.3], [0.95, 0.1, -0.3],
     [0.95, 0.1, 0.45], [0.95, 0.1, -0.45],
   ];
-  /** For a whole family whose lines cross one another (see refineLines). */
-  const FAMILY_SHAPES: [number, number | null, number][] = [[0, null, 0], [0, 0.25, 0], [0, 0, 0]];
-  type Line = { id: string; from: string; to: string; pts: Vec[]; bb: number[]; w: number };
+  /**
+   * A line from P to C leaving along angle `phi`, its angle about P turning
+   * towards C's as (distance / C's distance)^p (null when it would have to
+   * turn too far). Lines so drawn from one place, with the same `phi` and
+   * `p`, keep their order at every distance from it: they cannot cross.
+   * (A cubic through the curve's points a third and two thirds of the way.)
+   */
+  const polarCurve = (P: Vec, C: Vec, phi: number, p = 1): Cubic | null => {
+    const R = len(sub(C, P)) || 1;
+    const th = Math.atan2(C.y - P.y, C.x - P.x);
+    let D = th - phi;
+    while (D > Math.PI) D -= 2 * Math.PI;
+    while (D < -Math.PI) D += 2 * Math.PI;
+    if (Math.abs(D) > 1.4) return null;
+    const at = (t: number) => {
+      const a = phi + D * Math.pow(t, p);
+      return { x: P.x + R * t * Math.cos(a), y: P.y + R * t * Math.sin(a) };
+    };
+    const q1 = at(1 / 3), q2 = at(2 / 3);
+    return {
+      p0: P,
+      c1: { x: (-5 * P.x + 18 * q1.x - 9 * q2.x + 2 * C.x) / 6, y: (-5 * P.y + 18 * q1.y - 9 * q2.y + 2 * C.y) / 6 },
+      c2: { x: (2 * P.x - 9 * q1.x + 18 * q2.x - 5 * C.x) / 6, y: (2 * P.y - 9 * q1.y + 18 * q2.y - 5 * C.y) / 6 },
+      p1: C,
+    };
+  };  type Line = { id: string; from: string; to: string; pts: Vec[]; bb: number[]; w: number };
   const bbOf = (pts: Vec[]) => {
     const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
     return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
@@ -2870,8 +2912,8 @@ function layoutAttempt(
         if (o.to === l.from || o.from === l.to) continue;
         const siblings = o.from === l.from;
         // (siblings: crossing anywhere once apart, running together in the outer half; see clarity.ts)
-        const a = siblings ? apartFromStart(pts, siblingsPart(l.w, o.w)) : pts;
-        const b = siblings ? apartFromStart(o.pts, siblingsPart(l.w, o.w)) : o.pts;
+        const a = siblings ? leavingParent(pts, boxById.get(l.from), l.w, o.w) : pts;
+        const b = siblings ? leavingParent(o.pts, boxById.get(l.from), l.w, o.w) : o.pts;
         const [ox0, ox1, oy0, oy1] = siblings ? bbOf(b) : o.bb;
         const touch = (l.w + o.w) / 2 + 2;
         let crossed = false;
@@ -2926,8 +2968,8 @@ function layoutAttempt(
     }
     // A family whose lines still cross one another (a son's branch bowing
     // across his brothers' and sisters' lines, theirs bowing back across
-    // his once it is straightened): all of its lines straight from the
-    // parent, which cannot cross, where that leaves fewer problems.
+    // his once it is straightened): its lines drawn again together, in a
+    // way that cannot cross, where that leaves fewer problems.
     const tried = new Set<string>();
     for (const id of targets) {
       const t = lines.get(id);
@@ -2945,23 +2987,34 @@ function layoutAttempt(
         addLine(l);
         curveOf.set(l.id, c);
       };
-      // (first each line arriving straight at its name, leaving as usual:
-      // the same curve for every sibling, so they fan out in order; then
-      // straight from the parent)
-      let best = { cost: before, shape: null as [number, number | null, number] | null };
-      for (const shape of FAMILY_SHAPES) {
-        for (const l of family) {
-          const { c } = shapeCurve(l.id, shape);
-          put(l, sample(c, 24), c);
+      // Every line of the family turns at an even rate from one shared
+      // direction as it goes out (its angle about the parent grows in
+      // proportion to its distance): at every distance the lines keep the
+      // same order, so they cannot cross. Only that shared direction is
+      // chosen, the one leaving the fewest other problems.
+      const P = lineSpec.get(family[0].id)!.P;
+      // (only lines from one place: those from the rim of the base's oval start apart)
+      if (family.some((l) => len(sub(lineSpec.get(l.id)!.P, P)) > 0.5)) continue;
+      const angles = family.map((l) => Math.atan2(lineSpec.get(l.id)!.C.y - P.y, lineSpec.get(l.id)!.C.x - P.x));
+      const mid = Math.atan2(angles.reduce((a, t) => a + Math.sin(t), 0), angles.reduce((a, t) => a + Math.cos(t), 0));
+      const grow = lineSpec.get(family[0].id)!.gP;
+      const gA = Math.atan2(grow.y, grow.x);
+      const phis = [mid, gA, ...[15, 30, 45, 60, 80].flatMap((d) => [mid + (d * Math.PI) / 180, mid - (d * Math.PI) / 180])];
+      let best = { cost: before, phi: null as number | null, p: 1 };
+      search: for (const p of [1, 2, 0.6, 3]) {
+        for (const phi of phis) {
+          const curves = family.map((l) => polarCurve(lineSpec.get(l.id)!.P, lineSpec.get(l.id)!.C, phi, p));
+          if (curves.some((c) => !c)) continue;
+          family.forEach((l, i) => put(l, sample(curves[i]!, 24), curves[i]!));
+          const cost = family.reduce((a, l) => a + costOf(l, l.pts), 0);
+          if (cost < best.cost) best = { cost, phi, p };
+          if (!cost) break search;
         }
-        const cost = family.reduce((a, l) => a + costOf(l, l.pts), 0);
-        if (cost < best.cost) best = { cost, shape };
-        if (!cost) break;
       }
-      if (!best.shape) for (const x of saved) put(x.l, x.pts, x.c);
-      else if (best.shape !== FAMILY_SHAPES[FAMILY_SHAPES.length - 1] || best.cost) {
+      if (best.phi === null) for (const x of saved) put(x.l, x.pts, x.c);
+      else {
         for (const l of family) {
-          const { c } = shapeCurve(l.id, best.shape);
+          const c = polarCurve(lineSpec.get(l.id)!.P, lineSpec.get(l.id)!.C, best.phi, best.p)!;
           put(l, sample(c, 24), c);
         }
       }

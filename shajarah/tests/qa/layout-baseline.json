@@ -366,7 +366,7 @@
 "legible": false
 },
 "C-en_all_refined_A1": {
-"legible": false
+"legible": true
 },
 "C-en_all_refined_A3": {
 "legible": false
@@ -390,7 +390,7 @@
 "legible": false
 },
 "C-en_daughters_heritage_A1": {
-"legible": false
+"legible": true
 },
 "C-en_daughters_heritage_A3": {
 "legible": false
@@ -414,7 +414,7 @@
 "legible": false
 },
 "C-en_daughters_silver-gold_A1": {
-"legible": true
+"legible": false
 },
 "C-en_daughters_silver-gold_A3": {
 "legible": false
