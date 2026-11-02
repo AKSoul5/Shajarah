@@ -228,14 +228,16 @@ export function relationship(members: Person[], marriages: Pick<MarriageDTO, "sp
     return out;
   };
   const spouseWord = (p: Person) => (female(p) ? "زوجة" : "زوج");
-  // (inside a longer phrase a brother is أخي, in the genitive: زوجة أخي أحمد)
-  const genitive = (term: string) => term.replace(/^أخو(?= |$)/, "أخي");
+  // (a brother stays أخو inside a longer phrase too: "زوجة أخو أسعد" reads
+  // at once to a Saudi reader, where the textbook genitive أخي does not)
+  const genitive = (term: string) => term;
+  const inLawTail = (t: Tie) => (t.kind === "sibling" && /الشقيق/.test(t.tail) ? "" : t.tail);
   const spouseEn = (p: Person) => (female(p) ? "wife" : "husband");
   const stepsOf = (t: Tie): Step[] => [...Array(t.up).fill("up"), ...Array(t.down).fill("down")];
   const blood = bloodTie(byId, anc, aId, bId);
   const bloodRel = (t: Tie): Relationship => ({
     arabic: `${B} ${t.term} ${A}${t.tail}`,
-    english: `${B} is ${A}'s ${t.en}${t.kind === "other" && t.up + t.down >= 4 ? ` (through ${byId.get(t.common[0])!.name})` : ""}`,
+    english: `${B} is ${A}'s ${t.en}${t.kind === "other" && t.up > 0 && t.down > 0 && t.up + t.down >= 4 ? ` (through ${byId.get(t.common[0])!.name})` : ""}`,
     common: t.common, path: t.path, steps: stepsOf(t), up: t.up, down: t.down,
   });
 
@@ -260,7 +262,7 @@ export function relationship(members: Person[], marriages: Pick<MarriageDTO, "sp
         const named = t.kind === "parent" ? ` (${fB ? "حمات" : "حمو"}${his})` : "";
         const enNamed = t.kind === "parent" ? `${fB ? "mother" : "father"}-in-law` : t.kind === "sibling" ? `${fB ? "sister" : "brother"}-in-law` : "";
         return {
-          arabic: `${B} ${t.term} ${spouseWord(S)} ${A}${t.tail}${named}`,
+          arabic: `${B} ${t.term} ${spouseWord(S)} ${A}${inLawTail(t)}${named}`,
           english: enNamed ? `${B} is ${A}'s ${enNamed} (${spouseEn(S)}'s ${t.en})` : `${B} is ${A}'s ${spouseEn(S)}'s ${t.en}`,
           common: t.common, path: [aId, ...t.path], steps: ["spouse", ...stepsOf(t)], up: t.up, down: t.down,
         };
@@ -279,7 +281,7 @@ export function relationship(members: Person[], marriages: Pick<MarriageDTO, "sp
         const named = t.kind === "child" ? ` (${fB ? "كنّت" : "صهر"}${his})` : "";
         const enNamed = t.kind === "child" ? `${fB ? "daughter" : "son"}-in-law` : t.kind === "sibling" ? `${fB ? "sister" : "brother"}-in-law` : "";
         return {
-          arabic: `${B} ${spouseWord(b)} ${genitive(t.term)} ${A}${t.tail}${named}`,
+          arabic: `${B} ${spouseWord(b)} ${genitive(t.term)} ${A}${inLawTail(t)}${named}`,
           english: enNamed ? `${B} is ${A}'s ${enNamed} (${t.en}'s ${spouseEn(b)})` : `${B} is the ${spouseEn(b)} of ${A}'s ${t.en}`,
           common: t.common, path: [...t.path, bId], steps: [...stepsOf(t), "spouse"], up: t.up, down: t.down,
         };
@@ -299,7 +301,7 @@ export function relationship(members: Person[], marriages: Pick<MarriageDTO, "sp
         const fA = female(a), fB = female(b);
         const named = t.kind === "sibling" && !fA && female(S) && !fB ? " (عديله)" : t.kind === "sibling" && fA && !female(S) && fB ? " (سلفتها)" : "";
         return {
-          arabic: `${B} ${spouseWord(b)} ${genitive(t.term)} ${spouseWord(S)} ${A}${t.tail}${named}`,
+          arabic: `${B} ${spouseWord(b)} ${genitive(t.term)} ${spouseWord(S)} ${A}${inLawTail(t)}${named}`,
           english: `${B} is the ${spouseEn(b)} of ${A}'s ${spouseEn(S)}'s ${t.en}`,
           common: t.common, path: [aId, ...t.path, bId], steps: ["spouse", ...stepsOf(t), "spouse"], up: t.up, down: t.down,
         };
@@ -329,7 +331,7 @@ export function relationship(members: Person[], marriages: Pick<MarriageDTO, "sp
       options.push({
         score: t1.up + t1.down + t2.up + t2.down + 1,
         make: () => ({
-          arabic: `${B} ${t2.term} ${spouseWord(W)} ${genitive(t1.term)} ${A}${t1.tail}`,
+          arabic: `${B} ${t2.term} ${spouseWord(W)} ${genitive(t1.term)} ${A}${inLawTail(t1)}`,
           english: `${B} is the ${t2.en} of ${A}'s ${t1.en}'s ${spouseEn(W)}`,
           common: [], path: [...t1.path, ...t2.path], steps: [...stepsOf(t1), "spouse", ...stepsOf(t2)], up: t1.up, down: t1.down,
         }),
@@ -345,7 +347,7 @@ export function relationship(members: Person[], marriages: Pick<MarriageDTO, "sp
       make: () => {
         const bothWives = female(a) && female(b);
         return {
-          arabic: `${B} ${spouseWord(b)} ${female(b) ? "أخرى" : "آخر"} ل${X.name}، ${spouseWord(a)} ${A}${bothWives ? " (ضرّتها)" : ""}`,
+          arabic: `${B} ${spouseWord(b)} ${female(b) ? "أخرى" : "آخر"} ل${X.name} ${spouseWord(X)} ${A}${bothWives ? " (ضرّتها)" : ""}`,
           english: bothWives ? `${B} is ${A}'s co-wife (another wife of ${X.name})` : `${B} is another ${spouseEn(b)} of ${A}'s ${spouseEn(X)}, ${X.name}`,
           common: [], path: [aId, xId, bId], steps: ["spouse", "spouse"], up: 0, down: 0,
         };

@@ -78,7 +78,7 @@ describe("how two people are related", () => {
   });
   it("names a spouse, and says when there is no recorded kinship", () => {
     // two wives of one husband
-    expect(relationship(people, marriages, "m", "w2").arabic).toBe("خلود زوجة أخرى لمحمد، زوجة ندى (ضرّتها)");
+    expect(relationship(people, marriages, "m", "w2").arabic).toBe("خلود زوجة أخرى لمحمد زوج ندى (ضرّتها)");
     const stranger = [...people, { id: "z", name: "منيرة", gender: "FEMALE" as const, fatherId: null, motherId: null }];
     expect(relationship(stranger, marriages, "gb2", "z").arabic).toBe("لا تجمع ماهر ومنيرة قرابة نسب ولا مصاهرة مسجّلة");
     // (خلود is no stranger to ماهر: the mother of هشام, his father's cousin's son)
@@ -102,7 +102,7 @@ describe("how two people are related", () => {
     expect(r("a1w", "a").arabic).toBe("أحمد والد زوج سلمى (حموها)");
     expect(r("a1w", "a").english).toBe("أحمد is سلمى's father-in-law (husband's father)");
     expect(r("a1w", "a").steps).toEqual(["spouse", "up"]);
-    expect(r("a", "sh").arabic).toBe("فهد زوج أخت أحمد الشقيقة");
+    expect(r("a", "sh").arabic).toBe("فهد زوج أخت أحمد");
     expect(r("a", "sh").english).toBe("فهد is أحمد's brother-in-law (sister's husband)");
     expect(r("a1", "xb").arabic).toBe("طارق أخو زوجة زياد");
     expect(r("a1", "x").arabic).toBe("خالد والد زوجة زياد (حموه)");
