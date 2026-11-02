@@ -30,7 +30,9 @@ import { compactTheme, layoutOptionsFor, resolveTheme } from "@/lib/theme";
 import { isPaperSize, PAPER_ORDER, PAPER_SIZES, type PaperSize } from "@/lib/paper";
 import { ConflictError, apiRepository, localRepository, type FamilyRepository } from "./repository";
 import { readProjectFile, withNewIds } from "@/lib/project";
-import { openProjectFile } from "../projectFiles";
+import { openProjectFile, saveProjectFile } from "../projectFiles";
+import { editingText, fileOf, inDesktop, useDesktopCommands, useDesktopState, type DesktopCommand } from "@/lib/desktop";
+import { exportPoster, type ExportKind } from "../poster/ExportMenu";
 import { mergePeople, spouseNamed } from "@/lib/merge";
 import { explainNotDrawn, type NotDrawn, type NotDrawnKind } from "@/lib/notDrawn";
 import { normalizeName } from "@/lib/nasab";
@@ -161,6 +163,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   // poster can fill the window
   const [sidebarOpen, setSidebarOpenState] = useState(true);
   const [fullScreen, setFullScreen] = useState(false);
+  // (the poster's zoom asked for by the desktop menu or its keys; see PosterViewport)
+  const [zoomCommand, setZoomCommand] = useState<{ kind: "in" | "out" | "fit"; seq: number } | null>(null);
   useEffect(() => {
     try { if (localStorage.getItem("shajarah:sidebar") === "closed") setSidebarOpenState(false); } catch { /* storage unavailable */ }
   }, []);
@@ -354,7 +358,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   );
   const travelRef = useRef(travel);
   travelRef.current = travel;
-  const layoutKeysRef = useRef({ toggleSidebar: () => {}, toggleFullScreen: () => {}, exitFullScreen: () => {}, openFind: () => false as boolean });
+  const layoutKeysRef = useRef({ toggleSidebar: () => {}, toggleFullScreen: () => {}, exitFullScreen: () => {}, openFind: () => false as boolean, zoom: (_k: "in" | "out" | "fit") => {} });
   layoutKeysRef.current = {
     openFind: () => {
       if (view !== "poster") return false;
@@ -365,6 +369,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     toggleSidebar: () => setSidebarOpen(!sidebarOpen),
     toggleFullScreen: () => setFullScreen((f) => !f),
     exitFullScreen: () => setFullScreen(false),
+    zoom: (kind) => setZoomCommand((z) => ({ kind, seq: (z?.seq ?? 0) + 1 })),
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -381,10 +386,16 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         if (e.key === "Escape") layoutKeysRef.current.exitFullScreen();
       }
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-      // inside a text field the browser's own undo edits the text
-      const el = e.target as HTMLElement | null;
-      if (el?.closest("textarea, [contenteditable=''], [contenteditable='true']")) return;
-      if (el instanceof HTMLInputElement && !["checkbox", "radio", "button", "submit", "range", "color", "file"].includes(el.type)) return;
+      // inside a text field the browser's own undo edits the text (the
+      // same rule as the desktop menu's Undo)
+      if (editingText(e.target as Element | null)) return;
+      // In the desktop program, Ctrl + = − 0 zoom the poster, as its menu
+      // says (in a browser they stay the browser's own zoom)
+      if (inDesktop() && !e.shiftKey && ["=", "+", "-", "0"].includes(e.key)) {
+        e.preventDefault();
+        layoutKeysRef.current.zoom(e.key === "0" ? "fit" : e.key === "-" ? "out" : "in");
+        return;
+      }
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -547,6 +558,58 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
       : tree.members;
     return [...list].sort((a, b) => listGeneration(a) - listGeneration(b) || a.birthOrder - b.birthOrder);
   }, [tree.members, query, listGeneration]);
+
+  // ── The desktop program's menu bar (desktop/electron/menu.js) ──────
+  // Each command runs the same action as the button for it here; the menu
+  // is told what is possible (something to undo, the member list shown).
+  const [incomingImport, setIncomingImport] = useState<{ file: File; seq: number } | null>(null);
+  const zoomBy = (kind: "in" | "out" | "fit") => setZoomCommand((z) => ({ kind, seq: (z?.seq ?? 0) + 1 }));
+  // (in a text field, undo and redo edit the text, as their keys do there)
+  const step = (dir: "undo" | "redo") => {
+    if (editingText()) document.execCommand(dir);
+    else void travel(dir);
+  };
+  const exportFromMenu = (kind: ExportKind) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    exportPoster(kind, svg, exportName(tree.name), posterSize).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  const importFromMenu = ({ file }: DesktopCommand) => {
+    if (!file) return;
+    setSidebarOpen(true);
+    setFullScreen(false);
+    setPanel({ kind: "gedcom" });
+    setIncomingImport((p) => ({ file: fileOf(file, "text/plain"), seq: (p?.seq ?? 0) + 1 }));
+  };
+  const saveFromMenu = () => {
+    saveProjectFile(tree).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  useDesktopCommands({
+    "new-family": () => window.location.assign("/#new"),
+    "open-project": ({ file }) => file && void openProject(fileOf(file, "application/json")),
+    "save-project": saveFromMenu,
+    "save-project-as": saveFromMenu,
+    "import-gedcom": importFromMenu,
+    "import-outline": importFromMenu,
+    "export-svg": () => exportFromMenu("svg"),
+    "export-pdf": () => exportFromMenu("pdf"),
+    "export-png": () => exportFromMenu("png"),
+    "export-tiled-pdf": () => exportFromMenu("tiles"),
+    undo: () => step("undo"),
+    redo: () => step("redo"),
+    "toggle-sidebar": () => setSidebarOpen(!sidebarOpen),
+    "zoom-in": () => zoomBy("in"),
+    "zoom-out": () => zoomBy("out"),
+    "zoom-reset": () => zoomBy("fit"),
+  });
+  useDesktopState({
+    page: "editor",
+    canUndo: history.undo.length > 0,
+    canRedo: history.redo.length > 0,
+    undoLabel: history.undo.at(-1)?.label ?? null,
+    redoLabel: history.redo.at(-1)?.label ?? null,
+    sidebar: sidebarOpen,
+  });
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-parchment-100 text-bark-900">
@@ -805,6 +868,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               onImport={(text, fileName) => void runImport(() => repo.importGedcom(text), fileName)}
               opensAsNew={mode === "api"}
               onOpenProject={(file) => void openProject(file)}
+              incoming={incomingImport}
             />
           )}
 
@@ -1160,7 +1224,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             )}
             {/* (kept in the page while hidden, so export still has the poster) */}
             <div className={layout.tooDense && !showDense ? "invisible" : "contents"}>
-            <PosterViewport width={layout.width} height={layout.height} reserveBottom={layout.focus ? 56 : 0} focusOn={focusOn}>
+            <PosterViewport width={layout.width} height={layout.height} reserveBottom={layout.focus ? 56 : 0} focusOn={focusOn} zoomCommand={zoomCommand}>
               <TreePoster
                 ref={svgRef}
                 layout={layout}

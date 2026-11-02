@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { openProjectFile } from "@/components/projectFiles";
 import { PROJECT_EXTENSION } from "@/lib/project";
+import { fileOf, useDesktopCommands } from "@/lib/desktop";
 
 /** Opens a saved project file (.shajarah) as a new family. */
 export function OpenProjectButton() {
@@ -24,6 +25,8 @@ export function OpenProjectButton() {
       if (input.current) input.current.value = "";
     }
   };
+  // (a project chosen in the desktop menu's Open dialog)
+  useDesktopCommands({ "open-project": ({ file }) => file && void open(fileOf(file, "application/json")) });
   return (
     <div className="space-y-2">
       <input ref={input} type="file" accept={`${PROJECT_EXTENSION},application/json`} className="hidden" onChange={(e) => void open(e.target.files?.[0])} />

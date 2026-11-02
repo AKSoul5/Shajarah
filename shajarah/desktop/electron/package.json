@@ -30,6 +30,8 @@
     "asar": false,
     "files": [
       "main.js",
+      "menu.js",
+      "preload.js",
       "postgres.js",
       "migrate.js",
       "build/icon.*",

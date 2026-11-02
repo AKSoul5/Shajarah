@@ -19,6 +19,8 @@ interface Props {
   /** Where an opened project goes: a new family, or this demo. */
   opensAsNew: boolean;
   onCancel: () => void;
+  /** A file chosen elsewhere (the desktop menu's Import) to preview here, as if chosen below; a new `seq` takes another. */
+  incoming?: { file: File; seq: number } | null;
 }
 
 type Status =
@@ -39,7 +41,7 @@ const formatSize = (bytes: number) =>
  * will do before anything is saved. That work runs in a Web Worker: a large
  * file never freezes the editor, and choosing another file cancels it.
  */
-export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, opensAsNew, onCancel }: Props) {
+export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, opensAsNew, onCancel, incoming = null }: Props) {
   const projectInput = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -107,6 +109,15 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
     // a file too large to import is not even read into memory
     setFile({ name: f.name, size: f.size, bytes: f.size > REFUSE_BYTES ? new ArrayBuffer(0) : await f.arrayBuffer() });
   };
+
+  const taken = useRef(0);
+  useEffect(() => {
+    if (!incoming || incoming.seq === taken.current) return;
+    taken.current = incoming.seq;
+    setInputKey((k) => k + 1);
+    void choose(incoming.file);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per file
+  }, [incoming?.seq]);
 
   const save = (text: string, type: string, name: string) => {
     const url = URL.createObjectURL(new Blob([text], { type }));
