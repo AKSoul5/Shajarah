@@ -203,6 +203,12 @@ export interface Branch {
    * line's centre, to be stroked `w` wide, not a filled outline.
    */
   dotted?: boolean;
+  /**
+   * The branch's centre line and an even width for it, for a poster in
+   * black ink that marks each main branch with a line pattern (a dashed
+   * outline would read as two lines).
+   */
+  line?: { d: string; w: number };
 }
 
 /**
@@ -2090,6 +2096,7 @@ function layoutAttempt(
   const shaded = (curve: Cubic, w0: number, w1: number, samples = 14, ease = 2): Branch => ({
     d: ribbonPath(curve, w0, w1, samples, ease) + circlePath(curve.p0, w0 / 2),
     w: w0,
+    line: { d: cubicPath(curve), w: Math.min(w0, w1 * 1.6) },
   });
   const stemStart = new Map<string, Vec>();
   const stemDir = new Map<string, Vec>();
@@ -3396,7 +3403,7 @@ function layoutAttempt(
     if (node.shape === "leaf") {
       // a thin stalk from the parent to the base of the leaf blade
       const tip = Math.max(wMin * 0.8, node.fontSize * 0.14);
-      branches.push({ d: ribbonPath(c, widthOf(1), tip, 10), w: widthOf(1), lineage: node.lineage ?? null });
+      branches.push({ d: ribbonPath(c, widthOf(1), tip, 10), w: widthOf(1), lineage: node.lineage ?? null, line: { d: cubicPath(c), w: widthOf(1) } });
       edges.push({ parentId: from, childId: node.id, points: sample(c), w0: widthOf(1), w1: tip, lineage: node.lineage ?? null });
     } else {
       const w = widthOf(node.leafCount);
@@ -3709,6 +3716,12 @@ function crossesInside(a: Vec, b: Vec, c: Vec, d: Vec): boolean {
 
 /** Splits a line in two at the space nearest its middle (not leaving a word like "m." alone). */
 /** The point at t on a cubic. */
+/** A cubic as an SVG path. */
+function cubicPath(c: Cubic): string {
+  const p = (v: Vec) => `${v.x.toFixed(1)} ${v.y.toFixed(1)}`;
+  return `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`;
+}
+
 function cubicAt(c: Cubic, t: number): Vec {
   const u = 1 - t;
   return {
