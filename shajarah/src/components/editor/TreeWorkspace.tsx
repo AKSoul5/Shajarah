@@ -592,6 +592,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             soilText={tree.soilText}
             onSoilTextChange={(soilText) => void mutate(() => repo.updateTree({ soilText }), { label: "Edit the soil inscription" })}
             frameAvailable={frameSrc !== null}
+            layout={layout}
+            meta={{ title: tree.title, subtitle: tree.subtitle, name: tree.name, updated: tree.version ?? null }}
+            frameSrc={frameSrc}
           />
           <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="The printed size the poster is designed for">
             <span className="hidden xl:inline">Poster</span>

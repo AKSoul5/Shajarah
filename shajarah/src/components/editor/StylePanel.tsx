@@ -1,11 +1,28 @@
 "use client";
 
 import { SOIL_STYLES, SOIL_STYLE_ORDER } from "@/lib/layout/soil";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useDismiss } from "../useDismiss";
-import { THEME_PRESETS } from "@/lib/theme";
+import { compactTheme, isInkOnly, resetDesign, THEME_PRESETS } from "@/lib/theme";
+import type { PosterLayout } from "@/lib/layout/botanical";
 import type { PosterTheme, ThemePreset } from "@/lib/types";
 import { Icon } from "@/components/Icon";
+import { TreePoster, type PosterMeta } from "@/components/poster/TreePoster";
+
+/** A preset's own design, as choosing it sets it (its name and description aside). */
+const designOf = (p: ThemePreset): PosterTheme => {
+  const { label: _l, description: _d, ...design } = THEME_PRESETS[p];
+  return design;
+};
+
+/**
+ * The family's own poster drawn in a design, small: the current layout in
+ * that design's palette, frame, title and rims (a design that sets other
+ * shapes or another foundation shows them once chosen).
+ */
+const ThemePreview = memo(function ThemePreview({ layout, meta, theme, frameSrc }: { layout: PosterLayout; meta: PosterMeta; theme: PosterTheme; frameSrc?: string | null }) {
+  return <TreePoster layout={layout} meta={meta} theme={theme} frameSrc={frameSrc} idPrefix={`pv-${theme.preset}`} className="pointer-events-none block h-auto w-full" />;
+});
 
 interface Props {
   theme: PosterTheme;
@@ -14,10 +31,14 @@ interface Props {
   onSoilTextChange: (text: string | null) => void;
   /** Whether the frame artwork (public/poster-frame.jpg or .png) was found. */
   frameAvailable?: boolean;
+  /** The poster as it is now, for the designs' previews (none while it is laid out). */
+  layout?: PosterLayout | null;
+  meta?: PosterMeta;
+  frameSrc?: string | null;
 }
 
 /** Theme presets, colour pickers, node shape and label options. */
-export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameAvailable = true }: Props) {
+export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameAvailable = true, layout, meta, frameSrc }: Props) {
   const [open, setOpen] = useState(false);
   const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false));
   const [soilDraft, setSoilDraft] = useState(soilText ?? "");
@@ -39,30 +60,44 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
         <Icon name="palette" className="me-1.5 h-4 w-4" />Style ▾
       </button>
       {open && (
-        <div className="absolute end-0 z-30 mt-2 max-h-[80vh] w-96 space-y-4 overflow-auto rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
+        <div className="absolute end-0 z-30 mt-2 max-h-[80vh] w-[36rem] max-w-[calc(100vw-2rem)] space-y-4 overflow-auto rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
           <section>
-            <h4 className="section-title">Theme</h4>
-            <div className="grid grid-cols-2 gap-1.5">
+            <h4 className="section-title">Design</h4>
+            <div className="grid grid-cols-2 gap-2">
               {(Object.keys(THEME_PRESETS) as ThemePreset[]).map((p) => {
                 const t = THEME_PRESETS[p];
+                const on = theme.preset === p;
                 return (
                   <button
                     key={p}
                     type="button"
-                    onClick={() => { const { label: _l, description: _d, ...design } = t; onChange({ ...design, preset: p }); }}
-                    className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-start text-xs ${
-                      theme.preset === p ? "border-bark-700 bg-parchment-100" : "border-parchment-300"
+                    aria-pressed={on}
+                    onClick={() => onChange(designOf(p))}
+                    className={`overflow-hidden rounded-lg border text-start transition-shadow hover:shadow-md ${
+                      on ? "border-bark-700 ring-2 ring-bark-700/40" : "border-parchment-300"
                     }`}
                   >
-                    <span className="flex">
-                      <span className="h-4 w-4 rounded-full border border-black/20" style={{ background: t.male }} />
-                      <span className="-ms-1.5 h-4 w-4 rounded-full border border-black/20" style={{ background: t.female }} />
+                    <span className="block aspect-[1/1.41] overflow-hidden bg-parchment-50">
+                      {layout && meta
+                        ? <ThemePreview layout={layout} meta={meta} theme={designOf(p)} frameSrc={frameSrc} />
+                        : <span className="block h-full w-full" style={{ background: `linear-gradient(135deg, ${t.male}, ${t.female})` }} />}
                     </span>
-                    {t.label}
+                    <span className="block px-2 py-1.5">
+                      <span className="flex items-center gap-1 text-sm font-semibold text-bark-900">
+                        {on && <span aria-hidden className="text-bark-700">✓</span>}{t.label}
+                      </span>
+                      <span className="block text-[11px] leading-snug text-bark-500">{t.description}</span>
+                    </span>
                   </button>
                 );
               })}
             </div>
+            {Object.keys(compactTheme(theme)).some((k) => ["male", "female", "ancestor", "branch", "background", "metallic", "nodeRim", "inkOnly"].includes(k)) && (
+              <button type="button" className="btn-outline mt-2 w-full justify-center text-sm" onClick={() => onChange(resetDesign(theme))}
+                title="Its colours, paper and finish as the design has them; your spouses, ornaments and labels stay">
+                Reset to {THEME_PRESETS[theme.preset].label}&rsquo;s design
+              </button>
+            )}
           </section>
 
           <section className="space-y-1.5">
@@ -81,6 +116,10 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={theme.metallic} onChange={(e) => onChange({ metallic: e.target.checked })} />
               Metallic finish
+            </label>
+            <label className="flex items-center gap-2 text-sm" title="Black ink on paper: no colour, metal or frame artwork">
+              <input type="checkbox" checked={isInkOnly(theme)} onChange={(e) => onChange({ inkOnly: e.target.checked })} />
+              Black ink only
             </label>
           </section>
 
@@ -133,9 +172,9 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
               </select>
             </label>
             <label className="flex items-center justify-between text-sm">
-              Background
-              <select className="input w-48" value={theme.background} onChange={(e) => onChange({ background: e.target.value as PosterTheme["background"] })}>
-                <option value="parchment">Parchment</option>
+              Paper
+              <select className="input w-48" value={theme.background} onChange={(e) => onChange({ background: e.target.value as PosterTheme["background"], inkOnly: isInkOnly(theme) })}>
+                <option value="parchment">The design&rsquo;s own</option>
                 <option value="white">Plain white</option>
               </select>
             </label>
@@ -153,7 +192,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             <h4 className="section-title">Ornaments</h4>
             {(
               [
-                ["frame", "Gold-foil frame & parchment (Canva artwork)"],
+                ["frame", theme.preset === "luxe" ? "Gold-foil frame (the artwork)" : "The design's frame"],
                 ["femaleCapsule", "Daughters as gold capsules"],
                 ["branchColors", "Colour each main branch (lineage colours)"],
                 ["branchTint", "A faint wash behind each main branch"],
@@ -168,7 +207,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 {label}
               </label>
             ))}
-            {theme.frame && frameAvailable && (
+            {theme.frame && frameAvailable && theme.preset === "luxe" && (
               <label className="flex items-center justify-between text-sm" title="Softer: the gold ornament and the paper's texture quieter, so the tree comes first">
                 Frame finish
                 <select className="input w-48" value={theme.frameFinish ?? "full"} onChange={(e) => onChange({ frameFinish: e.target.value as PosterTheme["frameFinish"] })}>
@@ -177,16 +216,12 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 </select>
               </label>
             )}
-            {theme.frame && !frameAvailable && (
+            {theme.frame && !frameAvailable && theme.preset === "luxe" && (
               <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
                 Frame artwork not found. Save the Canva frame as{" "}
-                <code>public/poster-frame.jpg</code> (or <code>.png</code>); until then the paper is plain.
+                <code>public/poster-frame.jpg</code> (or <code>.png</code>); until then a fine gold rule frames it.
               </p>
             )}
-            <label className="flex items-center justify-between gap-2 text-sm">
-              Roundel rim
-              <input type="color" className="h-7 w-12 cursor-pointer rounded border border-parchment-300" value={theme.nodeRim} onChange={(e) => onChange({ nodeRim: e.target.value })} />
-            </label>
           </section>
 
           <section className="space-y-1.5">

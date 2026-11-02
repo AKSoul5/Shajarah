@@ -7,7 +7,7 @@ import type { PosterPalette } from "@/lib/theme";
 
 const f = (n: number) => n.toFixed(1);
 
-type Pal = PosterPalette & { line: string };
+type Pal = PosterPalette & { line: string; uid: string };
 type FrameKind = PosterPalette["frame"];
 
 /** An eight-pointed star (two squares), centred on x, y. */
@@ -108,13 +108,13 @@ function MetalFrame({ W, H, pal }: { W: number; H: number; pal: Pal }) {
   return (
     <g>
       <defs>
-        <linearGradient id="sh-steel" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={`${pal.uid}-steel`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor={pal.rule} />
           <stop offset="0.5" stopColor="#9aa2ac" />
           <stop offset="1" stopColor={pal.rule} />
         </linearGradient>
       </defs>
-      <rect x={o} y={o} width={W - 2 * o} height={H - 2 * o} fill="none" stroke="url(#sh-steel)" strokeWidth={W * 0.0032} />
+      <rect x={o} y={o} width={W - 2 * o} height={H - 2 * o} fill="none" stroke={`url(#${pal.uid}-steel)`} strokeWidth={W * 0.0032} />
       <rect x={o + W * 0.011} y={o + W * 0.011} width={W - 2 * (o + W * 0.011)} height={H - 2 * (o + W * 0.011)} fill="none" stroke={pal.rule} strokeWidth={W * 0.0006} />
       {corners(W, H, o).map(([x, y]) => (
         <g key={`${x},${y}`}>

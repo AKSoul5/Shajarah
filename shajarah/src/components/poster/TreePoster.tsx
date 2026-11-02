@@ -51,6 +51,8 @@ interface Props {
    * plain ivory paper.
    */
   frameSrc?: string | null;
+  /** The prefix of the poster's gradient and pattern ids: unique per poster on a page (the design previews). */
+  idPrefix?: string;
 }
 
 const FONT = "Amiri, 'Traditional Arabic', 'Noto Naskh Arabic', 'Times New Roman', serif";
@@ -65,6 +67,8 @@ const GOLD = "#b08a2e";
 const INK = "#2a1c0c";
 
 interface Palette extends PosterPalette {
+  /** The prefix of this poster's gradient and pattern ids (several posters can share a page). */
+  uid: string;
   mono: boolean;
   ink: string;
   /** Fine gold lines (rules, rims). */
@@ -77,14 +81,15 @@ interface Palette extends PosterPalette {
   rim: (lineage: number | null | undefined) => string | null;
 }
 
-function makePalette(theme: PosterTheme, layout: PosterLayout): Palette {
+function makePalette(theme: PosterTheme, layout: PosterLayout, uid = "sh"): Palette {
   const tokens = paletteOf(theme);
   const mono = tokens.inkOnly;
-  const satin = (gender: string) => (gender === "FEMALE" ? "url(#sh-satin-f)" : "url(#sh-satin-m)");
+  const satin = (gender: string) => (gender === "FEMALE" ? `url(#${uid}-satin-f)` : `url(#${uid}-satin-m)`);
   const coloured = theme.branchColors && !mono;
   const bark = mono ? "#1a1a1a" : theme.branch;
   return {
     ...tokens,
+    uid,
     mono,
     branch: (i) => (coloured ? lineageColor(i, bark, tokens.lineage) : bark),
     rim: (i) => (coloured && i != null ? lineageColor(i, bark, tokens.lineage) : null),
@@ -129,11 +134,11 @@ function SatinGradient({ id, color }: { id: string; color: string }) {
  */
 export const TreePoster = memo(
   forwardRef<SVGSVGElement, Props>(function TreePoster(
-    { layout, meta, theme, selectedId, lineageIds, showIssues, onSelect, onMenu, markedIds, currentMarkId, reorder, className, frameSrc },
+    { layout, meta, theme, selectedId, lineageIds, showIssues, onSelect, onMenu, markedIds, currentMarkId, reorder, className, frameSrc, idPrefix = "sh" },
     ref,
   ) {
     const { width: W, height: H, rtl } = layout;
-    const pal = makePalette(theme, layout);
+    const pal = makePalette(theme, layout, idPrefix);
     const bark = pal.mono ? "#1a1a1a" : theme.branch;
     // (a design that rims its names in its metal, Imperial Gold's gold,
     // Platinum's steel, Emerald Dynasty's brass, keeps the branch colours on
@@ -167,14 +172,14 @@ export const TreePoster = memo(
         aria-label={meta.title ?? meta.name}
       >
         <defs>
-          <SatinGradient id="sh-satin-m" color={theme.male} />
-          <SatinGradient id="sh-satin-f" color={theme.female} />
-          <linearGradient id="sh-trunk" x1="0" y1="0" x2="1" y2="0">
+          <SatinGradient id={`${pal.uid}-satin-m`} color={theme.male} />
+          <SatinGradient id={`${pal.uid}-satin-f`} color={theme.female} />
+          <linearGradient id={`${pal.uid}-trunk`} x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor={shade(bark, -0.1)} />
             <stop offset="0.45" stopColor={shade(bark, 0.1)} />
             <stop offset="1" stopColor={shade(bark, -0.18)} />
           </linearGradient>
-          <linearGradient id="sh-gold-text" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={`${pal.uid}-gold-text`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor={pal.titleHi} />
             <stop offset="1" stopColor={pal.titleLo} />
           </linearGradient>
@@ -182,7 +187,7 @@ export const TreePoster = memo(
 
         {/* Paper (with its grain, in the designs that have one), then the frame */}
         <rect width={W} height={H} fill={pal.paper} />
-        {pal.texture === "grain" && !artwork && <PaperGrain W={W} H={H} colour={pal.inkSoft} />}
+        {pal.texture === "grain" && !artwork && <PaperGrain W={W} H={H} colour={pal.inkSoft} uid={pal.uid} />}
         {artwork ? (
           // (softer: the paper shows through the gold and its texture)
           <image href={frameSrc!} x={0} y={0} width={W} height={H} preserveAspectRatio="none" opacity={theme.frameFinish === "soft" ? 0.6 : 1} />
@@ -219,7 +224,7 @@ export const TreePoster = memo(
         )}
 
         {/* Trunk and branches: clean tapered vector shapes, no textures */}
-        <path d={layout.trunkPath} fill={pal.mono ? "#ffffff" : "url(#sh-trunk)"} stroke={pal.mono ? "#111" : "none"} strokeWidth={W * 0.0015} />
+        <path d={layout.trunkPath} fill={pal.mono ? "#ffffff" : `url(#${pal.uid}-trunk)`} stroke={pal.mono ? "#111" : "none"} strokeWidth={W * 0.0015} />
         {/* Every branch has a fine paper-coloured edge, so where lines cross
             the upper one visibly passes over the lower (never a shared junction) */}
         <g stroke={pal.paper} strokeWidth={W * 0.0018} strokeLinejoin="round" paintOrder="stroke">
@@ -498,7 +503,7 @@ function leafPath(L: number, w: number): string {
  * A fine grain in the paper, as of laid and aged sheets: short fibres in a
  * tile (the same every time), in the faintest ink.
  */
-function PaperGrain({ W, H, colour }: { W: number; H: number; colour: string }) {
+function PaperGrain({ W, H, colour, uid }: { W: number; H: number; colour: string; uid: string }) {
   const t = W * 0.06;
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -510,11 +515,11 @@ function PaperGrain({ W, H, colour }: { W: number; H: number; colour: string }) 
   return (
     <>
       <defs>
-        <pattern id="sh-grain" width={t} height={t} patternUnits="userSpaceOnUse">
+        <pattern id={`${uid}-grain`} width={t} height={t} patternUnits="userSpaceOnUse">
           <path d={fibres.join("")} stroke={colour} strokeWidth={W * 0.0004} strokeLinecap="round" />
         </pattern>
       </defs>
-      <rect width={W} height={H} fill="url(#sh-grain)" opacity={0.1} />
+      <rect width={W} height={H} fill={`url(#${uid}-grain)`} opacity={0.1} />
     </>
   );
 }
@@ -742,7 +747,7 @@ function Foundation({ layout, pal, bark, click }: {
   const colour = (ink: SoilInk | undefined): string | undefined => {
     if (!ink) return undefined;
     if (pal.mono) return ink === "ivory" ? "#ffffff" : ink === "trunk" ? "#ffffff" : "#111111";
-    return { ink: pal.ink, gold: pal.ornament, goldLight: pal.thread, muted: pal.muted, bark, trunk: "url(#sh-trunk)", ivory: pal.ivory, line: pal.line }[ink];
+    return { ink: pal.ink, gold: pal.ornament, goldLight: pal.thread, muted: pal.muted, bark, trunk: `url(#${pal.uid}-trunk)`, ivory: pal.ivory, line: pal.line }[ink];
   };
   return (
     <g data-soil={soil.style}>
@@ -845,12 +850,12 @@ function BranchTints({ layout, pal }: { layout: PosterLayout; pal: Palette }) {
   return (
     <g aria-hidden>
       <defs>
-        <filter id="sh-tint-blur" x="-10%" y="-10%" width="120%" height="120%">
+        <filter id={`${pal.uid}-tint-blur`} x="-10%" y="-10%" width="120%" height="120%">
           <feGaussianBlur stdDeviation={(fs * 1.6).toFixed(1)} />
         </filter>
       </defs>
       {[...groups].map(([lineage, g]) => (
-        <g key={lineage} opacity={0.11} filter="url(#sh-tint-blur)">
+        <g key={lineage} opacity={0.11} filter={`url(#${pal.uid}-tint-blur)`}>
           <g fill="none" stroke={pal.branch(lineage)} strokeWidth={fs * 3.4} strokeLinecap="round" strokeLinejoin="round">
             {g.lines.map((pts, i) => <polyline key={i} points={pts} />)}
           </g>
@@ -897,7 +902,7 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
       )}
       {meta.title && (
         <text x={W / 2} y={titleY} textAnchor="middle" fontFamily={kufi ? KUFI : RUQAA} fontSize={titleFs} fontWeight={kufi ? 400 : 700}
-          fill={pal.mono ? pal.ink : "url(#sh-gold-text)"} direction={rtl ? "rtl" : "ltr"}>
+          fill={pal.mono ? pal.ink : `url(#${pal.uid}-gold-text)`} direction={rtl ? "rtl" : "ltr"}>
           {meta.title}
         </text>
       )}
@@ -972,8 +977,8 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   );
   type Item = { label: string; swatch: (x: number) => ReactNode };
   const items: Item[] = [];
-  const maleFill = pal.mono ? "#fff" : satin ? "url(#sh-satin-m)" : theme.male;
-  const femaleFill = pal.mono ? "#fff" : satin ? "url(#sh-satin-f)" : theme.female;
+  const maleFill = pal.mono ? "#fff" : satin ? `url(#${pal.uid}-satin-m)` : theme.male;
+  const femaleFill = pal.mono ? "#fff" : satin ? `url(#${pal.uid}-satin-f)` : theme.female;
   const rim = (c: string) => (pal.mono ? "#111" : rimOn(c, pal.paper));
   // colouring by generation replaces the son / daughter / father colours
   const byGender = theme.colorBy !== "generation";
