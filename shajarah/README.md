@@ -1288,11 +1288,13 @@ ancestor they share, by fathers and by mothers:
   - ابن / بنت, never ولد.
   - The specialised terms where they fit: كنّته، صهره، حموها، حماتها،
     نسيبه، عديله، سلفتها، ضرّتها.
-  - Cousins by degree: "من الدرجة الثانية".
+  - Cousins by degree: "من الدرجة الثانية", the degree from the nearest
+    shared ancestor in the records, never from generations alone.
   - The side for grandparents: "جد أحمد لأبيه".
-  - Brothers and sisters: "الشقيق" for full, "أخو أحمد من الأب" / "أخت
-    أحمد من الأم" for half, and "زوجة أخو أحمد" inside a longer phrase
-    (the familiar construction; "أخي أحمد" reads as "my brother").
+  - Brothers and sisters: "الشقيق" for full, "هشام أخو أحمد لأبيه" / "ريم
+    أخت أحمد لأمّه" for half. Inside a longer phrase: "زوجة أخو أحمد" (the
+    familiar construction; "أخي أحمد" reads as "my brother"), and for a
+    half-brother "زوجة أخٍ لأحمد من أبيه".
   - Far kin: "على بُعد أربعة أجيال".
   - The same terms both ways, and nothing inferred from missing records.
     الشقيق only when both parents are recorded and shared; no side when

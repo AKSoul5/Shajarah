@@ -40,8 +40,8 @@ const rel = (b: string) => relationship(people, marriages, "a", b);
 describe("how two people are related", () => {
   it("names brothers and sisters: full, or through the father or the mother only", () => {
     expect(rel("s").arabic).toBe("مها أخت أحمد الشقيقة");
-    expect(rel("h").arabic).toBe("هشام أخو أحمد من الأب");
-    expect(relationship(people, marriages, "s", "h").arabic).toBe("هشام أخو مها من الأب");
+    expect(rel("h").arabic).toBe("هشام أخو أحمد لأبيه");
+    expect(relationship(people, marriages, "s", "h").arabic).toBe("هشام أخو مها لأبيها");
     expect(rel("h").english).toContain("half-brother (same father)");
   });
   it("names uncles and aunts by the side they are on: عمّ and عمّة, خال", () => {
@@ -142,17 +142,23 @@ describe("how two people are related", () => {
     fam.push({ id: "y", name: "يوسف", gender: "MALE", fatherId: "f", motherId: "m" });
     const wed = [...marriages, { spouseAId: "h", spouseBId: "hw" }, { spouseAId: "y", spouseBId: "yw" }, { spouseAId: "a", spouseBId: "w" }];
     const r = (x: string, y: string, m = wed) => relationship(fam, m, x, y).arabic;
-    it("brothers and sisters: الشقيق when both parents are recorded, من الأب / من الأم for half", () => {
+    it("brothers and sisters: الشقيق when both parents are recorded, لأبيه / لأمّه for half", () => {
       expect(r("a", "y")).toBe("يوسف أخو أحمد الشقيق");
       expect(r("y", "a")).toBe("أحمد أخو يوسف الشقيق");
-      expect(r("a", "h")).toBe("هشام أخو أحمد من الأب");
-      expect(r("h", "a")).toBe("أحمد أخو هشام من الأب");
+      expect(r("a", "h")).toBe("هشام أخو أحمد لأبيه");
+      expect(r("h", "a")).toBe("أحمد أخو هشام لأبيه");
+      const half = [...fam, { id: "rm", name: "ريم", gender: "FEMALE" as const, fatherId: "sd", motherId: "m" }, { id: "rmh", name: "فهد", gender: "MALE" as const, fatherId: null, motherId: null }];
+      const hw = [...wed, { spouseAId: "rmh", spouseBId: "rm" }];
+      expect(relationship(half, hw, "a", "rm").arabic).toBe("ريم أخت أحمد لأمّه");
+      expect(relationship(half, hw, "rm", "a").arabic).toBe("أحمد أخو ريم لأمّها");
+      expect(relationship(half, hw, "a", "rmh").arabic).toBe("فهد زوج أختٍ لأحمد من أمّه");
+      expect(relationship(half, hw, "rmh", "a").arabic).toBe("أحمد أخو زوجة فهد لأمّها");
     });
-    it("a brother's wife: زوجة أخو أحمد (never أخي)", () => {
+    it("a brother's wife: زوجة أخو أحمد, a half-brother's: زوجة أخٍ لأحمد من أبيه (never أخي)", () => {
       expect(r("a", "yw")).toBe("أمل زوجة أخو أحمد");
       expect(r("yw", "a")).toBe("أحمد أخو زوج أمل");
-      expect(r("a", "hw")).toBe("رنا زوجة أخو أحمد من الأب");
-      expect(r("hw", "a")).toBe("أحمد أخو زوج رنا من الأب");
+      expect(r("a", "hw")).toBe("رنا زوجة أخٍ لأحمد من أبيه");
+      expect(r("hw", "a")).toBe("أحمد أخو زوج رنا لأبيه");
       for (const [x, y] of [["a", "yw"], ["yw", "a"], ["a", "hw"], ["hw", "a"]]) expect(r(x, y)).not.toMatch(/أخي /);
     });
     it("a wife's parents: والد زوجة أحمد (نسيبه), never حموه; and back: صهره، صهرها", () => {
@@ -188,6 +194,19 @@ describe("how two people are related", () => {
       ];
       expect(r("f", "sd", dated)).toBe("سعود زوج سابق لندى، زوجة محمد");
       expect(r("sd", "f", dated)).toBe("محمد زوج لاحق لندى، زوجة سعود");
+    });
+    it("a tie through a close relative's spouse is found from either side", () => {
+      // a son's wife's mother, and back
+      const fam2 = [...fam,
+        { id: "dw", name: "دانة", gender: "FEMALE" as const, fatherId: null, motherId: "dm" },
+        { id: "dm", name: "حصة", gender: "FEMALE" as const, fatherId: null, motherId: null },
+      ];
+      const m2 = [...wed, { spouseAId: "a1", spouseBId: "dw" }];
+      expect(relationship(fam2, m2, "a", "dm").arabic).toBe("حصة والدة زوجة ابن أحمد");
+      expect(relationship(fam2, m2, "dm", "a").arabic).toBe("أحمد والد زوج بنت حصة");
+      // and from a grandparent
+      expect(relationship(fam2, m2, "f", "dm").arabic).toBe("حصة والدة زوجة حفيد محمد");
+      expect(relationship(fam2, m2, "dm", "f").arabic).toBe("محمد جد زوج بنت حصة");
     });
     it("no recorded tie, both ways", () => {
       expect(r("a", "x")).toBe("لا توجد بين أحمد ومنيرة قرابة نسب أو مصاهرة مسجّلة");

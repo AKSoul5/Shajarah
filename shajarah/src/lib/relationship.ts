@@ -81,7 +81,7 @@ interface Tie {
    * The tie followed by whose it is, inside a longer description, where
    * that differs from `${term} ${owner}${tail}`: a brother is "زوجة أخو
    * أحمد" (the familiar construction; the textbook genitive "أخي أحمد"
-   * reads as "my brother"), a half-brother "زوجة أخو أحمد من الأب".
+   * reads as "my brother"), a half-brother "زوجة أخٍ لأحمد من أبيه".
    */
   phrase?: (owner: string) => string;
   up: number;
@@ -150,10 +150,14 @@ function bloodTie(byId: Map<string, Person>, anc: Map<string, Map<string, string
     const en = full || !known ? plain : `half-${plain} (same ${sameFather ? "father" : "mother"})`;
     // (full only when both parents are recorded and shared; half by the
     // side recorded; with the other parent of either not recorded, no side)
-    const side = full ? "" : known ? (sameFather ? " من الأب" : " من الأم") : "";
-    const tail = full ? (fB ? " الشقيقة" : " الشقيق") : side;
-    // (inside a longer phrase: "زوجة أخو أحمد", "زوجة أخو أحمد من الأب")
-    return tie(fB ? "أخت" : "أخو", en, "sibling", tail, (owner) => `${fB ? "أخت" : "أخو"} ${owner}${side}`);
+    const half = !full && known;
+    const tail = full ? (fB ? " الشقيقة" : " الشقيق") : half ? (sameFather ? ` لأبي${his}` : ` لأمّ${his}`) : "";
+    // Inside a longer phrase: "زوجة أخو أحمد" (the familiar construction,
+    // never "أخي أحمد", which reads as "my brother"), and for a half-brother
+    // "زوجة أخٍ لأحمد من أبيه". (The pronoun is the owner's: أحمد's father.)
+    return tie(fB ? "أخت" : "أخو", en, "sibling", tail, (owner) => half
+      ? `${fB ? "أختٍ" : "أخٍ"} ${li(owner)} ${sameFather ? `من أبي${his}` : `من أمّ${his}`}`
+      : `${fB ? "أخت" : "أخو"} ${owner}`);
   }
 
   // Further: by the generations each is from the shared ancestor. The one
@@ -290,7 +294,7 @@ export function relationship(members: Person[], marriages: (Pick<MarriageDTO, "s
         const enNamed = t.kind === "parent" ? `${fB ? "mother" : "father"}-in-law` : t.kind === "sibling" ? `${fB ? "sister" : "brother"}-in-law` : "";
         return {
           // (no الشقيق at the end of an in-law phrase: it would read as
-          // describing the wrong person; من الأب / من الأم stays)
+          // describing the wrong person; لأبيها / لأمّها stays)
           arabic: `${B} ${t.term} ${spouseWord(S)} ${A}${t.kind === "sibling" ? t.tail.replace(/ الشقيقة?$/, "") : t.tail}${parentInLaw(t, S)}`,
           english: enNamed ? `${B} is ${A}'s ${enNamed} (${spouseEn(S)}'s ${t.en})` : `${B} is ${A}'s ${spouseEn(S)}'s ${t.en}`,
           common: t.common, path: [aId, ...t.path], steps: ["spouse", ...stepsOf(t)], up: t.up, down: t.down,
@@ -363,6 +367,27 @@ export function relationship(members: Person[], marriages: (Pick<MarriageDTO, "s
           arabic: `${B} ${t2.term} ${spouseWord(W)} ${phraseOf(t1, A)}`,
           english: `${B} is the ${t2.en} of ${A}'s ${t1.en}'s ${spouseEn(W)}`,
           common: [], path: [...t1.path, ...t2.path], steps: [...stepsOf(t1), "spouse", ...stepsOf(t2)], up: t1.up, down: t1.down,
+        }),
+      });
+    }
+  }
+  // …and the same seen from the other side: B a close relative (parent,
+  // child, brother or sister) of R, the spouse of W, A's close blood
+  // relative: "زينب والدة زوجة حفيد غمرة". (Searched only from A, a tie
+  // found one way was missed the other.)
+  for (const rId of near(bId)) {
+    for (const wId of spousesOf(rId)) {
+      if (wId === bId || wId === aId || bSpouses.has(wId)) continue;
+      const tw = bloodTie(byId, anc, aId, wId);
+      if (!tw || tw.up + tw.down > 2 || tw.path.includes(bId)) continue;
+      const tb = bloodTie(byId, anc, rId, bId)!;
+      const R = byId.get(rId)!;
+      options.push({
+        score: tw.up + tw.down + tb.up + tb.down + 1,
+        make: () => ({
+          arabic: `${B} ${tb.term} ${spouseWord(R)} ${phraseOf(tw, A)}`,
+          english: `${B} is the ${tb.en} of the ${spouseEn(R)} of ${A}'s ${tw.en}`,
+          common: [], path: [...tw.path, ...tb.path], steps: [...stepsOf(tw), "spouse", ...stepsOf(tb)], up: tw.up, down: tw.down,
         }),
       });
     }
