@@ -21,11 +21,12 @@ only**; it never changes a layout.
 
 - **Defects**: every relationship-clarity issue (a connection missing or from
   the wrong parent, a line not ending at its name, a line under an unrelated
-  name, a crossing too shallow or at a name, two lines running together, a
+  name, any line crossing another (brothers' and sisters' lines from where
+  they leave their parent's name, steep crossings too), two lines running together, a
   false junction, the trunk out of order); names overlapping; the foundation's
   text overlapping itself, the canopy or the footer's key.
-- **For review**: clear crossings (steep, away from names: allowed by design),
-  and near misses (two unrelated lines under 0.6 mm apart at print size).
+- **For review**: clear crossings listed again on their own (each is also a
+  defect), and near misses (two unrelated lines under 0.6 mm apart at print size).
 - **Legibility**: whether the names stay at the legible size. A dense poster
   that cannot be both clean and legible is laid out one way or the other;
   the report shows which.

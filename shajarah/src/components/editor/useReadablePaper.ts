@@ -52,3 +52,40 @@ export function useReadablePaper(
   if (!wanted || !papers.length) return null;
   return found && found.key === key && found.tree === tree ? found.paper : "checking";
 }
+
+/**
+ * The smallest paper on which the poster laid out with each paper's options
+ * is clear (see smallestClearPaper), found in a worker: on a large family
+ * it lays the poster out once per size, which on the page would freeze the
+ * editor. Aborting stops the worker. (Where no worker can run, on the page.)
+ */
+export function smallestClearPaperOffPage(
+  tree: TreeDTO, papers: { paper: PaperSize; options: LayoutOptions }[], signal?: AbortSignal,
+): Promise<PaperSize | null> {
+  const onPage = () => smallestClearPaper((p) => computePosterLayout(tree, papers.find((x) => x.paper === p)!.options), papers[0].paper);
+  if (!papers.length) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let w: Worker;
+    try {
+      w = new Worker(new URL("./layout.worker.ts", import.meta.url));
+    } catch {
+      setTimeout(() => resolve(signal?.aborted ? null : onPage()), 0);
+      return;
+    }
+    const stop = () => { w.terminate(); resolve(null); };
+    signal?.addEventListener("abort", stop, { once: true });
+    w.onmessage = (e: MessageEvent<{ ok: boolean; paper?: PaperSize | null; error?: string }>) => {
+      signal?.removeEventListener("abort", stop);
+      w.terminate();
+      if (!e.data.ok) console.error("Measuring a poster failed:", e.data.error);
+      resolve(e.data.ok ? e.data.paper ?? null : null);
+    };
+    w.onerror = (e) => {
+      e.preventDefault();
+      signal?.removeEventListener("abort", stop);
+      w.terminate();
+      resolve(signal?.aborted ? null : onPage());
+    };
+    w.postMessage({ id: 0, kind: "paper", tree, papers });
+  });
+}

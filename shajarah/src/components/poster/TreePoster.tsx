@@ -226,8 +226,14 @@ export const TreePoster = memo(
         <g stroke={pal.paper} strokeWidth={W * 0.0018} strokeLinejoin="round" paintOrder="stroke">
           {layout.branches.map((b, i) =>
             b.dotted ? (
-              // a family shown through a daughter: round dots along the line
-              <path key={i} d={b.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.w} strokeLinecap="round" strokeDasharray={`0.01 ${(b.w * 2.4).toFixed(1)}`} opacity={0.9} />
+              // a family shown through a daughter: round dots along the line,
+              // evenly from one end to the other (spaced to fit its length)
+              b.length ? (
+                <path key={i} d={b.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.w} strokeLinecap="round"
+                  pathLength={Math.max(1, Math.round(b.length / (b.w * 2.4)))} strokeDasharray="0.001 0.999" strokeDashoffset={-(b.phase ?? 0)} opacity={0.9} />
+              ) : (
+                <path key={i} d={b.d} fill="none" stroke={pal.branch(b.lineage)} strokeWidth={b.w} strokeLinecap="round" strokeDasharray={`0.01 ${(b.w * 2.4).toFixed(1)}`} opacity={0.9} />
+              )
             ) : (
               <path key={i} d={b.d} fill={pal.branch(b.lineage)} />
             ),
