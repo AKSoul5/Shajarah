@@ -1,20 +1,21 @@
-// Illuminated banner: a manuscript panel below the trunk, with a fine
-// double gold rule, a border of small lozenges between the rules, a
-// head- and tailpiece, and the ancestors stacked with ornamental separators
-// between them. A long lineage is set in columns (read right to left in
-// Arabic), as manuscripts do; every name stays in the panel.
+// Illuminated manuscript: a manuscript panel below the trunk. The trunk's
+// roots land on an arched headpiece rising from the panel's top rule; a fine
+// double rule frames it, with ornaments only at its corners and the middle
+// of each side; a head- and tailpiece open and close the text; the nearest
+// ancestor is set first, a little larger, in the bark's colour; the rest are
+// stacked with small separators. A long lineage is set in columns (read
+// right to left in Arabic, left to right in English), as manuscripts do,
+// with fine rules between them; every name stays in the panel. The
+// ornaments are drawn in the poster's own design.
 
-import {
-  clamp, dot, fx, gapBelowGround, lozenge, namesOf, rectPath, rootsTo, runningFont, separatorMark,
-  smallestName, wrapWords,
-} from "./common";
+import { clamp, nameBase, fx, gapBelowGround, namesOf, ornament, rectPath, rootsTo, runningFont, smallestName, wrapWords } from "./common";
 import type { SoilContext, SoilShape, SoilStyleDef, SoilText } from "./types";
 
 const BANNER_SHARE = 0.3;
 
 function measure(ctx: SoilContext) {
   const { entries, prose } = namesOf(ctx);
-  const fs = clamp(ctx.f * 0.9, ctx.floor, ctx.maxFont * 0.7);
+  const fs = clamp(Math.min(ctx.f * 0.9, nameBase(ctx) * 1.3), ctx.floor, ctx.maxFont * 0.7);
   const pad = fs * 1.4; // between the inner rule and the names
   const rule = fs * 0.55; // between the two rules (the lozenge border)
   const head = fs * 1.5; // head- and tailpiece
@@ -48,8 +49,8 @@ function measure(ctx: SoilContext) {
 
 export const banner: SoilStyleDef = {
   id: "banner",
-  label: "Illuminated banner",
-  description: "A manuscript panel with a double gold rule; the ancestors stacked between ornaments.",
+  label: "Illuminated Manuscript",
+  description: "An ornamental manuscript panel; the ancestors in columns under an arched headpiece.",
   height: (ctx) => measure(ctx).height,
   layout(p) {
     const m = measure(p);
@@ -60,29 +61,27 @@ export const banner: SoilStyleDef = {
     const shapes: SoilShape[] = [];
     const texts: SoilText[] = [];
 
-    // the panel: outer and inner gold rules, lozenges between them, corner and edge ornaments
+    // the panel: outer and inner rules, ornaments at the corners and mid-sides only
     shapes.push({ d: rectPath(x, top, m.width, m.panelH, fs * 0.25), fill: "ivory", stroke: "gold", strokeWidth: p.W * 0.0011, opacity: 0.7 });
     shapes.push({ d: rectPath(x + rule, top + rule, m.width - 2 * rule, m.panelH - 2 * rule, fs * 0.15), stroke: "gold", strokeWidth: p.W * 0.0006 });
-    const border: string[] = [];
     const mid = rule / 2;
-    const along = (x0: number, y0: number, x1: number, y1: number) => {
-      const L = Math.hypot(x1 - x0, y1 - y0);
-      const n = Math.max(1, Math.round(L / (fs * 1.1)));
-      for (let i = 1; i < n; i++) border.push(lozenge(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n, fs * 0.09, fs * 0.09));
-    };
-    along(x + mid, top + mid, x + m.width - mid, top + mid);
-    along(x + mid, top + m.panelH - mid, x + m.width - mid, top + m.panelH - mid);
-    along(x + mid, top + mid, x + mid, top + m.panelH - mid);
-    along(x + m.width - mid, top + mid, x + m.width - mid, top + m.panelH - mid);
     for (const [cx, cy] of [[x + mid, top + mid], [x + m.width - mid, top + mid], [x + mid, top + m.panelH - mid], [x + m.width - mid, top + m.panelH - mid]]) {
-      border.push(lozenge(cx, cy, fs * 0.28, fs * 0.28), dot(cx, cy, fs * 0.08));
+      shapes.push(ornament("corner", cx, cy, fs * 0.3, 0.85));
     }
-    shapes.push({ d: border.join(""), fill: "gold", opacity: 0.7 });
+    for (const [cx, cy] of [[x + mid, top + m.panelH / 2], [x + m.width - mid, top + m.panelH / 2], [p.cx, top + m.panelH - mid]]) {
+      shapes.push(ornament("sep", cx, cy, fs * 0.2, 0.85));
+    }
+    // the headpiece: a low pointed arch on the top rule, where the trunk's roots land
+    const archW = Math.min(m.width * 0.4, Math.max(p.trunkWidth * 1.6, fs * 4));
+    const archH = Math.min(gapBelowGround(p) * 0.85, fs * 0.8);
+    const arch = `M${fx(p.cx - archW / 2)} ${fx(top)}C${fx(p.cx - archW * 0.22)} ${fx(top)} ${fx(p.cx - archW * 0.08)} ${fx(top - archH * 0.55)} ${fx(p.cx)} ${fx(top - archH)}`
+      + `C${fx(p.cx + archW * 0.08)} ${fx(top - archH * 0.55)} ${fx(p.cx + archW * 0.22)} ${fx(top)} ${fx(p.cx + archW / 2)} ${fx(top)}Z`;
+    shapes.push({ d: arch, fill: "ivory", stroke: "gold", strokeWidth: p.W * 0.0009 });
     // head- and tailpiece
     const innerTop = top + rule + pad;
     const innerBottom = top + m.panelH - rule - pad;
-    shapes.push({ d: separatorMark(p.cx, innerTop + head * 0.35, fs * 1.5), fill: "gold" });
-    shapes.push({ d: separatorMark(p.cx, innerBottom - head * 0.35, fs * 1.5), fill: "gold" });
+    shapes.push(ornament("mark", p.cx, innerTop + head * 0.35, fs * 1.5 * 0.42));
+    shapes.push(ornament("mark", p.cx, innerBottom - head * 0.35, fs * 1.5 * 0.42));
 
     if (m.kind === "prose") {
       m.lines.forEach((line, k) => {
@@ -94,15 +93,18 @@ export const banner: SoilStyleDef = {
         const left = x + rule + pad + m.colW / 2 + c * (m.colW + m.gutter);
         return p.rtl ? x + m.width - (left - x) : left;
       };
-      const seps: string[] = [];
       m.entries.forEach((e, i) => {
         const c = Math.floor(i / m.rows), r = i % m.rows;
         const yName = innerTop + head + r * (m.nameStep! + m.sepStep!) + fs * 0.95;
-        texts.push({ x: colX(c), y: yName, text: e.label, fontSize: fs, anchor: "middle", ink: "ink", font: "naskh", weight: 700, memberId: e.id, maxWidth: m.colW + m.gutter * 0.5 });
+        // the nearest ancestor a little larger, in the bark's colour; names left out quieter
+        const nearest = i === 0 && !e.omitted;
+        texts.push({
+          x: colX(c), y: yName, text: e.label, fontSize: nearest ? Math.min(fs * 1.12, fs + m.sepStep! * 0.3) : fs, anchor: "middle",
+          ink: e.omitted ? "muted" : nearest ? "bark" : "ink", font: "naskh", weight: e.omitted ? 400 : 700, memberId: e.id, maxWidth: m.colW + m.gutter * 0.5,
+        });
         const isLast = r === m.rows - 1 || i === m.entries.length - 1;
-        if (!isLast) seps.push(separatorMark(colX(c), yName + fs * 0.3 + m.sepStep! * 0.5, fs * 0.75));
+        if (!isLast) shapes.push(ornament("sep", colX(c), yName + fs * 0.3 + m.sepStep! * 0.5, fs * 0.17, 0.9));
       });
-      shapes.push({ d: seps.join(""), fill: "gold", opacity: 0.9 });
       // fine rules between the columns
       for (let c = 1; c < m.cols; c++) {
         const between = (colX(c - 1) + colX(c)) / 2;
@@ -113,7 +115,7 @@ export const banner: SoilStyleDef = {
     return {
       style: "banner",
       ground: null,
-      roots: rootsTo(p, top, p.trunkWidth * 0.5, 2, 0.6),
+      roots: rootsTo(p, top - archH * 0.5, Math.min(p.trunkWidth * 0.4, archW * 0.3), 2, 0.6),
       shapes,
       texts,
       fontSize: smallestName(texts, fs),

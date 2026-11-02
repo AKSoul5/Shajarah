@@ -4,7 +4,7 @@
 
 import { normalizeName } from "../../nasab";
 import { add, ribbonPath, type Cubic, type Vec } from "../geometry";
-import type { SoilContext, SoilPlacement, SoilShape, SoilText } from "./types";
+import type { SoilContext, SoilOrnament, SoilPlacement, SoilShape, SoilText } from "./types";
 
 export const fx = (n: number) => n.toFixed(1);
 export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -12,11 +12,18 @@ export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.ma
 /** Aref Ruqaa sets wider than the Amiri metrics textWidth is tuned for. */
 export const RUQAA_WIDTH = 1.15;
 
+/** The size the foundation's names are reckoned from (see SoilContext.nameFont). */
+export const nameBase = (ctx: SoilContext) => Math.min(ctx.f, ctx.nameFont ?? ctx.f);
+
 /** Space between the ground line and the foundation. */
 export const gapBelowGround = (ctx: SoilContext) => ctx.f * 0.9;
 
-/** The running-text size (paragraph and plaque): as before the styles existed. */
-export const runningFont = (ctx: SoilContext) => Math.max(ctx.floor, Math.min(ctx.f * 0.85, ctx.maxFont * 0.75));
+/**
+ * The running-text size (the plaque and the inscription under a column, a
+ * spine or the roots): a little under the names set one by one above it, so
+ * the oldest generations read as the continuation, not the headline.
+ */
+export const runningFont = (ctx: SoilContext) => Math.max(ctx.floor, Math.min(ctx.f * 0.85, nameBase(ctx) * 1.2, ctx.maxFont * 0.75));
 
 /** Words of running text. Only ordinary spaces break: a name and its honorific are joined by no-break spaces. */
 export const wordsOf = (text: string) => text.split(/[ \t\n]+/).filter(Boolean);
@@ -61,14 +68,45 @@ export function namesOf(ctx: SoilContext): { entries: SoilContext["entries"]; pr
   return { entries: parts.map((label) => ({ id: null, label, generation: null })), prose: null };
 }
 
-/** Marks the names left out of a lineage too long for its space. */
+/** Marks the words left out of a custom inscription that is not a nasab. */
 export const ELLIPSIS = "…";
+
+/** Arabic-Indic digits in Arabic. */
+export const numeral = (n: number, rtl: boolean) => (rtl ? n.toLocaleString("ar-EG", { useGrouping: false }) : String(n));
+
+/**
+ * The marker standing for `n` names left out of the middle of a lineage:
+ * "… ١٢ جيلًا …" / "… 12 generations …". It says how many, so the poster
+ * never implies the lineage is complete.
+ */
+export function omissionLabel(n: number, rtl: boolean): string {
+  // (no-break spaces: the marker is never split across lines)
+  const nb = "\u00a0";
+  if (!rtl) return [ELLIPSIS, n, `generation${n === 1 ? "" : "s"}`, ELLIPSIS].join(nb);
+  const count = n === 1 ? `جيل${nb}واحد` : n === 2 ? "جيلان" : n <= 10 ? `${numeral(n, true)}${nb}أجيال` : `${numeral(n, true)}${nb}جيلًا`;
+  return [ELLIPSIS, count, ELLIPSIS].join(nb);
+}
+
+/**
+ * Names as running text: "X بن Y بن Z". The marker for names left out takes
+ * the place of a joiner and a name: "X بن Y … ١٢ جيلًا … بن شيث".
+ */
+export function joinNames(entries: SoilContext["entries"], joiner: string, leading = false): string {
+  let out = "";
+  entries.forEach((e, i) => {
+    if (e.omitted) out += ` ${e.label}`;
+    else out += (i > 0 || leading ? joiner : "") + e.label;
+  });
+  return out.trim();
+}
 
 /**
  * The lineage with `drop` names (or words, for a custom inscription that
- * is not a nasab) left out of its middle and shown as "…": the names
- * nearest the trunk and the last two (e.g. "شيث بن آدم") stay. Names are
- * never set below the legible size to fit; they are left out instead.
+ * is not a nasab) left out of its middle: the names nearest the trunk and
+ * the last two (e.g. "شيث بن آدم") stay, and a marker says how many
+ * generations are left out between them. Names are never set below the
+ * legible size to fit; they are left out instead, and only when the owner
+ * chose to shorten.
  */
 export function shortenSoil(ctx: SoilContext, drop: number): SoilContext {
   if (drop <= 0) return ctx;
@@ -84,17 +122,19 @@ export function shortenSoil(ctx: SoilContext, drop: number): SoilContext {
   const tail = Math.min(2, all.length);
   const head = Math.max(1, all.length - tail - drop);
   if (head + tail >= all.length) return ctx;
-  const entries = [...all.slice(0, head), { id: null, label: ELLIPSIS, generation: null }, ...all.slice(all.length - tail)];
+  const left = all.length - head - tail;
+  const marker = { id: null, label: omissionLabel(left, ctx.rtl), generation: null, omitted: left };
+  const entries = [...all.slice(0, head), marker, ...all.slice(all.length - tail)];
   // the running text starts from the trunk's first ancestor, as before
-  const first = ctx.trunkName ? [ctx.custom ? ctx.trunkName : ctx.text.split(ctx.joiner)[0]] : [];
-  return { ...ctx, entries, text: [...first, ...entries.map((e) => e.label)].join(ctx.joiner) };
+  const first = ctx.trunkName ? [{ id: null, label: ctx.custom ? ctx.trunkName : ctx.text.split(ctx.joiner)[0], generation: null }] : [];
+  return { ...ctx, entries, text: joinNames([...first, ...entries], ctx.joiner) };
 }
 
 /** "بن X بن Y … بن آدم": the names from `from` on, continuing a chain shown above them (or the prose). */
 export function restAsText(ctx: SoilContext, names: ReturnType<typeof namesOf>, from: number): string {
   if (names.prose) return names.prose;
   const rest = names.entries.slice(from);
-  return rest.length ? `${ctx.joiner.trim()} ${rest.map((e) => e.label).join(ctx.joiner)}` : "";
+  return rest.length ? (rest[0].omitted ? joinNames(rest, ctx.joiner) : `${ctx.joiner.trim()} ${joinNames(rest, ctx.joiner)}`) : "";
 }
 
 /** How many names fit a height budget, given each name's step. */
@@ -148,6 +188,12 @@ export const dot = (x: number, y: number, r: number) =>
 /** A lozenge flanked by two dots: the separator between names in a manuscript. */
 export const separatorMark = (x: number, y: number, s: number) =>
   [lozenge(x, y, s * 0.32, s * 0.42), dot(x - s * 0.85, y, s * 0.13), dot(x + s * 0.85, y, s * 0.13)].join("");
+
+/** An ornament in the poster's own design, its plain form a lozenge (see SoilOrnament). */
+export const ornament = (kind: SoilOrnament["kind"], x: number, y: number, s: number, opacity?: number): SoilShape => ({
+  d: kind === "mark" ? separatorMark(x, y, s / 0.42) : kind === "corner" ? lozenge(x, y, s, s) + dot(x, y, s * 0.3) : lozenge(x, y, s * 0.6, s),
+  orn: { kind, x, y, s }, fill: "gold", opacity,
+});
 
 // ── The plaque: the oldest names, inscribed under a style's column ───────
 
@@ -226,14 +272,14 @@ export function inscriptionFor(ctx: SoilContext, text: string, maxWidth = ctx.ma
  */
 export function drawInscription(p: SoilPlacement, ins: Inscription, top: number): { shapes: SoilShape[]; texts: SoilText[]; box: { x: number; y: number; w: number; h: number } } {
   const { fs, lines } = ins;
-  const shapes: SoilShape[] = [{ d: separatorMark(p.cx, top + fs * 0.9, fs * 0.9), fill: "gold" }];
+  const shapes: SoilShape[] = [ornament("mark", p.cx, top + fs * 0.9, fs * 0.9 * 0.42)];
   const first = top + fs * 2.2 + fs * 0.95;
   const texts: SoilText[] = lines.map((line, k) => ({
     x: p.cx, y: first + k * fs * 1.7, text: line, fontSize: fs, anchor: "middle", ink: "ink", font: "naskh",
     maxWidth: Math.min(p.maxWidth, ins.width + fs * 2),
   }));
   const end = first + (lines.length - 1) * fs * 1.7 + fs * 0.45;
-  shapes.push({ d: lozenge(p.cx, end + fs * 0.6, fs * 0.16, fs * 0.26), fill: "gold" });
+  shapes.push(ornament("finial", p.cx, end + fs * 0.6, fs * 0.26));
   const w = Math.max(fs * 2, ...lines.map((l) => p.textWidth(l, fs)));
   return { shapes, texts, box: { x: p.cx - w / 2, y: top, w, h: ins.height } };
 }

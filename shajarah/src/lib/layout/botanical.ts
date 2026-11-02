@@ -1239,7 +1239,7 @@ function layoutAttempt(
     text: soilTextFor(p.onTrunk, p.soil),
     custom: !!customSoil,
     trunkName: p.onTrunk[0]?.data.member?.name ?? null,
-    rtl, joiner, f, floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
+    rtl, joiner, f, nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
   });
 
   type Plan = { onTrunk: HNode[]; soil: HNode[] };

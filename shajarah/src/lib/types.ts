@@ -72,7 +72,7 @@ export interface PosterTheme {
    */
   soilShorten?: boolean;
   /** How the ancient lineage below the trunk (the foundation) is drawn: see src/lib/layout/soil. */
-  soilStyle: "column" | "spine" | "banner" | "pedestal" | "paragraph";
+  soilStyle: "roots" | "column" | "spine" | "banner" | "pedestal" | "paragraph";
   /** Rim colour of name roundels. */
   nodeRim: string;
   /** "بسم الله الرحمن الرحيم" header. */

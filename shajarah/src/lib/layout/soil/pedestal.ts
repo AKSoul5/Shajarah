@@ -1,13 +1,17 @@
-// Stepped pedestal: the trunk stands on a stack of steps, each a little
-// wider than the one above, each carrying the next group of ancestors
-// ("بن X بن Y …"), so the lineage widens downward into its foundation.
+// Generational layers: the trunk's roots settle on a foundation of soft
+// layers, each wider than the one above, each carrying the next group of
+// ancestors ("بن X بن Y …"), so the lineage widens downward like the strata
+// of a heritage monument. Each layer's top edge is a low arch, its sides
+// slope out to the layer below, and only its top edge carries a fine line
+// in the design's ornament colour; the layers alternate a little in tone so
+// each generation group reads as its own band.
 
-import { avoidWidow, clamp, fx, namesOf, rectPath, restAsText, wordsOf, wrapWords } from "./common";
+import { avoidWidow, clamp, nameBase, fx, namesOf, ornament, restAsText, rootsTo, wordsOf, wrapWords } from "./common";
 import type { SoilContext, SoilShape, SoilStyleDef, SoilText } from "./types";
 
 /** Lines of the inscription, the first (under the trunk) narrowest. */
 function measure(ctx: SoilContext) {
-  const fs = clamp(ctx.f * 0.9, ctx.floor, ctx.maxFont * 0.72);
+  const fs = clamp(Math.min(ctx.f * 0.9, nameBase(ctx) * 1.3), ctx.floor, ctx.maxFont * 0.72);
   const stepH = fs * 2.0;
   const names = namesOf(ctx);
   const text = names.prose ?? restAsText(ctx, names, 0);
@@ -34,23 +38,34 @@ function measure(ctx: SoilContext) {
 
 export const pedestal: SoilStyleDef = {
   id: "pedestal",
-  label: "Stepped pedestal",
-  description: "The trunk stands on steps widening downward, each carrying a group of ancestors.",
+  label: "Generational Layers",
+  description: "A foundation widening downward in soft layers, each carrying a group of generations.",
   height: (ctx) => measure(ctx).height,
   layout(p) {
     const m = measure(p);
     const G = p.groundY;
     const shapes: SoilShape[] = [];
     const texts: SoilText[] = [];
+    const lift = m.fs * 0.28; // how much each layer's top edge rises at the centre
     m.lines.forEach((line, k) => {
       const w = m.widths[k];
+      // the layer's top is as wide as the one above (or a little under the
+      // trunk's flare for the first), its bottom its own width
+      const wTop = k === 0 ? Math.min(w, Math.max(p.trunkWidth * 1.3, w * 0.8)) : Math.min(w, m.widths[k - 1]);
       const y = G + k * m.stepH;
-      shapes.push({ d: rectPath(p.cx - w / 2, y, w, m.stepH, m.fs * 0.12), fill: "ivory", stroke: "gold", strokeWidth: p.W * 0.0006, opacity: 0.55 });
-      // a fine highlight along each step's top edge
-      shapes.push({ d: `M${fx(p.cx - w / 2 + m.fs * 0.35)} ${fx(y + m.fs * 0.28)}H${fx(p.cx + w / 2 - m.fs * 0.35)}`, stroke: "goldLight", strokeWidth: p.W * 0.0005 });
-      texts.push({ x: p.cx, y: y + m.stepH * 0.64, text: line, fontSize: m.fs, anchor: "middle", ink: "ink", font: "naskh", maxWidth: w - m.fs * 0.8 });
+      const yb = y + m.stepH;
+      const r = m.fs * 0.35;
+      const layer =
+        `M${fx(p.cx - wTop / 2)} ${fx(y + lift)}Q${fx(p.cx)} ${fx(y - lift)} ${fx(p.cx + wTop / 2)} ${fx(y + lift)}`
+        + `L${fx(p.cx + w / 2)} ${fx(yb - r)}Q${fx(p.cx + w / 2)} ${fx(yb)} ${fx(p.cx + w / 2 - r)} ${fx(yb)}`
+        + `H${fx(p.cx - w / 2 + r)}Q${fx(p.cx - w / 2)} ${fx(yb)} ${fx(p.cx - w / 2)} ${fx(yb - r)}Z`;
+      shapes.push({ d: layer, fill: "ivory", opacity: k % 2 === 0 ? 0.62 : 0.4 });
+      shapes.push({ d: `M${fx(p.cx - wTop / 2)} ${fx(y + lift)}Q${fx(p.cx)} ${fx(y - lift)} ${fx(p.cx + wTop / 2)} ${fx(y + lift)}`, stroke: "gold", strokeWidth: p.W * 0.0007 });
+      // a small ornament where each layer's edge meets the next
+      if (k > 0) for (const sx of [-1, 1]) shapes.push(ornament("knot", p.cx + sx * wTop / 2, y + lift, m.fs * 0.18));
+      texts.push({ x: p.cx, y: y + m.stepH * 0.66, text: line, fontSize: m.fs, anchor: "middle", ink: "ink", font: "naskh", maxWidth: Math.min(w, wTop + m.fs * 2) - m.fs * 0.8 });
     });
-    // a fine double rule under the widest step, in place of a heavy plinth
+    // a fine double rule under the widest layer, in place of a heavy plinth
     const last = m.widths[m.widths.length - 1] ?? p.maxWidth;
     const yb = G + m.lines.length * m.stepH;
     shapes.push({ d: `M${fx(p.cx - last / 2 - m.fs * 0.3)} ${fx(yb + m.fs * 0.15)}H${fx(p.cx + last / 2 + m.fs * 0.3)}M${fx(p.cx - last / 2)} ${fx(yb + m.fs * 0.38)}H${fx(p.cx + last / 2)}`, stroke: "gold", strokeWidth: p.W * 0.0006 });
@@ -58,14 +73,15 @@ export const pedestal: SoilStyleDef = {
     return {
       style: "pedestal",
       ground: null,
-      roots: [],
+      // the trunk's roots settle onto the first layer
+      roots: rootsTo(p, G + m.fs * 0.35, Math.min(p.trunkWidth * 0.45, (m.widths[0] ?? p.trunkWidth) * 0.3), 2, 0.6),
       shapes,
       texts,
       fontSize: m.fs,
       box: { x: p.cx - widest / 2, y: G, w: widest, h: m.height },
       count: p.custom ? 0 : p.entries.length,
       custom: p.custom,
-      trunkSpread: 0.12,
+      trunkSpread: 0.35,
       trunkTaper: 0,
     };
   },

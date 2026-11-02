@@ -9,7 +9,7 @@
 // same axis ("بن … بن آدم"): no panels, no boxes.
 
 import {
-  RUQAA_WIDTH, clamp, drawInscription, fitCount, fx, inscriptionFor, lozenge, namesOf, restAsText, smallestName, unionBox,
+  RUQAA_WIDTH, clamp, nameBase, drawInscription, fitCount, fx, inscriptionFor, namesOf, ornament, restAsText, smallestName, unionBox, wordsOf,
 } from "./common";
 import type { SoilContext, SoilShape, SoilStyleDef, SoilText } from "./types";
 
@@ -28,14 +28,22 @@ interface Row {
   /** Baseline, from the ground line. */
   y: number;
   memberId: string | null;
+  /** Set in calligraphy; a long name (or the marker for names left out) in Amiri, as written. */
+  ruqaa: boolean;
+  omitted: boolean;
 }
+
+/** The column keeps at least this many names, however long the lineage (the inscription takes the rest). */
+const MIN_ROWS = 5;
+/** Calligraphy suits a short name; a long or compound one is set in Amiri so it stays easy to read. */
+const suitsRuqaa = (label: string) => wordsOf(label).length <= 2 && label.length <= 14;
 
 /** Every position of the column, from the ground line down. */
 function measure(ctx: SoilContext) {
   const names = namesOf(ctx);
   const { entries } = names;
   // the nearest name is set a little larger than the trunk's badges
-  const fsTop = clamp(ctx.f * 1.25, ctx.floor, ctx.maxFont * 0.9);
+  const fsTop = clamp(Math.min(ctx.f * 1.25, nameBase(ctx) * 1.55), ctx.floor, ctx.maxFont * 0.9);
   const fsBottom = Math.max(ctx.floor, fsTop * SMALLEST);
   const start = taperOf(ctx) + neckOf(ctx);
   /** The column's rows when it holds k names. */
@@ -44,16 +52,18 @@ function measure(ctx: SoilContext) {
     let y = start;
     for (let i = 0; i < k; i++) {
       const t = k > 1 ? i / (k - 1) : 0;
+      const omitted = !!entries[i].omitted;
+      const ruqaa = !omitted && suitsRuqaa(entries[i].label);
       // a long name is set smaller to fit the width (never below the floor)
-      const fit = (ctx.maxWidth * 0.8) / Math.max(1e-6, ctx.textWidth(entries[i].label, 1) * RUQAA_WIDTH);
+      const fit = (ctx.maxWidth * 0.8) / Math.max(1e-6, ctx.textWidth(entries[i].label, 1) * (ruqaa ? RUQAA_WIDTH : 1));
       const fs = Math.max(ctx.floor, Math.min(fsTop + (fsBottom - fsTop) * t, fit));
       if (i === 0) y += fs * 0.95;
       else {
         // more air near the trunk, closer together further down
         const prev = rows[i - 1].fs;
-        y += ((prev + fs) / 2) * (2.15 + 0.85 * (1 - t));
+        y += ((prev + fs) / 2) * (1.75 + 0.6 * (1 - t));
       }
-      rows.push({ label: entries[i].label, fs, y, memberId: entries[i].id });
+      rows.push({ label: entries[i].label, fs, y, memberId: entries[i].id, ruqaa, omitted });
     }
     return rows;
   };
@@ -61,7 +71,7 @@ function measure(ctx: SoilContext) {
     const last = rows[rows.length - 1];
     return last ? last.y + last.fs * 0.45 + last.fs * 1.1 : start;
   };
-  const k = fitCount(entries.length, ctx.avail * COLUMN_SHARE, (n) => bottomOf(rowsFor(n)));
+  const k = Math.max(Math.min(MIN_ROWS, entries.length), fitCount(entries.length, ctx.avail * COLUMN_SHARE, (n) => bottomOf(rowsFor(n))));
   const rows = rowsFor(k);
   const headBottom = bottomOf(rows);
   const rest = inscriptionFor(ctx, restAsText(ctx, names, k));
@@ -70,8 +80,8 @@ function measure(ctx: SoilContext) {
 
 export const column: SoilStyleDef = {
   id: "column",
-  label: "Calligraphic column",
-  description: "The ancestors in calligraphy on a gold thread, flowing out of the trunk's base.",
+  label: "Calligraphic Column",
+  description: "A vertical calligraphic inscription on a fine thread, growing out of the trunk.",
   height: (ctx) => measure(ctx).height,
   layout(p) {
     const m = measure(p);
@@ -79,19 +89,21 @@ export const column: SoilStyleDef = {
     const shapes: SoilShape[] = [];
     // the nearest name in the bark's colour, as if still part of the trunk
     const texts: SoilText[] = m.rows.map((r, i) => ({
-      x: p.cx, y: G + r.y, text: r.label, fontSize: r.fs, anchor: "middle", ink: i === 0 ? "bark" : "ink", font: "ruqaa", weight: 700,
-      memberId: r.memberId,
+      x: p.cx, y: G + r.y, text: r.label, fontSize: r.fs, anchor: "middle", ink: r.omitted ? "muted" : i === 0 ? "bark" : "ink",
+      font: r.ruqaa ? "ruqaa" : "naskh", weight: r.omitted ? 400 : 700, memberId: r.memberId,
     }));
     const top = (r: Row) => G + r.y - r.fs * 0.95;
     const bottom = (r: Row) => G + r.y + r.fs * 0.45;
-    const widthOf = (r: Row) => p.textWidth(r.label, r.fs) * RUQAA_WIDTH;
+    const widthOf = (r: Row) => p.textWidth(r.label, r.fs) * (r.ruqaa ? RUQAA_WIDTH : 1);
     const boxes = m.rows.map((r) => ({ x: p.cx - widthOf(r) / 2, y: top(r), w: widthOf(r), h: r.fs * 1.4 }));
 
     // The gold thread: from the trunk's lowest ancestor, through the trunk's
     // point and down the column between the names, thinning as it goes.
     const threadW = p.f * 0.12;
-    const seg = (y0: number, y1: number, w: number) => {
-      if (y1 - y0 > p.f * 0.12) shapes.push({ d: `M${fx(p.cx)} ${fx(y0)}V${fx(y1)}`, stroke: "goldLight", strokeWidth: w });
+    const seg = (y0: number, y1: number, w: number, broken = false) => {
+      if (y1 - y0 > p.f * 0.12) {
+        shapes.push({ d: `M${fx(p.cx)} ${fx(y0)}V${fx(y1)}`, stroke: "goldLight", strokeWidth: w, ...(broken ? { dash: [w * 1.5, w * 2.5] as [number, number] } : {}) });
+      }
     };
     if (m.rows.length) {
       const first = m.rows[0];
@@ -105,11 +117,13 @@ export const column: SoilStyleDef = {
         const a = bottom(r), b = top(next);
         const mid = (a + b) / 2;
         const s = (r.fs + next.fs) / 2;
-        // a small diamond on the thread halfway between two names
-        if (b - a > s * 0.6) {
+        // names left out: the thread is broken on either side of the marker
+        if (r.omitted || next.omitted) seg(a, b, w, true);
+        // a small ornament on the thread halfway between two names
+        else if (b - a > s * 0.6) {
           seg(a, mid - s * 0.26, w);
           seg(mid + s * 0.26, b, w);
-          shapes.push({ d: lozenge(p.cx, mid, s * 0.09, s * 0.15), fill: "gold" });
+          shapes.push(ornament("sep", p.cx, mid, s * 0.15));
         } else seg(a, b, w);
       });
       // the thread ends in a finial, or runs on to the inscription's ornament
@@ -118,7 +132,7 @@ export const column: SoilStyleDef = {
       if (m.rest) seg(bottom(last), end + m.rest.fs * 0.3, threadW * 0.45);
       else {
         seg(bottom(last), end - last.fs * 0.55, threadW * 0.45);
-        shapes.push({ d: lozenge(p.cx, end - last.fs * 0.35, last.fs * 0.14, last.fs * 0.24), fill: "gold" });
+        shapes.push(ornament("finial", p.cx, end - last.fs * 0.35, last.fs * 0.24));
       }
       boxes.push({ x: p.cx - p.f * 0.3, y: G, w: p.f * 0.6, h: m.headBottom });
     }

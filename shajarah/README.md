@@ -524,7 +524,7 @@ on any member's panel:
 
 | Tier | Who | Drawn as | Set with |
 | --- | --- | --- | --- |
-| **Foundation** (soil) | ancestors older than the trunk start (e.g. آدم … نصر) | one of five soil styles (below) | **Start the trunk here** → `FamilyTree.trunkStartId` |
+| **Foundation** (soil) | ancestors older than the trunk start (e.g. آدم … نصر) | one of six soil styles (below) | **Start the trunk here** → `FamilyTree.trunkStartId` |
 | **Trunk** | trunk start … the canopy's father (e.g. عبد كلال الأصغر … سالم) | ivory badges up the trunk, eldest at the bottom, joined by a gold thread | — |
 | **Canopy** | the canopy base and all descendants | Bézier branches, leaves and capsules | **Start the canopy here** → `FamilyTree.crownBaseId` |
 
@@ -590,15 +590,46 @@ on any member's panel:
 
 **Style → Foundation** chooses how the ancient lineage below the trunk is
 drawn. Which ancestors go there is unchanged: the trunk start (or the
-automatic choice) decides. Only the drawing changes.
+automatic choice) decides. Only the drawing changes. Each style appears as a
+small preview: a short trunk and the same sample lineage, laid out by the
+style itself and drawn in the current design's colours and ornaments. Each
+design suggests one style (marked on its card). Choosing a design takes its
+suggested style, any style can be chosen with any design, and **Use …'s
+foundation** goes back to the suggestion.
 
-| Style | Look | Trunk meets it |
-| --- | --- | --- |
-| **Calligraphic column** (default, Refined) | A single centred column of names in Ruqaa on a thin gold thread, with small gold diamonds between names. Size and spacing grow toward the trunk; the oldest names are smallest, never below the legibility floor. No boxes or panels. | The trunk narrows to a point that opens into two fine gold sweeps cradling the nearest name, which is set in the bark's colour, so the column reads as the trunk's base. The thread runs from the trunk's ancestors down through the column. No ground line, no roots. |
-| **Timeline spine** | A spine in the trunk's own colour, with names alternating either side on gold ticks and each ancestor's generation on a disc (٤٧, ٤٦ … in Arabic). The numbers are held to the legible minimum like the names, and the ticks reach out into the width the names leave free. | The spine starts at the trunk's full width and tapers down, so trunk and spine are one form. |
-| **Illuminated banner** | A manuscript panel: double gold rule, a border of small lozenges, head- and tailpiece, names stacked with ornamental separators. A long lineage is set in columns, read right to left. | The trunk stands on the panel's head with a few fine roots. |
-| **Stepped pedestal** | Light, finely ruled steps widening downward, each carrying the next group of names ("بن نصر بن سهل بن …"). | The trunk stands on the top step. |
-| **Inscribed panel** | The original: running text in a gold-ruled panel. Its inner rule sits half a name's height inside the outer one and the text keeps clear of it on every side at any size (a long lineage set small on A0 once ran its first line into the rule). | A root flare into a mound, with fine roots. |
+| Style (saved id) | Look | Trunk meets it | Suggested for |
+| --- | --- | --- | --- |
+| **Ancestral Roots** (`roots`, new) | A central taproot that sways a little and tapers to a point. Each ancestor rests at the end of a fine root, alternating sides from the side the reading starts on (right in Arabic, left in English), read downward in order and set level. The oldest that do not fit continue in the deep soil: a fine stratum line, then an inscription. | The trunk flares into a few fine roots of its own and the taproot leaves from under it. The gold thread runs on down the taproot. | Botanical Classic, Emerald Dynasty |
+| **Calligraphic Column** (`column`) | A centred column on a fine thread, with a small ornament between names. Short names are in Ruqaa; long or compound names are in Amiri, so they stay readable. The nearest name is in the bark's colour. Size and spacing ease off further down. | The trunk narrows to a point and the thread runs on from it. | Refined Heritage |
+| **Timeline Spine** (`spine`) | A spine in the trunk's colour with names alternating on short, even ticks. Each name has its generation on a disc (٤٧, ٤٦ …), set smaller than the names but never below the legible minimum. | The spine starts at the trunk's width and tapers down. | Platinum |
+| **Illuminated Manuscript** (`banner`) | A manuscript panel with a double rule. Ornaments sit only at the corners and mid-sides, with a head- and tailpiece. The nearest ancestor is first, a little larger, in the bark's colour. A long lineage is set in columns with fine rules between them, read right to left in Arabic and left to right in English. | The trunk's roots land on a low pointed arch rising from the panel's top rule. | Imperial Gold |
+| **Generational Layers** (`pedestal`) | Soft layers widening downward. Each layer has a low arched top edge, sides sloping to the layer below, and alternating tone. Each carries the next group of names ("بن نصر بن سهل بن …"). | The trunk's roots settle onto the first layer. | (any) |
+| **Heritage Chronicle** (`paragraph`) | The lineage as a written passage with balanced lines and no box: a rule with a headpiece above it, a rule with a tailpiece below it, and a faint ivory ground. Its space is measured as the old inscribed panel's was. | A root flare and a fine ground line. | Ancestral Manuscript, Modern Archive |
+
+**Each design's own ornaments.** The styles lay out ornaments by role:
+separators, marks, finials, corners and knots. The renderer draws each one
+in the poster's design:
+
+- Refined Heritage: a lozenge.
+- Imperial Gold: a foil star.
+- Ancestral Manuscript: a star between lozenges.
+- Platinum: a small square on a steel bar.
+- Botanical Classic: a pair of leaves or a bud.
+- Emerald Dynasty: a brass star.
+- Modern Archive: a dot or a hairline.
+
+Every form stays within the plain lozenge's size, so no design moves a name
+(tested). Colours come from the palette, and a black-ink poster draws the
+foundation in black. In Platinum and Modern Archive, whose titles are in
+Kufi, the column's names are set in Amiri rather than calligraphy.
+
+**In proportion to the tree.** The foundation's names are sized from the
+trunk's names, not from the layout's base size. That base can be twice the
+size of the names on the canopy, and a foundation sized from it outweighed
+the family above. The nearest ancestors are a step larger than the trunk's
+names, and the oldest generations, set as running text, a little smaller.
+A column, spine or root system keeps at least a few names before handing
+the rest to its inscription: the column and the spine 4, the roots 6.
 
 **Every name stays in its place.** The foundation has its own width
 (78% of the page, inside the frame), and every line has the width it was
@@ -617,8 +648,13 @@ canopy has at least 70%. The foundation never sets names below the legible
 minimum to fit. Like a whole-family poster, a branch poster keeps every name
 in the foundation by default (it takes the room it needs, the canopy the
 rest); with **Shorten long lineages (…)** chosen, a lineage too long for its
-share leaves names out of its middle, marked "…", keeping the nearest names
-and the last two (e.g. "… شيث بن آدم عليه السلام").
+share leaves names out of its middle, keeping the nearest names and the last
+two (e.g. "… شيث بن آدم عليه السلام"). The marker says how many generations
+are left out, so the poster never implies the lineage is complete:
+"… ١٢ جيلًا …" (جيل واحد، جيلان، ٣–١٠ أجيال، ١١ جيلًا فأكثر), or
+"… 12 generations …" in English. The roots and the column break their root
+or thread there, and the spine leaves a gap crossed by a dashed line. The
+marker is never clickable and never split across lines.
 
 **Every name in the foundation** (on whole-family and branch posters alike). On a whole-family poster the foundation's
 share is 40%, or 25% when the canopy holds more people than trunk and
@@ -655,8 +691,8 @@ child (an early first control point, little of his own growth direction),
 so they fan apart at once rather than running out side by side.
 
 **Long lineages.** A column of 49 names cannot be legible on A2: it would
-take a third of the poster. So the column and the spine each have a height
-budget (26% and 24% of the content area). Names that don't fit continue as an
+take a third of the poster. So the roots, the column and the spine each have
+a height budget (26%, 26% and 24% of the content area). Names that don't fit continue as an
 unframed inscription on the same axis, under a small gold ornament, starting "بن …" so it reads straight on, down
 to "بن آدم عليه السلام". The banner sets more columns instead. Every
 ancestor appears once, in reading order (tested).
@@ -669,8 +705,9 @@ The foundation always sits between the ground line and the footer.
 ("X بن Y بن …") is set name by name; a first name that is the trunk's own
 first ancestor is not repeated. Any other text is inscribed as written.
 
-**Editing.** In the editor, a name in the column, spine or banner opens that
-ancestor. An honorific stays with its name when text wraps ("آدم عليه
+**Editing.** In the editor, a name on the roots, column, spine or manuscript
+opens that ancestor. A name from a custom inscription has no record, so it
+is not clickable. An honorific stays with its name when text wraps ("آدم عليه
 السلام" is never split), and no line ends with a single word left alone.
 
 **Adding a style.** A style is one file in `src/lib/layout/soil/`
@@ -688,7 +725,9 @@ Then add one line to the registry in `soil/index.ts` and one value to the
 `soilStyle` enum in `validation.ts`. The renderer draws any style's shapes
 (in order) and texts (in reading order), mapping colour roles (`ink`,
 `gold`, `trunk`, `ivory` …) to the palette and to black in the print-mono
-style. It needs no change, and export works the same. `tests/soil.test.ts`
+style. It needs no change, and export works the same. Lay ornaments out with
+`ornament(kind, x, y, s)` from `soil/common.ts`, so each design draws them
+in its own form, and size names from `nameBase(ctx)`, the trunk's name size. `tests/soil.test.ts`
 checks every registered style on real lineages, and checks that its
 reserved height matches what it draws.
 
@@ -790,8 +829,8 @@ artwork, which is embedded into the exported file.
   - Leaves and capsules mark childless members.
   - Text size steps down gently with generation, never below the legible
     minimum.
-- **Foundation:** running text in an ivory panel with a fine double gold
-  rule, under a thin ground line and a few fine roots.
+- **Foundation:** the Calligraphic Column, growing out of the trunk's
+  point (see Foundation styles).
 - **Canopy:** a faint warm wash behind the canopy gives a sparse tree its
   shape.
 - **Type:** names in Amiri, falling back to Traditional Arabic. Headings
@@ -937,7 +976,7 @@ shajarah/
 │       │   ├── botanical.ts     hierarchy → trunk/crown → positions → branches/leaves
 │       │   ├── clarity.ts       relationship-clarity validator
 │       │   ├── branches.ts      branch posters: options, smallest clear size, ranking
-│       │   ├── soil/            foundation styles: types, registry, column, spine, banner, pedestal, paragraph
+│       │   ├── soil/            foundation styles: types, registry, roots, column, spine, banner, pedestal, paragraph
 │       │   ├── geometry.ts      Bézier + tapered "ribbon" outlines
 │       │   ├── palette.ts       generation colours (ألوان الأجيال)
 │       │   └── random.ts        seeded PRNG

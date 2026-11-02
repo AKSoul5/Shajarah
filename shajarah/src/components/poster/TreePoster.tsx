@@ -2,13 +2,13 @@
 
 import { forwardRef, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SVGProps } from "react";
 import type { PosterLayout, PosterNode, SpouseHolder } from "@/lib/layout/botanical";
-import type { SoilInk } from "@/lib/layout/soil";
+import { soilStyle, type SoilContext, type SoilInk, type SoilStyleId } from "@/lib/layout/soil";
 import { textWidth } from "@/lib/layout/botanical";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
 import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
-import { DesignFrame, TitleGround, TitleRule } from "./frames";
+import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
 import type { PosterTheme } from "@/lib/types";
 
 export interface PosterMeta {
@@ -746,19 +746,20 @@ function Foundation({ layout, pal, bark, click }: {
   const soil = layout.soil!;
   const colour = (ink: SoilInk | undefined): string | undefined => {
     if (!ink) return undefined;
-    if (pal.mono) return ink === "ivory" ? "#ffffff" : ink === "trunk" ? "#ffffff" : "#111111";
-    return { ink: pal.ink, gold: pal.ornament, goldLight: pal.thread, muted: pal.muted, bark, trunk: `url(#${pal.uid}-trunk)`, ivory: pal.ivory, line: pal.line }[ink];
+    if (pal.mono) return ink === "ivory" || ink === "trunk" || ink === "paper" ? "#ffffff" : "#111111";
+    return { ink: pal.ink, gold: pal.ornament, goldLight: pal.thread, muted: pal.muted, bark, trunk: `url(#${pal.uid}-trunk)`, ivory: pal.ivory, line: pal.line, paper: pal.paper }[ink];
   };
   return (
     <g data-soil={soil.style}>
       {soil.shapes.map((s, i) => (
         <path
           key={i}
-          d={s.d}
+          d={(s.orn && soilOrnament(s.orn.kind, s.orn.x, s.orn.y, s.orn.s, pal.frame)) || s.d}
           fill={colour(s.fill) ?? "none"}
           fillOpacity={s.opacity}
           stroke={colour(s.stroke) ?? (pal.mono && s.fill === "trunk" ? "#111111" : undefined)}
           strokeWidth={s.strokeWidth ?? (pal.mono && s.fill === "trunk" ? layout.width * 0.0012 : undefined)}
+          strokeDasharray={s.dash?.map((n) => n.toFixed(1)).join(" ")}
           strokeLinecap="round"
         />
       ))}
@@ -771,7 +772,7 @@ function Foundation({ layout, pal, bark, click }: {
           fontSize={t.fontSize.toFixed(2)}
           textAnchor={t.anchor}
           fill={colour(t.ink)}
-          fontFamily={t.font === "ruqaa" ? RUQAA : undefined}
+          fontFamily={t.font === "ruqaa" && pal.titleFont !== "kufi" ? RUQAA : undefined}
           fontWeight={t.weight}
           direction={layout.rtl ? "rtl" : "ltr"}
           {...(t.memberId ? click(t.memberId) : {})}
@@ -1118,3 +1119,57 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     </g>
   );
 }
+
+/** Generic names for the foundation previews (the same lineage in every style, so they compare fairly). */
+const PREVIEW_NAMES = {
+  rtl: ["سالم", "عبد الله", "محمد", "عمر", "إبراهيم", "سعد", "خالد", "ناصر", "علي", "حمد", "زيد", "فهد", "سليمان", "يوسف", "حسن", "آدم"],
+  ltr: ["Salim", "Abdullah", "Muhammad", "Umar", "Ibrahim", "Saad", "Khalid", "Nasir", "Ali", "Hamad", "Zayd", "Fahd", "Sulayman", "Yusuf", "Hasan", "Adam"],
+};
+
+/**
+ * A foundation style in miniature: a short trunk and a sample lineage laid
+ * out by the style itself (its own measure and layout) and drawn by the
+ * poster's own Foundation renderer, in the theme's palette and ornaments.
+ */
+export const SoilPreview = memo(function SoilPreview({ style, theme, rtl = true, idPrefix, className }: {
+  style: SoilStyleId; theme: PosterTheme; rtl?: boolean; idPrefix: string; className?: string;
+}) {
+  const W = 700, cx = W / 2, groundY = 150, trunkWidth = 64;
+  const names = rtl ? PREVIEW_NAMES.rtl : PREVIEW_NAMES.ltr;
+  const joiner = rtl ? " بن " : " son of ";
+  const entries = names.map((label, i) => ({ id: null, label, generation: names.length - i + 3 }));
+  const ctx: SoilContext = {
+    entries, text: [rtl ? "أحمد" : "Ahmad", ...names].join(joiner), custom: false, trunkName: null, rtl, joiner,
+    f: 22, nameFont: 17, floor: 13, maxFont: 34, maxWidth: W * 0.84, avail: 1050, textWidth,
+  };
+  const def = soilStyle(style);
+  const soil = def.layout({ ...ctx, cx, groundY, threadFrom: groundY - 26, trunkWidth, W: 1400 });
+  const H = groundY + def.height(ctx) + 16;
+  const stub = { soil: { ...soil, area: { x: cx - ctx.maxWidth / 2, w: ctx.maxWidth } }, width: 1400, rtl } as unknown as PosterLayout;
+  const pal = makePalette(theme, { generationOffset: 0 } as PosterLayout, idPrefix);
+  const bark = pal.mono ? "#1a1a1a" : theme.branch;
+  // the trunk: straight down to the ground, then into the style's own meeting with it
+  const hw = trunkWidth / 2;
+  const trunk = soil.trunkTaper > 0
+    ? `M${cx - hw} 0V${groundY - 10}Q${cx - hw} ${groundY + soil.trunkTaper * 0.4} ${cx} ${groundY + soil.trunkTaper}Q${cx + hw} ${groundY + soil.trunkTaper * 0.4} ${cx + hw} ${groundY - 10}V0Z`
+    : (() => {
+      const flare = hw * (1 + soil.trunkSpread * 1.3);
+      return `M${cx - hw} 0V${groundY - 30}Q${cx - hw} ${groundY} ${cx - flare} ${groundY}H${cx + flare}Q${cx + hw} ${groundY} ${cx + hw} ${groundY - 30}V0Z`;
+    })();
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className={className} fontFamily={FONT} role="img" aria-label={def.label}>
+      <defs>
+        <linearGradient id={`${pal.uid}-trunk`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={shade(bark, -0.1)} />
+          <stop offset="0.45" stopColor={shade(bark, 0.1)} />
+          <stop offset="1" stopColor={shade(bark, -0.18)} />
+        </linearGradient>
+      </defs>
+      <rect width={W} height={H} fill={pal.paper} />
+      {soil.ground && <path d={soil.ground} fill="none" stroke={bark} strokeWidth={2.4} strokeLinecap="round" opacity={0.7} />}
+      <g fill={bark} opacity={0.75}>{soil.roots.map((d, i) => <path key={i} d={d} />)}</g>
+      <path d={trunk} fill={pal.mono ? "#ffffff" : `url(#${pal.uid}-trunk)`} stroke={pal.mono ? "#111" : "none"} strokeWidth={2} />
+      <Foundation layout={stub} pal={pal} bark={bark} click={() => ({})} />
+    </svg>
+  );
+});

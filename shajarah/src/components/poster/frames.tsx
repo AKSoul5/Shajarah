@@ -280,3 +280,52 @@ export function TitleGround({ cx, cy, tw, fs, W, pal, maxW }: { cx: number; cy: 
   }
   return null;
 }
+
+// ── The foundation's ornaments, in each design's own form ───────────────
+
+const disc = (x: number, y: number, r: number) =>
+  `M${f(x - r)} ${f(y)}a${f(r)} ${f(r)} 0 1 0 ${f(2 * r)} 0a${f(r)} ${f(r)} 0 1 0 ${f(-2 * r)} 0Z`;
+const square = (x: number, y: number, r: number) => `M${f(x - r)} ${f(y - r)}H${f(x + r)}V${f(y + r)}H${f(x - r)}Z`;
+const bar = (x: number, y: number, half: number, t: number) => `M${f(x - half)} ${f(y - t / 2)}H${f(x + half)}V${f(y + t / 2)}H${f(x - half)}Z`;
+
+/**
+ * A soil ornament (separator, mark, finial, corner or knot; see SoilOrnament)
+ * in the design's own form, within the height of the plain lozenge (s is
+ * half its height), or null to draw the plain form (Refined Heritage's).
+ */
+export function soilOrnament(kind: "sep" | "mark" | "finial" | "corner" | "knot", x: number, y: number, s: number, design: FrameKind): string | null {
+  switch (design) {
+    case "foil":
+    case "regal": {
+      const star = starPath(x, y, s * (kind === "knot" ? 0.6 : 0.95));
+      if (kind === "mark") return star + (design === "regal" ? starPath(x - s * 2.1, y, s * 0.45) + starPath(x + s * 2.1, y, s * 0.45) : disc(x - s * 2.0, y, s * 0.3) + disc(x + s * 2.0, y, s * 0.3));
+      if (kind === "corner") return star + disc(x, y, s * 0.22);
+      return star;
+    }
+    case "manuscript": {
+      if (kind === "sep" || kind === "knot") return null;
+      const star = starPath(x, y, s * 0.95);
+      if (kind === "mark") return star + diamond(x - s * 2.1, y, s * 0.5) + diamond(x + s * 2.1, y, s * 0.5);
+      return star;
+    }
+    case "metal": {
+      if (kind === "mark") return bar(x, y, s * 2.4, s * 0.16) + square(x, y, s * 0.42);
+      if (kind === "corner") return square(x, y, s * 0.6);
+      return square(x, y, s * (kind === "knot" ? 0.3 : 0.38));
+    }
+    case "botanical": {
+      const len = s * 1.7;
+      if (kind === "sep") return leafAt(x, y, len, 200) + leafAt(x, y, len, -20) + disc(x, y, s * 0.2);
+      if (kind === "mark") return leafAt(x - s * 0.3, y, len * 1.3, 195) + leafAt(x + s * 0.3, y, len * 1.3, -15) + disc(x, y, s * 0.32);
+      if (kind === "finial") return leafAt(x, y - s, s * 2, 90);
+      if (kind === "corner") return leafAt(x, y, len, 225) + leafAt(x, y, len, -45) + disc(x, y, s * 0.25);
+      return disc(x, y, s * 0.3);
+    }
+    case "hairline": {
+      if (kind === "mark") return bar(x, y, s * 2.4, s * 0.1) + disc(x, y, s * 0.3);
+      return disc(x, y, s * (kind === "knot" ? 0.25 : 0.32));
+    }
+    default:
+      return null;
+  }
+}

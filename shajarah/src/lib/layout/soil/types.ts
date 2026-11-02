@@ -15,6 +15,12 @@ export interface SoilEntry {
   label: string;
   /** Generation counted from the oldest ancestor of the tree (1 = the first), when known. */
   generation: number | null;
+  /**
+   * Set on the one entry that stands for names left out of a lineage too
+   * long for its space (only when shortening is chosen): how many. Its label
+   * says so ("… ١٢ جيلًا …"), so the omission is never silent.
+   */
+  omitted?: number;
 }
 
 /** What a style is given to measure itself (no positions yet). */
@@ -35,6 +41,13 @@ export interface SoilContext {
   joiner: string;
   /** The poster's base font size (the canopy's names), the legibility floor, the largest font. */
   f: number;
+  /**
+   * The size of the trunk's names: the foundation's names are sized from it,
+   * so the nearest ancestors are a step larger than the trunk's and never
+   * outweigh the family above (the canopy's names are often well under f).
+   * Defaults to f.
+   */
+  nameFont?: number;
   floor: number;
   maxFont: number;
   /** Widest the foundation may be. */
@@ -59,7 +72,7 @@ export interface SoilPlacement extends SoilContext {
 }
 
 /** Colours are roles; the renderer maps them to the palette (and to black in the print-mono style). */
-export type SoilInk = "ink" | "gold" | "goldLight" | "muted" | "bark" | "trunk" | "ivory" | "line";
+export type SoilInk = "ink" | "gold" | "goldLight" | "muted" | "bark" | "trunk" | "ivory" | "line" | "paper";
 
 export interface SoilText {
   x: number;
@@ -68,6 +81,11 @@ export interface SoilText {
   fontSize: number;
   anchor: "start" | "middle" | "end";
   ink: SoilInk;
+  /**
+   * "ruqaa" is the display face: Aref Ruqaa, or Amiri in a design whose
+   * titles are set in Kufi (calligraphy would be out of place there, and
+   * Amiri is narrower, so the line still fits).
+   */
   font: "naskh" | "ruqaa";
   weight?: 400 | 700;
   /** The member this name is (clickable in the editor). */
@@ -86,13 +104,34 @@ export interface SoilText {
   maxWidth?: number;
 }
 
+/**
+ * An ornament the renderer draws in the poster's own design (a lozenge in
+ * Refined Heritage, a star in Emerald Dynasty, a pair of leaves in Botanical
+ * Classic, a small square in Platinum…). Its `d` is the plain lozenge form,
+ * the fallback; every form keeps within the same size, so no design moves a
+ * name. Separators sit between names, marks head a panel or an inscription,
+ * finials end a column, corners sit on a panel's corners, knots where a root
+ * or a spine meets a name.
+ */
+export interface SoilOrnament {
+  kind: "sep" | "mark" | "finial" | "corner" | "knot";
+  x: number;
+  y: number;
+  /** Half its height. */
+  s: number;
+}
+
 export interface SoilShape {
   d: string;
+  /** Drawn in the design's own ornament (see SoilOrnament) instead of `d`. */
+  orn?: SoilOrnament;
   fill?: SoilInk;
   stroke?: SoilInk;
   strokeWidth?: number;
   /** Opacity of the fill. */
   opacity?: number;
+  /** A dashed stroke (dash, gap): a root or a spine broken where names are left out. */
+  dash?: [number, number];
 }
 
 export interface SoilGeometry {
@@ -128,7 +167,7 @@ export interface SoilGeometry {
   trunkTaper: number;
 }
 
-export type SoilStyleId = "paragraph" | "column" | "spine" | "banner" | "pedestal";
+export type SoilStyleId = "roots" | "paragraph" | "column" | "spine" | "banner" | "pedestal";
 
 /** A soil style: measure, then lay out. Both pure. */
 export interface SoilStyleDef {

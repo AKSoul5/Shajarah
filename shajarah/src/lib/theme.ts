@@ -33,7 +33,7 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string; d
     preset: "heritage", colorBy: "gender",
     male: "#f5ebd5", female: "#d9bf8c", ancestor: "#8a6a35", branch: "#67472d",
     background: "parchment", inkOnly: false, metallic: false, nodeRim: "#8a6a35",
-    nodeShape: "oval", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "banner",
+    nodeShape: "oval", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "paragraph",
     ...ORNAMENTS,
   },
   "silver-gold": {
@@ -42,7 +42,7 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string; d
     preset: "silver-gold", colorBy: "gender",
     male: "#b9c0c8", female: "#c7a45b", ancestor: "#8c7440", branch: "#59616c",
     background: "parchment", inkOnly: false, metallic: true, nodeRim: "#59616c",
-    nodeShape: "oval", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "column",
+    nodeShape: "oval", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "spine",
     ...ORNAMENTS,
   },
   classic: {
@@ -51,7 +51,7 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string; d
     preset: "classic", colorBy: "gender",
     male: "#35685d", female: "#d2a0a5", ancestor: "#8e6e32", branch: "#4b4035",
     background: "parchment", inkOnly: false, metallic: false, nodeRim: "#1f4038",
-    nodeShape: "auto", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "carved", spouseStyle: "manuscript", soilStyle: "paragraph",
+    nodeShape: "auto", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "carved", spouseStyle: "manuscript", soilStyle: "roots",
     ...ORNAMENTS,
   },
   emerald: {
@@ -60,7 +60,7 @@ export const THEME_PRESETS: Record<ThemePreset, PosterTheme & { label: string; d
     preset: "emerald", colorBy: "gender",
     male: "#236347", female: "#d6b65e", ancestor: "#8a6a25", branch: "#654a2d",
     background: "parchment", inkOnly: false, metallic: false, nodeRim: "#123f30",
-    nodeShape: "auto", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "spine",
+    nodeShape: "auto", femaleCapsule: false, branchColors: true, labelMode: "name", showYears: false, motherNames: false, trunkStyle: "badges", spouseStyle: "manuscript", soilStyle: "roots",
     ...ORNAMENTS,
   },
   mono: {

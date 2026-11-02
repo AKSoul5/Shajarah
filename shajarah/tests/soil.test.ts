@@ -5,7 +5,8 @@
 import { describe, expect, it } from "vitest";
 import { computePosterLayout, textWidth, type PosterLayout } from "@/lib/layout/botanical";
 import { SOIL_STYLES, SOIL_STYLE_ORDER, soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from "@/lib/layout/soil";
-import { RUQAA_WIDTH } from "@/lib/layout/soil/common";
+import { RUQAA_WIDTH, omissionLabel, shortenSoil } from "@/lib/layout/soil/common";
+import { soilOrnament } from "@/components/poster/frames";
 import { computeGenerations } from "@/lib/genealogy";
 import { kalaliTree } from "@/lib/samples/kalali";
 import { mulberry32 } from "@/lib/layout/random";
@@ -133,8 +134,10 @@ describe("soil styles on real lineages", () => {
 
   it("the column: names larger and more spaced near the trunk, smaller and closer further down", () => {
     const s = layoutOf(kalaliTree(), "column").soil!;
-    const column = s.texts.filter((t) => t.font === "ruqaa");
+    // the column's names (a long name is set in Amiri rather than calligraphy)
+    const column = s.texts.filter((t) => t.memberId);
     expect(column.length).toBeGreaterThan(4);
+    expect(column.some((t) => t.font === "ruqaa")).toBe(true);
     for (let i = 1; i < column.length; i++) expect(column[i].fontSize).toBeLessThanOrEqual(column[i - 1].fontSize + 1e-9);
     const gaps = column.slice(1).map((t, i) => t.y - column[i].y);
     for (let i = 1; i < gaps.length; i++) expect(gaps[i]).toBeLessThanOrEqual(gaps[i - 1] + 1e-6);
@@ -323,5 +326,104 @@ describe("soil styles on their own", () => {
     expect(soilStyle(undefined).id).toBe("paragraph");
     for (const p of Object.values(THEME_PRESETS)) expect(SOIL_STYLES[p.soilStyle]).toBeDefined();
     expect(THEME_PRESETS.refined.soilStyle).toBe("column");
+  });
+});
+
+describe("Soil 2.0: honest shortening, both directions, every design's ornaments", () => {
+  const ctxFor = (n: number, extra: Partial<SoilContext> = {}): SoilContext => {
+    const entries = Array.from({ length: n }, (_, i) => ({ id: `a${i}`, label: ["محمد", "عبد الرحمن", "سالم", "ذو رعين الأكبر"][i % 4], generation: 100 - i }));
+    return {
+      entries, text: ["أحمد", ...entries.map((e) => e.label)].join(" بن "), custom: false, trunkName: "أحمد", rtl: true, joiner: " بن ",
+      f: 20, floor: 14, maxFont: 40, maxWidth: 1400, avail: 2400, textWidth, ...extra,
+    };
+  };
+  const english = (n: number) => {
+    const entries = Array.from({ length: n }, (_, i) => ({ id: `e${i}`, label: ["Muhammad", "Abd al-Rahman", "Salim", "Dhu Ruayn the Elder"][i % 4], generation: 100 - i }));
+    return ctxFor(n, { entries, text: ["Ahmad", ...entries.map((e) => e.label)].join(" son of "), trunkName: "Ahmad", rtl: false, joiner: " son of " });
+  };
+  const place = (c: SoilContext) => ({ ...c, cx: 900, groundY: 2000, threadFrom: 1990, trunkWidth: 120, W: 1800 });
+
+  it("a shortened lineage says how many generations are left out, and they add up", () => {
+    for (const drop of [1, 2, 5, 12, 20]) {
+      const c = ctxFor(30);
+      const short = shortenSoil(c, drop);
+      const marker = short.entries.find((e) => e.omitted);
+      expect(marker, `drop ${drop}`).toBeDefined();
+      expect(short.entries.length - 1 + marker!.omitted!).toBe(30);
+      expect(marker!.id).toBeNull();
+      // the nearest names and the last two stay, in order
+      expect(short.entries[0].label).toBe(c.entries[0].label);
+      expect(short.entries.at(-1)!.label).toBe(c.entries.at(-1)!.label);
+      expect(short.text).toContain(marker!.label);
+      // the marker is never split across lines
+      expect(marker!.label).not.toMatch(/ /);
+    }
+  });
+
+  it("the omission is worded as Arabic counts its generations, and in English", () => {
+    expect(omissionLabel(1, true)).toContain("جيل واحد");
+    expect(omissionLabel(2, true)).toContain("جيلان");
+    expect(omissionLabel(5, true)).toContain("٥ أجيال");
+    expect(omissionLabel(12, true)).toContain("١٢ جيلًا");
+    expect(omissionLabel(1, false)).toContain("1 generation ");
+    expect(omissionLabel(12, false)).toContain("12 generations");
+    for (const s of [omissionLabel(3, true), omissionLabel(3, false)]) expect(s.startsWith("…") && s.endsWith("…")).toBe(true);
+  });
+
+  for (const style of SOIL_STYLE_ORDER) {
+    it(`${style}: the marker for left-out names is drawn, unclickable, and every style keeps its height in English too`, () => {
+      const def = soilStyle(style);
+      const short = shortenSoil(ctxFor(40), 25);
+      const g = def.layout(place(short));
+      const read = g.texts.map((t) => t.text).join(" ");
+      expect(read).toContain("٢٥");
+      for (const t of g.texts) if (t.text.includes("٢٥")) expect(t.memberId ?? null).toBeNull();
+      for (const n of [1, 6, 30]) {
+        const c = english(n);
+        const e = def.layout(place(c));
+        expect(e.box.y + e.box.h).toBeCloseTo(2000 + def.height(c), 3);
+        expect(e.texts.map((t) => t.text).join(" ")).toContain("Muhammad");
+      }
+    });
+  }
+
+  it("the roots: names alternate from the side the reading starts on, read downward in order", () => {
+    for (const rtl of [true, false]) {
+      const c = rtl ? ctxFor(8) : english(8);
+      const g = soilStyle("roots").layout(place(c));
+      const names = g.texts.filter((t) => t.memberId);
+      expect(names.map((t) => t.memberId)).toEqual(c.entries.slice(0, names.length).map((e) => e.id));
+      const sideOf = (t: (typeof names)[number]) => Math.sign(((t.anchor === "end") === rtl ? t.x - 1 : t.x + 1) - 900);
+      // the first name on the right in Arabic, on the left in English
+      expect(sideOf(names[0])).toBe(rtl ? 1 : -1);
+      for (let i = 1; i < names.length; i++) {
+        expect(sideOf(names[i])).toBe(-sideOf(names[i - 1]));
+        expect(names[i].y).toBeGreaterThan(names[i - 1].y);
+      }
+      expect(g.trunkSpread).toBeGreaterThan(0);
+      expect(g.roots.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("names from a custom inscription are never clickable", () => {
+    for (const style of SOIL_STYLE_ORDER) {
+      const c = ctxFor(10, { custom: true, text: "أحمد بن علي بن حسن بن عمر بن زيد بن سالم" });
+      const g = soilStyle(style).layout(place(c));
+      expect(g.texts.every((t) => !t.memberId), style).toBe(true);
+    }
+  });
+
+  it("every design draws each ornament within the plain one's size, so no design moves a name", () => {
+    const designs = ["rule", "foil", "manuscript", "metal", "botanical", "regal", "hairline"] as const;
+    for (const design of designs) {
+      for (const kind of ["sep", "mark", "finial", "corner", "knot"] as const) {
+        const d = soilOrnament(kind, 0, 0, 10, design);
+        if (d === null) continue; // the plain form
+        const nums = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+        const xs = nums.map((n) => n[0]), ys = nums.map((n) => n[1]);
+        expect(Math.max(...xs.map(Math.abs)), `${design} ${kind} width`).toBeLessThanOrEqual(26);
+        expect(Math.max(...ys.map(Math.abs)), `${design} ${kind} height`).toBeLessThanOrEqual(13);
+      }
+    }
   });
 });

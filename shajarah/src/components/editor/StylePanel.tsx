@@ -7,7 +7,7 @@ import { compactTheme, isInkOnly, resetDesign, THEME_PRESETS } from "@/lib/theme
 import type { PosterLayout } from "@/lib/layout/botanical";
 import type { PosterTheme, ThemePreset } from "@/lib/types";
 import { Icon } from "@/components/Icon";
-import { TreePoster, type PosterMeta } from "@/components/poster/TreePoster";
+import { SoilPreview, TreePoster, type PosterMeta } from "@/components/poster/TreePoster";
 
 /** A preset's own design, as choosing it sets it (its name and description aside). */
 const designOf = (p: ThemePreset): PosterTheme => {
@@ -123,6 +123,46 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             </label>
           </section>
 
+          <section>
+            <h4 className="section-title">Foundation</h4>
+            <p className="mb-1.5 text-xs text-gray-500">How the ancestors older than the trunk are set below it.</p>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Foundation style">
+              {SOIL_STYLE_ORDER.map((id) => {
+                const on = theme.soilStyle === id;
+                const recommended = THEME_PRESETS[theme.preset].soilStyle === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => onChange({ soilStyle: id })}
+                    title={SOIL_STYLES[id].description}
+                    className={`overflow-hidden rounded-lg border text-start transition-shadow hover:shadow-md ${
+                      on ? "border-bark-700 ring-2 ring-bark-700/40" : "border-parchment-300"
+                    }`}
+                  >
+                    <span aria-hidden className="block aspect-[4/3] overflow-hidden bg-parchment-50">
+                      <SoilPreview style={id} theme={theme} rtl={layout?.rtl ?? true} idPrefix={`sp-${id}`} className="pointer-events-none block h-full w-full" />
+                    </span>
+                    <span className="block px-1.5 py-1">
+                      <span className="flex items-center gap-1 text-xs font-semibold text-bark-900">
+                        {on && <span aria-hidden className="text-bark-700">✓</span>}{SOIL_STYLES[id].label}
+                      </span>
+                      <span className="block text-[10px] leading-snug text-bark-500">
+                        {SOIL_STYLES[id].description}{recommended ? ` Suggested for ${THEME_PRESETS[theme.preset].label}.` : ""}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {theme.soilStyle !== THEME_PRESETS[theme.preset].soilStyle && (
+              <button type="button" className="btn-outline mt-2 w-full justify-center text-sm" onClick={() => onChange({ soilStyle: THEME_PRESETS[theme.preset].soilStyle })}>
+                Use {THEME_PRESETS[theme.preset].label}&rsquo;s foundation ({SOIL_STYLES[THEME_PRESETS[theme.preset].soilStyle].label})
+              </button>
+            )}
+          </section>
+
           <section className="space-y-1.5">
             <h4 className="section-title">Nodes & labels</h4>
             <label className="flex items-center justify-between text-sm">
@@ -154,14 +194,6 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 <option value="manuscript">Manuscript cartouche</option>
                 <option value="capsule">Soft capsule</option>
                 <option value="inscribed">Inscribed, no box</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between text-sm" title="How the ancient lineage below the trunk is drawn">
-              Foundation
-              <select className="input w-48" value={theme.soilStyle} onChange={(e) => onChange({ soilStyle: e.target.value as PosterTheme["soilStyle"] })}>
-                {SOIL_STYLE_ORDER.map((id) => (
-                  <option key={id} value={id} title={SOIL_STYLES[id].description}>{SOIL_STYLES[id].label}</option>
-                ))}
               </select>
             </label>
             <label className="flex items-center justify-between text-sm" title="A lineage too long for the foundation's share of the page">
