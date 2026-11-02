@@ -172,13 +172,23 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
       // a line and its continuation meet at the person between them by design
       if (a.childId === b.parentId || b.childId === a.parentId) continue;
       if (bb[i].x1 < bb[j].x0 || bb[j].x1 < bb[i].x0 || bb[i].y1 < bb[j].y0 || bb[j].y1 < bb[i].y0) continue;
-      // Siblings' lines leave their father together and fan out; in their
-      // outer half (towards their names) they must neither cross nor run
-      // together, or the reader cannot tell which line ends at which name.
+      // Siblings' lines leave their father together and fan out. Once
+      // apart they must never cross, at any angle (one would pass under
+      // another's line on its way out: a son's branch sweeping under his
+      // sisters'), and in their outer half (towards their names) they must
+      // not run together, or the reader cannot tell which line ends where.
       const siblings = a.parentId === b.parentId;
       const pa = siblings ? a.points.slice(Math.floor(a.points.length / 2)) : a.points;
       const pb = siblings ? b.points.slice(Math.floor(b.points.length / 2)) : b.points;
-      const cross = crossingOf(pa, pb);
+      if (siblings) {
+        const r = siblingsPart(a.w0, b.w0);
+        const cross = crossingOf(apartFromStart(a.points, r), apartFromStart(b.points, r));
+        if (cross && !all.some((box) => inside(cross.at, box, 0))) {
+          issues.push({ kind: "crossing", edge: [a.parentId, a.childId], other: [b.parentId, b.childId], at: cross.at, detail: "between siblings" });
+          continue;
+        }
+      }
+      const cross = siblings ? null : crossingOf(pa, pb);
       if (cross) {
         // hidden under a label: the label is drawn on top, so nothing is seen
         // (a line under an UNRELATED label is reported as an occlusion)
@@ -239,6 +249,17 @@ function falseJunction(a: Edge, b: Edge, ends: Vec[]): Vec | null {
     }
   }
   return null;
+}
+
+/** How far from where they start two siblings' lines (of these widths) may still touch: they leave their parent together. */
+export const siblingsPart = (wa: number, wb: number) => 3 * (wa + wb) + 4;
+
+/** A line without its first stretch, within `r` of where it starts. */
+export function apartFromStart(pts: Vec[], r: number): Vec[] {
+  const s = pts[0];
+  let i = 0;
+  while (i < pts.length - 2 && Math.hypot(pts[i + 1].x - s.x, pts[i + 1].y - s.y) < r) i++;
+  return pts.slice(i + 1);
 }
 
 /** First intersection of two polylines, with the angle between the segments. */

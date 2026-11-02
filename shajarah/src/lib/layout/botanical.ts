@@ -50,7 +50,7 @@ import {
   add, circlePath, cubicPoint as cubicPointAt, cubicTangent, len, norm, ribbonPath, scale, sub,
   type Cubic, type Vec,
 } from "./geometry";
-import { validateRelationships, type ClarityReport } from "./clarity";
+import { apartFromStart, siblingsPart, validateRelationships, type ClarityReport } from "./clarity";
 import { soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from "./soil";
 import { namesOf, shortenSoil, wordsOf } from "./soil/common";
 import { mulberry32 } from "./random";
@@ -2726,7 +2726,11 @@ function layoutAttempt(
   //    the generation), so a chain of only children reaches up like a
   //    branch, not a pole.
   const SWEEP = 0.5, ONLY_S = 0.12;
-  const organic = (node: LiveNode, c: Cubic): Cubic => {
+  // (`k` scales the upward sweep: a line reshaped to leave less along its
+  // father's growth also rises less, or a son's limb rising out of the
+  // trunk before turning out to his name would still pass under the lines
+  // of the brothers and sisters set between)
+  const organic = (node: LiveNode, c: Cubic, k = 1): Cubic => {
     const d = sub(c.p1, c.p0);
     const L = len(d) || 1;
     const dv = scale(d, 1 / L);
@@ -2734,7 +2738,7 @@ function layoutAttempt(
     if (node.region === "crown" && node.depth === 1) {
       // (a childless one from the rim of the base's oval sweeps up less:
       // all of them rising first made a broom of lines above the trunk)
-      const sweep = rimStart(node) ? SWEEP * 0.3 : SWEEP;
+      const sweep = (rimStart(node) ? SWEEP * 0.3 : SWEEP) * k;
       c1 = add(c.p0, scale(norm(add(scale(UP, sweep), scale(dv, 1 - sweep))), L * (rimStart(node) ? 0.3 : 0.45)));
     }
     if (node.parentId && familySize.get(node.parentId) === 1 && node.region === "crown") {
@@ -2808,6 +2812,8 @@ function layoutAttempt(
     [0.4, null, 0.12], [0.4, null, -0.12], [0.7, null, 0.22], [0.7, null, -0.22], [0.95, 0.1, 0.3], [0.95, 0.1, -0.3],
     [0.95, 0.1, 0.45], [0.95, 0.1, -0.45],
   ];
+  /** For a whole family whose lines cross one another (see refineLines). */
+  const FAMILY_SHAPES: [number, number | null, number][] = [[0, null, 0], [0, 0.25, 0], [0, 0, 0]];
   type Line = { id: string; from: string; to: string; pts: Vec[]; bb: number[]; w: number };
   const bbOf = (pts: Vec[]) => {
     const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
@@ -2824,7 +2830,7 @@ function layoutAttempt(
     const e0 = norm(add(scale(dv, 1 - arrive), scale(sp.rayDir, arrive)));
     const side = scale({ x: -dv.y, y: dv.x }, L * bow);
     const raw = { p0: sp.P, c1: add(add(sp.P, scale(s0, L * (sp.leaf ? sp.reach0 - 0.03 : sp.reach0))), side), c2: add(sub(sp.C, scale(e0, L * 0.3)), side), p1: sp.C };
-    return { c: sp.organicOn ? organic(sp.node, raw) : raw, e0 };
+    return { c: sp.organicOn ? organic(sp.node, raw, followAlt === null ? 1 : followAlt) : raw, e0 };
   };
   /** Bends the given lines (the ones the clarity check found a problem with) where another shape does better. */
   const refineLines = (targets: Set<string>) => {
@@ -2863,8 +2869,9 @@ function layoutAttempt(
         // a line and its continuation meet at the person between them
         if (o.to === l.from || o.from === l.to) continue;
         const siblings = o.from === l.from;
-        const a = siblings ? pts.slice(Math.floor(pts.length / 2)) : pts;
-        const b = siblings ? o.pts.slice(Math.floor(o.pts.length / 2)) : o.pts;
+        // (siblings: crossing anywhere once apart, running together in the outer half; see clarity.ts)
+        const a = siblings ? apartFromStart(pts, siblingsPart(l.w, o.w)) : pts;
+        const b = siblings ? apartFromStart(o.pts, siblingsPart(l.w, o.w)) : o.pts;
         const [ox0, ox1, oy0, oy1] = siblings ? bbOf(b) : o.bb;
         const touch = (l.w + o.w) / 2 + 2;
         let crossed = false;
@@ -2881,9 +2888,11 @@ function layoutAttempt(
         }
         if (crossed) { cost++; if (firstOnly) return cost; continue; }
         let run = 0;
-        for (const p of a.slice(2, -2)) {
+        const ra = siblings ? pts.slice(Math.floor(pts.length / 2)) : a;
+        const rb = siblings ? o.pts.slice(Math.floor(o.pts.length / 2)) : b;
+        for (const p of ra.slice(2, -2)) {
           const near = p.x > ox0 - touch && p.x < ox1 + touch && p.y > oy0 - touch && p.y < oy1 + touch
-            && b.some((q) => Math.abs(q.x - p.x) < touch && Math.abs(q.y - p.y) < touch && Math.hypot(q.x - p.x, q.y - p.y) < touch);
+            && rb.some((q) => Math.abs(q.x - p.x) < touch && Math.abs(q.y - p.y) < touch && Math.hypot(q.x - p.x, q.y - p.y) < touch);
           run = near ? run + 1 : 0;
           if (run >= 3) { cost++; break; }
         }
@@ -2914,6 +2923,48 @@ function layoutAttempt(
         changed = true;
       }
       if (!changed) break;
+    }
+    // A family whose lines still cross one another (a son's branch bowing
+    // across his brothers' and sisters' lines, theirs bowing back across
+    // his once it is straightened): all of its lines straight from the
+    // parent, which cannot cross, where that leaves fewer problems.
+    const tried = new Set<string>();
+    for (const id of targets) {
+      const t = lines.get(id);
+      if (!t || tried.has(t.from)) continue;
+      tried.add(t.from);
+      const family = [...lines.values()].filter((l) => l.from === t.from && lineSpec.has(l.id));
+      if (family.length < 2) continue;
+      const before = family.reduce((a, l) => a + costOf(l, l.pts), 0);
+      if (!before) continue;
+      const saved = family.map((l) => ({ l, pts: l.pts, c: curveOf.get(l.id)! }));
+      const put = (l: Line, pts: Vec[], c: Cubic) => {
+        dropLine(l);
+        l.pts = pts;
+        l.bb = bbOf(pts);
+        addLine(l);
+        curveOf.set(l.id, c);
+      };
+      // (first each line arriving straight at its name, leaving as usual:
+      // the same curve for every sibling, so they fan out in order; then
+      // straight from the parent)
+      let best = { cost: before, shape: null as [number, number | null, number] | null };
+      for (const shape of FAMILY_SHAPES) {
+        for (const l of family) {
+          const { c } = shapeCurve(l.id, shape);
+          put(l, sample(c, 24), c);
+        }
+        const cost = family.reduce((a, l) => a + costOf(l, l.pts), 0);
+        if (cost < best.cost) best = { cost, shape };
+        if (!cost) break;
+      }
+      if (!best.shape) for (const x of saved) put(x.l, x.pts, x.c);
+      else if (best.shape !== FAMILY_SHAPES[FAMILY_SHAPES.length - 1] || best.cost) {
+        for (const l of family) {
+          const { c } = shapeCurve(l.id, best.shape);
+          put(l, sample(c, 24), c);
+        }
+      }
     }
   };
   /** The shared stems of dotted families: from the parent (or holder) to where the lines part. */
