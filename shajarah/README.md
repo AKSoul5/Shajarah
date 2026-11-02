@@ -1274,23 +1274,31 @@ ancestor they share, by fathers and by mothers:
   عمّ حازم". Great-grandparents and far ancestors with how many
   generations up ("11th great-grandfather").
 - **In-laws:** by the spouse they come through or the relative they
-  married: "دانة زوجة ابن أحمد (كنّته)", "نوفل حمو لبنى", "منى حماة
-  أحمد", "أمل زوجة شقيق أحمد", "طلال شقيق زوجة أحمد", a son's wife's
-  father, a wife's sister's husband (عديل), a husband's brother's wife
-  (سلفة), "خلود ضرّة ندى", and a cousin's wife ("رهف زوجة ابن عمّ
-  أحمد"). Whichever tie is nearer leads; a wife who is also a cousin is
-  named both ways ("Also: …").
-- **The wording** follows one policy:
-  - Clear, formal Arabic that a Saudi reader recognises at once.
-  - Always between two named people, never from a speaker's side. Before
-    a name, a brother is never "أخي" (it reads as "my brother"):
-    "زوجة شقيق أسعد", or "زوجة أخٍ لأسعد من أبيه" for a half-brother.
-  - عمّ، عمّة، خال and خالة are kept apart, down through their
-    descendants.
-  - The same terms are used in both directions.
-  - Nothing is inferred from missing records. شقيق and شقيقة only when
-    both parents are recorded and shared; with a parent not recorded,
-    just أخ or أخت, with no side.
+  married: "دانة زوجة ابن أحمد (كنّته)", "ياسر زوج بنت أحمد (صهره)",
+  "محمد والد زوج نورة (حموها)", "ندى والدة زوج نورة (حماتها)",
+  "إبراهيم والد زوجة أحمد (نسيبه)", "أمل زوجة أخو أحمد", "طلال أخو
+  زوجة أحمد", a son's wife's father, a wife's sister's husband (عديله),
+  a husband's brother's wife (سلفتها), "خلود إحدى زوجتي محمد، وهي ضرّة
+  ندى", a cousin's wife ("رهف زوجة ابن عمّ أحمد"). Whichever tie is
+  nearer leads; a wife who is also a cousin is named both ways ("Also: …").
+- **The wording** (decided on review):
+  - Clear, formal Arabic a Saudi reader recognises at once, always
+    between two named people.
+  - والد / والدة, never أبو / أم, which read as a kunya.
+  - ابن / بنت, never ولد.
+  - The specialised terms where they fit: كنّته، صهره، حموها، حماتها،
+    نسيبه، عديله، سلفتها، ضرّتها.
+  - Cousins by degree: "من الدرجة الثانية".
+  - The side for grandparents: "جد أحمد لأبيه".
+  - Brothers and sisters: "الشقيق" for full, "أخو أحمد من الأب" / "أخت
+    أحمد من الأم" for half, and "زوجة أخو أحمد" inside a longer phrase
+    (the familiar construction; "أخي أحمد" reads as "my brother").
+  - Far kin: "على بُعد أربعة أجيال".
+  - The same terms both ways, and nothing inferred from missing records.
+    الشقيق only when both parents are recorded and shared; no side when
+    a parent is not recorded. A wife's other husband is "زوج آخر",
+    unless the marriage years show which marriage came first ("زوج
+    سابق", "زوج لاحق").
 - **The path:** shown on the panel, the shared ancestor marked, ↑ to a
   parent, ↓ to a child and = for a marriage. Each name opens that
   person. The path is lit on the poster until you press **Clear**
