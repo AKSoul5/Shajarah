@@ -867,6 +867,12 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   <div className="space-y-2 rounded-md bg-parchment-50 p-2">
                     <p className="font-naskh text-lg leading-snug text-bark-900" dir="rtl">{kinship.arabic}</p>
                     <p className="text-xs text-bark-500">{kinship.english}</p>
+                    {kinship.also && (
+                      <div className="border-t border-parchment-200 pt-1.5">
+                        <p className="font-naskh text-base leading-snug text-bark-800" dir="rtl">{kinship.also.arabic}</p>
+                        <p className="text-xs text-bark-500">Also: {kinship.also.english}</p>
+                      </div>
+                    )}
                     {kinship.path.length > 1 && (
                       <ol className="flex flex-wrap items-center gap-1 text-xs" dir="rtl" aria-label="The path between them">
                         {kinship.path.map((id, i) => {
@@ -874,7 +880,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                           const shared = kinship.common.includes(id);
                           return (
                             <li key={id} className="flex items-center gap-1">
-                              {i > 0 && <span className="text-bark-400">{i <= kinship.up ? "↑" : "↓"}</span>}
+                              {i > 0 && (kinship.steps[i - 1] === "spouse"
+                                ? <span className="font-semibold text-gilt-600" title="married">=</span>
+                                : <span className="text-bark-400">{kinship.steps[i - 1] === "up" ? "↑" : "↓"}</span>)}
                               <button type="button" onClick={() => selectAndShow(id)}
                                 className={`rounded-full border px-2 py-0.5 font-naskh text-sm ${shared ? "border-gilt-500 bg-parchment-100 font-bold" : "border-parchment-300 bg-white"}`}
                                 title={shared ? "Their nearest shared ancestor" : undefined}>

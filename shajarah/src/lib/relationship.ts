@@ -1,8 +1,12 @@
-// How two people in a family are related: their nearest shared ancestor,
-// the path between them through it, and the relationship's name in Arabic
-// (عمّ، خال، ابن عمّة، أخ لأب …) and English.
+// How two people in a family are related: by blood, through their nearest
+// shared ancestor (عمّ، خال، ابن عمّة، أخ لأب، ابن عمّ من الدرجة الثانية …),
+// or by marriage (a wife, a daughter-in-law, a father-in-law, a sister's
+// husband, a wife's sister's husband …), in Arabic and English, with the
+// path between them.
 
 import type { MarriageDTO, MemberDTO } from "./types";
+
+export type Step = "up" | "down" | "spouse";
 
 export interface Relationship {
   /** B's relation to A, in a sentence: "سالم عمّ أحمد" / "Salem is Ahmad's paternal uncle". */
@@ -10,11 +14,15 @@ export interface Relationship {
   english: string;
   /** The nearest shared ancestors (two when a couple: the father and the mother). */
   common: string[];
-  /** A, up through the shared ancestor, down to B (empty when unrelated). */
+  /** A to B: up to the shared ancestor and down, with a marriage on the way for an in-law (empty when unrelated). */
   path: string[];
-  /** Generations from A up to the shared ancestor, and from it down to B. */
+  /** How each step of the path goes (one fewer than the path): to a parent, to a child, or to a spouse. */
+  steps: Step[];
+  /** Generations from A up to the shared ancestor, and from it down to B (of the blood part of the path). */
   up: number;
   down: number;
+  /** A second tie between the same two, when there is one (a wife who is also a cousin). */
+  also?: { arabic: string; english: string };
 }
 
 type Person = Pick<MemberDTO, "id" | "name" | "gender" | "fatherId" | "motherId">;
@@ -41,25 +49,38 @@ function ancestry(byId: Map<string, Person>, id: string): Map<string, string[]> 
 const AR = (n: number) => n.toLocaleString("ar-SA");
 const ORDINAL_EN = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 const ordinalEn = (n: number) => ORDINAL_EN[n - 1] ?? `${n}th`;
+const ORDINAL_AR = ["الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة", "السابعة", "الثامنة", "التاسعة", "العاشرة"];
+const ordinalAr = (n: number) => ORDINAL_AR[n - 1] ?? AR(n);
 const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
 const generationsAr = (n: number) => (n === 1 ? "جيل واحد" : n === 2 ? "جيلان" : n <= 10 ? `${AR(n)} أجيال` : `${AR(n)} جيلًا`);
+const nth = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+/** great-, great-great-, then "3rd great-" … (as genealogists write it) */
+const greats = (n: number) => (n <= 0 ? "" : n <= 2 ? "great-".repeat(n) : `${nth(n)} great-`);
 
-/** How B is related to A (by blood, through the nearest shared ancestor; or as a spouse). */
-export function relationship(members: Person[], marriages: Pick<MarriageDTO, "spouseAId" | "spouseBId">[], aId: string, bId: string): Relationship {
-  const byId = new Map(members.map((m) => [m.id, m]));
-  const a = byId.get(aId), b = byId.get(bId);
-  const none = (arabic: string, english: string): Relationship => ({ arabic, english, common: [], path: [], up: 0, down: 0 });
-  if (!a || !b) return none("", "");
-  const A = a.name, B = b.name;
-  const femaleB = b.gender === "FEMALE";
-  // (his or her: لأبيه / لأبيها, by A)
-  const his = a.gender === "FEMALE" ? "ها" : "ه";
-  if (aId === bId) return { ...none(`${A} نفسه`, `${A} themself`), path: [aId] };
+/**
+ * A blood tie of B to A, in parts that read as a sentence and also compose
+ * (for an in-law): Arabic `${B} ${term} ${A}${tail}`, English
+ * `${B} is ${A}'s ${en}`. `en` names the tie plainly ("son", "brother",
+ * "father"), for the in-law names built on it.
+ */
+interface Tie {
+  term: string;
+  tail: string;
+  en: string;
+  kind: "child" | "parent" | "sibling" | "other";
+  up: number;
+  down: number;
+  common: string[];
+  path: string[];
+}
 
-  const married = marriages.some((x) => (x.spouseAId === aId && x.spouseBId === bId) || (x.spouseAId === bId && x.spouseBId === aId))
-    || members.some((c) => (c.fatherId === aId && c.motherId === bId) || (c.fatherId === bId && c.motherId === aId));
-  const fromA = ancestry(byId, aId), fromB = ancestry(byId, bId);
-  // the nearest shared ancestors: fewest generations between the two through them
+function bloodTie(byId: Map<string, Person>, anc: Map<string, Map<string, string[]>>, aId: string, bId: string): Tie | null {
+  const a = byId.get(aId)!, b = byId.get(bId)!;
+  const ancestorsOf = (id: string) => {
+    if (!anc.has(id)) anc.set(id, ancestry(byId, id));
+    return anc.get(id)!;
+  };
+  const fromA = ancestorsOf(aId), fromB = ancestorsOf(bId);
   let best = Infinity;
   const shared: { id: string; up: number; down: number }[] = [];
   for (const [id, pa] of fromA) {
@@ -69,80 +90,285 @@ export function relationship(members: Person[], marriages: Pick<MarriageDTO, "sp
     if (up + down < best) { best = up + down; shared.length = 0; }
     if (up + down === best) shared.push({ id, up, down });
   }
-  if (!shared.length) {
-    if (married) return { ...none(`${B} ${femaleB ? "زوجة" : "زوج"} ${A}`, `${B} is ${A}'s ${femaleB ? "wife" : "husband"}`), path: [aId, bId] };
-    return none(`لا تجمع ${A} و${B} قرابة نسب مسجّلة`, `${A} and ${B} share no recorded ancestor`);
-  }
+  if (!shared.length) return null;
   // (several at one distance: a couple, or the same pair reached twice; keep one shape)
   const { up, down } = shared[0];
   const common = shared.filter((s) => s.up === up && s.down === down).map((s) => s.id);
   const pathA = fromA.get(common[0])!, pathB = fromB.get(common[0])!;
   const path = [...pathA, ...pathB.slice(0, -1).reverse()];
-  const result = (arabic: string, english: string): Relationship => ({ arabic, english, common, path, up, down });
-  const anc = byId.get(common[0])!;
-  // A's parent on the way up (the father's side or the mother's) and B's parent on the way down
+  const female = (p?: Person) => p?.gender === "FEMALE";
+  const fB = female(b);
+  const his = female(a) ? "ها" : "ه";
+  const tie = (term: string, en: string, kind: Tie["kind"] = "other", tail = ""): Tie => ({ term, tail, en, kind, up, down, common, path });
+  // A's parent on the way up (the father's side or the mother's)
   const aParent = up >= 1 ? byId.get(pathA[1]) : undefined;
-  const bParent = down >= 1 ? byId.get(pathB[1]) : undefined;
   const paternal = aParent?.id === a.fatherId;
 
   // B a descendant of A
   if (up === 0) {
-    if (down === 1) return result(`${B} ${femaleB ? "بنت" : "ابن"} ${A}`, `${B} is ${A}'s ${femaleB ? "daughter" : "son"}`);
-    if (down === 2) return result(`${B} ${femaleB ? "حفيدة" : "حفيد"} ${A}`, `${B} is ${A}'s ${femaleB ? "granddaughter" : "grandson"}`);
-    return result(`${B} من ذرية ${A}، بعد ${generationsAr(down)}`, `${B} is ${A}'s descendant, ${down} generations down`);
+    if (down === 1) return tie(fB ? "بنت" : "ابن", fB ? "daughter" : "son", "child");
+    if (down === 2) return tie(fB ? "حفيدة" : "حفيد", fB ? "granddaughter" : "grandson");
+    const grand = fB ? "granddaughter" : "grandson";
+    if (down === 3) return tie(`${fB ? "بنت" : "ابن"} ${female(byId.get(pathB[1])) ? "حفيدة" : "حفيد"}`, `great-${grand}`);
+    return tie("من ذرية", `${greats(down - 2)}${grand}`, "other", `، بعد ${generationsAr(down)}`);
   }
   // B an ancestor of A
   if (down === 0) {
     const side = paternal ? `لأبي${his}` : `لأمّ${his}`;
-    if (up === 1) return result(`${B} ${femaleB ? "أم" : "أب"} ${A}`, `${B} is ${A}'s ${femaleB ? "mother" : "father"}`);
-    if (up === 2) return result(`${B} ${femaleB ? "جدة" : "جد"} ${A} ${side}`, `${B} is ${A}'s ${paternal ? "paternal" : "maternal"} ${femaleB ? "grandmother" : "grandfather"}`);
-    return result(`${B} من أجداد ${A}، قبله ${generationsAr(up)}`, `${B} is ${A}'s ancestor, ${up} generations up`);
+    const sideEn = paternal ? "paternal" : "maternal";
+    if (up === 1) return tie(fB ? "والدة" : "والد", fB ? "mother" : "father", "parent");
+    if (up === 2) return tie(fB ? "جدة" : "جد", `${sideEn} ${fB ? "grandmother" : "grandfather"}`, "other", ` ${side}`);
+    if (up === 3) return tie(`${fB ? "جدة" : "جد"} ${female(aParent) ? "والدة" : "والد"}`, `great-${fB ? "grandmother" : "grandfather"} (${sideEn})`);
+    return tie("من أجداد", `${greats(up - 2)}${fB ? "grandmother" : "grandfather"}`, "other", `، قبل${his} ${generationsAr(up)}`);
   }
   // brothers and sisters: full, or through the father or the mother only
   if (up === 1 && down === 1) {
     const sameFather = !!a.fatherId && a.fatherId === b.fatherId, sameMother = !!a.motherId && a.motherId === b.motherId;
     const full = sameFather && sameMother;
-    const kin = femaleB ? "أخت" : "أخو";
-    const how = full ? (femaleB ? "الشقيقة" : "الشقيق") : sameFather ? `لأبي${his}` : `لأمّ${his}`;
-    const en = full || (sameFather && !a.motherId && !b.motherId) ? (femaleB ? "sister" : "brother") : `half-${femaleB ? "sister" : "brother"} (same ${sameFather ? "father" : "mother"})`;
-    return result(`${B} ${kin} ${A} ${how}`, `${B} is ${A}'s ${en}`);
+    // (with the other parent of either not recorded, nothing says they are
+    // half-siblings: no qualifier, as in English)
+    const unknownOther = (sameFather && !a.motherId && !b.motherId) || (sameMother && !a.fatherId && !b.fatherId);
+    const how = full ? (fB ? "الشقيقة" : "الشقيق") : unknownOther ? "" : sameFather ? `لأبي${his}` : `لأمّ${his}`;
+    const plain = fB ? "sister" : "brother";
+    const en = full || (sameFather && !a.motherId && !b.motherId) ? plain : `half-${plain} (same ${sameFather ? "father" : "mother"})`;
+    return tie(fB ? "أخت" : "أخو", en, "sibling", how ? ` ${how}` : "");
   }
-  // an uncle or aunt: the father's brother or sister (عمّ، عمّة), the mother's (خال، خالة)
-  if (up === 2 && down === 1) {
-    const ar = paternal ? (femaleB ? "عمّة" : "عمّ") : femaleB ? "خالة" : "خال";
-    return result(`${B} ${ar} ${A}`, `${B} is ${A}'s ${paternal ? "paternal" : "maternal"} ${femaleB ? "aunt" : "uncle"}`);
+
+  // Further: by the generations each is from the shared ancestor. The one
+  // nearer to it is related to the other's ancestor of the same
+  // generation as a brother or sister, or as a cousin of some degree.
+  const kinOf = (x: Person, xParentId: string | undefined, sibling: Person | undefined, deg: number) => {
+    // how `sibling`'s line (the shared ancestor's child on the far side) is
+    // named from x: x's father's side (عمّ/عمّة) or mother's (خال/خالة)
+    const xPaternal = xParentId === x.fatherId;
+    const aunt = female(sibling);
+    return { side: xPaternal ? (aunt ? "عمّة" : "عمّ") : aunt ? "خالة" : "خال", xPaternal, deg };
+  };
+  const removed = Math.abs(up - down);
+  const degree = Math.min(up, down) - 1; // 0: uncles and nephews; 1: first cousins …
+  const degreeAr = degree >= 2 ? ` من الدرجة ${ordinalAr(degree)}` : "";
+
+  if (up >= down) {
+    // X: A's ancestor of B's generation (A when they are of one generation)
+    const xIdx = up - down;
+    const X = byId.get(pathA[xIdx])!;
+    // how X is named from A: والد، جد، جد والد … (blank when X is A)
+    const ofA = (() => {
+      if (xIdx === 0) return "";
+      const g = female(X);
+      if (xIdx === 1) return g ? "والدة" : "والد";
+      if (xIdx === 2) return g ? "جدة" : "جد";
+      if (xIdx === 3) return `${g ? "جدة" : "جد"} ${female(aParent) ? "والدة" : "والد"}`;
+      return "أحد أجداد";
+    })();
+    const ofAEn = xIdx === 0 ? "" : xIdx === 1 ? (female(X) ? "mother's " : "father's ") : xIdx === 2 ? (female(X) ? "grandmother's " : "grandfather's ") : `${greats(xIdx - 2)}${female(X) ? "grandmother" : "grandfather"}'s `;
+    if (down === 1) {
+      // B a brother or sister of X: an uncle or aunt of A, or of A's parent …
+      if (xIdx === 1) {
+        const ar = paternal ? (fB ? "عمّة" : "عمّ") : fB ? "خالة" : "خال";
+        return tie(ar, `${paternal ? "paternal" : "maternal"} ${fB ? "aunt" : "uncle"}`);
+      }
+      // (a brother or sister of X, so the عمّ or خال of X's child on A's side)
+      const childOfX = byId.get(pathA[xIdx - 1]);
+      const ar = !female(X) ? (fB ? "عمّة" : "عمّ") : fB ? "خالة" : "خال";
+      const who = xIdx - 1 === 1 ? (female(childOfX) ? "والدة" : "والد") : xIdx - 1 === 2 ? (female(childOfX) ? "جدة" : "جد") : "أحد أجداد";
+      const whoEn = xIdx - 1 === 1 ? (female(childOfX) ? "mother" : "father") : `${greats(xIdx - 3)}grand${female(childOfX) ? "mother" : "father"}`;
+      return tie(`${ar} ${who}`, `${greats(xIdx - 1)}${fB ? "aunt" : "uncle"} (${whoEn}'s ${!female(X) ? "paternal" : "maternal"} ${fB ? "aunt" : "uncle"})`, "other", xIdx - 1 >= 3 ? `، قبل${his} ${generationsAr(xIdx)}` : "");
+    }
+    // B a cousin of X: child of X's عمّ / عمّة / خال / خالة, of some degree
+    const k = kinOf(X, pathA[xIdx + 1], byId.get(pathB[down - 1]), degree);
+    const term = `${fB ? "بنت" : "ابن"} ${k.side}${ofA ? ` ${ofA}` : ""}`;
+    const en = xIdx === 0
+      ? `${ordinalEn(degree)} cousin (${k.xPaternal ? "father's" : "mother's"} side)`
+      : `${ordinalEn(degree)} cousin ${times(removed)} removed (${ofAEn}${ordinalEn(degree)} cousin)`;
+    return tie(term, en, "other", `${degreeAr}${xIdx >= 4 ? `، قبل${his} ${generationsAr(xIdx)}` : ""}`);
   }
-  // a nephew or niece: a brother's or a sister's child
-  if (up === 1 && down === 2) {
-    const viaSister = bParent?.gender === "FEMALE";
-    const ar = `${femaleB ? "بنت" : "ابن"} ${viaSister ? "أخت" : "أخ"}`;
-    return result(`${B} ${ar} ${A}`, `${B} is ${A}'s ${femaleB ? "niece" : "nephew"} (${viaSister ? "sister" : "brother"}'s ${femaleB ? "daughter" : "son"})`);
+  // down > up: Y, B's ancestor of A's generation, is A's brother or sister,
+  // or cousin; B descends from Y
+  const yIdx = down - up;
+  const Y = byId.get(pathB[yIdx])!;
+  const fromY = yIdx === 1 ? (fB ? "بنت" : "ابن") : yIdx === 2 ? (fB ? "حفيدة" : "حفيد") : "من ذرية";
+  const fromYEn = yIdx === 1 ? (fB ? "daughter" : "son") : yIdx === 2 ? (fB ? "granddaughter" : "grandson") : "descendant";
+  if (up === 1) {
+    // a nephew or niece of some remove: a brother's or sister's line
+    const viaSister = female(Y);
+    if (yIdx === 1) return tie(`${fB ? "بنت" : "ابن"} ${viaSister ? "أخت" : "أخ"}`, `${fB ? "niece" : "nephew"} (${viaSister ? "sister" : "brother"}'s ${fB ? "daughter" : "son"})`);
+    return tie(`${fromY} ${viaSister ? "أخت" : "أخ"}`, `${greats(yIdx - 1)}${fB ? "niece" : "nephew"} (${viaSister ? "sister" : "brother"}'s ${fromYEn})`);
   }
-  // first cousins: the child of A's عمّ، عمّة، خال or خالة
-  if (up === 2 && down === 2) {
-    const auntOrUncle = bParent?.gender === "FEMALE" ? (paternal ? "عمّة" : "خالة") : paternal ? "عمّ" : "خال";
-    return result(`${B} ${femaleB ? "بنت" : "ابن"} ${auntOrUncle} ${A}`, `${B} is ${A}'s first cousin (${paternal ? "father's" : "mother's"} side)`);
+  const k = kinOf(a, aParent?.id, byId.get(pathB[down - 1]), degree);
+  const yTerm = `${female(Y) ? "بنت" : "ابن"} ${k.side}`;
+  const term = `${fromY} ${yTerm}`;
+  const en = `${ordinalEn(degree)} cousin ${times(removed)} removed (${fromYEn} of a ${ordinalEn(degree)} cousin on the ${k.xPaternal ? "father's" : "mother's"} side)`;
+  return tie(term, en, "other", degreeAr);
+}
+
+/** How B is related to A: by blood, by marriage, or both. */
+export function relationship(members: Person[], marriages: Pick<MarriageDTO, "spouseAId" | "spouseBId">[], aId: string, bId: string): Relationship {
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const a = byId.get(aId), b = byId.get(bId);
+  const none = (arabic: string, english: string): Relationship => ({ arabic, english, common: [], path: [], steps: [], up: 0, down: 0 });
+  if (!a || !b) return none("", "");
+  const A = a.name, B = b.name;
+  if (aId === bId) return { ...none(`${A} نفسه`, `${A} themself`), path: [aId] };
+  const anc = new Map<string, Map<string, string[]>>();
+  const female = (p?: Person) => p?.gender === "FEMALE";
+  const his = female(a) ? "ها" : "ه";
+
+  // spouses: recorded marriages, and the other parent of a child
+  const spousesOf = (id: string) => {
+    const out = new Set<string>();
+    for (const x of marriages) {
+      if (x.spouseAId === id && byId.has(x.spouseBId)) out.add(x.spouseBId);
+      if (x.spouseBId === id && byId.has(x.spouseAId)) out.add(x.spouseAId);
+    }
+    for (const c of members) {
+      if (c.fatherId === id && c.motherId && byId.has(c.motherId)) out.add(c.motherId);
+      if (c.motherId === id && c.fatherId && byId.has(c.fatherId)) out.add(c.fatherId);
+    }
+    return out;
+  };
+  const spouseWord = (p: Person) => (female(p) ? "زوجة" : "زوج");
+  // (inside a longer phrase a brother is أخي, in the genitive: زوجة أخي أحمد)
+  const genitive = (term: string) => term.replace(/^أخو(?= |$)/, "أخي");
+  const spouseEn = (p: Person) => (female(p) ? "wife" : "husband");
+  const stepsOf = (t: Tie): Step[] => [...Array(t.up).fill("up"), ...Array(t.down).fill("down")];
+  const blood = bloodTie(byId, anc, aId, bId);
+  const bloodRel = (t: Tie): Relationship => ({
+    arabic: `${B} ${t.term} ${A}${t.tail}`,
+    english: `${B} is ${A}'s ${t.en}${t.kind === "other" && t.up + t.down >= 4 ? ` (through ${byId.get(t.common[0])!.name})` : ""}`,
+    common: t.common, path: t.path, steps: stepsOf(t), up: t.up, down: t.down,
+  });
+
+  // ── by marriage: the closest way through one or two marriages ─────────
+  // (how far: the generations of the blood part, and one for each marriage)
+  type InLaw = { score: number; make: () => Relationship };
+  const options: InLaw[] = [];
+  const aSpouses = spousesOf(aId), bSpouses = spousesOf(bId);
+  if (aSpouses.has(bId)) {
+    options.push({ score: 1, make: () => ({ arabic: `${B} ${spouseWord(b)} ${A}`, english: `${B} is ${A}'s ${spouseEn(b)}`, common: [], path: [aId, bId], steps: ["spouse"], up: 0, down: 0 }) });
   }
-  // a grandparent's brother or sister: the عمّ or خال of A's father or mother
-  if (up === 3 && down === 1) {
-    const parentPaternal = byId.get(pathA[2])?.id === aParent?.fatherId;
-    const ar = parentPaternal ? (femaleB ? "عمّة" : "عمّ") : femaleB ? "خالة" : "خال";
-    const parentAr = aParent?.gender === "FEMALE" ? "والدة" : "والد";
-    return result(`${B} ${ar} ${parentAr} ${A}`, `${B} is ${A}'s great-${femaleB ? "aunt" : "uncle"} (${aParent?.gender === "FEMALE" ? "mother" : "father"}'s ${parentPaternal ? "paternal" : "maternal"} ${femaleB ? "aunt" : "uncle"})`);
+  // B a blood relative of A's spouse S: a father-in-law, a wife's brother …
+  for (const sId of aSpouses) {
+    if (sId === bId) continue;
+    const t = bloodTie(byId, anc, sId, bId);
+    if (!t) continue;
+    const S = byId.get(sId)!;
+    options.push({
+      score: t.up + t.down + 1,
+      make: () => {
+        const fB = female(b);
+        const named = t.kind === "parent" ? ` (${fB ? "حمات" : "حمو"}${his})` : "";
+        const enNamed = t.kind === "parent" ? `${fB ? "mother" : "father"}-in-law` : t.kind === "sibling" ? `${fB ? "sister" : "brother"}-in-law` : "";
+        return {
+          arabic: `${B} ${t.term} ${spouseWord(S)} ${A}${t.tail}${named}`,
+          english: enNamed ? `${B} is ${A}'s ${enNamed} (${spouseEn(S)}'s ${t.en})` : `${B} is ${A}'s ${spouseEn(S)}'s ${t.en}`,
+          common: t.common, path: [aId, ...t.path], steps: ["spouse", ...stepsOf(t)], up: t.up, down: t.down,
+        };
+      },
+    });
   }
-  // a brother's or sister's grandchild
-  if (up === 1 && down === 3) {
-    const sibling = byId.get(pathB[2]);
-    const viaSister = sibling?.gender === "FEMALE";
-    return result(`${B} ${femaleB ? "حفيدة" : "حفيد"} ${viaSister ? "أخت" : "أخ"} ${A}`, `${B} is ${A}'s great-${femaleB ? "niece" : "nephew"} (${viaSister ? "sister" : "brother"}'s ${femaleB ? "granddaughter" : "grandson"})`);
+  // B the spouse of A's blood relative R: a daughter-in-law, a sister's husband …
+  for (const rId of bSpouses) {
+    if (rId === aId) continue;
+    const t = bloodTie(byId, anc, aId, rId);
+    if (!t) continue;
+    options.push({
+      score: t.up + t.down + 1,
+      make: () => {
+        const fB = female(b);
+        const named = t.kind === "child" ? ` (${fB ? "كنّت" : "صهر"}${his})` : "";
+        const enNamed = t.kind === "child" ? `${fB ? "daughter" : "son"}-in-law` : t.kind === "sibling" ? `${fB ? "sister" : "brother"}-in-law` : "";
+        return {
+          arabic: `${B} ${spouseWord(b)} ${genitive(t.term)} ${A}${t.tail}${named}`,
+          english: enNamed ? `${B} is ${A}'s ${enNamed} (${t.en}'s ${spouseEn(b)})` : `${B} is the ${spouseEn(b)} of ${A}'s ${t.en}`,
+          common: t.common, path: [...t.path, bId], steps: [...stepsOf(t), "spouse"], up: t.up, down: t.down,
+        };
+      },
+    });
   }
-  // further: through the shared ancestor, with each one's distance from it
-  const degree = Math.min(up, down) - 1, removed = Math.abs(up - down);
-  const en = degree >= 1
-    ? `${B} is ${A}'s ${ordinalEn(degree)} cousin${removed ? ` ${times(removed)} removed` : ""}`
-    : `${B} is ${A}'s relative, ${up} and ${down} generations from ${anc.name}`;
-  return result(
-    `يلتقي ${A} و${B} في ${anc.name}: ${A} بعده ${generationsAr(up)}، و${B} بعده ${generationsAr(down)}`,
-    `${en} (through ${anc.name})`,
-  );
+  // B the spouse of a blood relative of A's spouse (close ones only): a
+  // wife's sister's husband (عديل), a husband's brother's wife (سلفة) …
+  for (const sId of aSpouses) for (const rId of bSpouses) {
+    if (sId === bId || rId === aId || sId === rId) continue;
+    const t = bloodTie(byId, anc, sId, rId);
+    if (!t || t.up + t.down > 2) continue;
+    const S = byId.get(sId)!;
+    options.push({
+      score: t.up + t.down + 2,
+      make: () => {
+        const fA = female(a), fB = female(b);
+        const named = t.kind === "sibling" && !fA && female(S) && !fB ? " (عديله)" : t.kind === "sibling" && fA && !female(S) && fB ? " (سلفتها)" : "";
+        return {
+          arabic: `${B} ${spouseWord(b)} ${genitive(t.term)} ${spouseWord(S)} ${A}${t.tail}${named}`,
+          english: `${B} is the ${spouseEn(b)} of ${A}'s ${spouseEn(S)}'s ${t.en}`,
+          common: t.common, path: [aId, ...t.path, bId], steps: ["spouse", ...stepsOf(t), "spouse"], up: t.up, down: t.down,
+        };
+      },
+    });
+  }
+  // B a close relative of the spouse of A's close relative: a son's wife's
+  // father, a daughter's husband's brother … (A's parents, children and
+  // brothers and sisters; their spouses' parents, children and siblings)
+  const near = (id: string) => {
+    const p = byId.get(id)!;
+    const out = new Set<string>([p.fatherId, p.motherId].filter((x): x is string => !!x && byId.has(x)));
+    for (const m of members) {
+      if (m.id === id) continue;
+      if (m.fatherId === id || m.motherId === id) out.add(m.id);
+      if ((p.fatherId && m.fatherId === p.fatherId) || (p.motherId && m.motherId === p.motherId)) out.add(m.id);
+    }
+    return out;
+  };
+  for (const rId of near(aId)) {
+    for (const wId of spousesOf(rId)) {
+      if (wId === aId || wId === bId || aSpouses.has(wId)) continue;
+      const t2 = bloodTie(byId, anc, wId, bId);
+      if (!t2 || t2.up + t2.down > 2 || t2.path.includes(aId)) continue;
+      const t1 = bloodTie(byId, anc, aId, rId)!;
+      const W = byId.get(wId)!;
+      options.push({
+        score: t1.up + t1.down + t2.up + t2.down + 1,
+        make: () => ({
+          arabic: `${B} ${t2.term} ${spouseWord(W)} ${genitive(t1.term)} ${A}${t1.tail}`,
+          english: `${B} is the ${t2.en} of ${A}'s ${t1.en}'s ${spouseEn(W)}`,
+          common: [], path: [...t1.path, ...t2.path], steps: [...stepsOf(t1), "spouse", ...stepsOf(t2)], up: t1.up, down: t1.down,
+        }),
+      });
+    }
+  }
+  // two wives of one husband (ضرّة), or two husbands of one wife
+  for (const xId of aSpouses) {
+    if (!bSpouses.has(xId)) continue;
+    const X = byId.get(xId)!;
+    options.push({
+      score: 2,
+      make: () => {
+        const bothWives = female(a) && female(b);
+        return {
+          arabic: `${B} ${spouseWord(b)} ${female(b) ? "أخرى" : "آخر"} ل${X.name}، ${spouseWord(a)} ${A}${bothWives ? " (ضرّتها)" : ""}`,
+          english: bothWives ? `${B} is ${A}'s co-wife (another wife of ${X.name})` : `${B} is another ${spouseEn(b)} of ${A}'s ${spouseEn(X)}, ${X.name}`,
+          common: [], path: [aId, xId, bId], steps: ["spouse", "spouse"], up: 0, down: 0,
+        };
+      },
+    });
+  }
+  options.sort((x, y) => x.score - y.score);
+  const inLaw = options[0];
+  const bloodScore = blood ? blood.up + blood.down : Infinity;
+
+  // the nearer tie leads; the other is named too when it is close
+  // (a man's son is not also named "his wife's son": the marriage is
+  // named beside the blood only when it is the nearer tie, as for a wife
+  // who is also a cousin)
+  if (blood && (!inLaw || bloodScore <= inLaw.score)) return bloodRel(blood);
+  if (inLaw) {
+    const r = inLaw.make();
+    if (blood && bloodScore <= 6) {
+      const o = bloodRel(blood);
+      r.also = { arabic: o.arabic, english: o.english };
+    }
+    return r;
+  }
+  if (blood) return bloodRel(blood);
+  return none(`لا تجمع ${A} و${B} قرابة نسب ولا مصاهرة مسجّلة`, `${A} and ${B} share no recorded ancestor or marriage`);
 }

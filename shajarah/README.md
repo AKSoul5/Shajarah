@@ -1268,11 +1268,24 @@ ancestor they share, by fathers and by mothers:
   خالة). Cousins by the parent they come through ("منى بنت عمّة أحمد").
   Also nephews and nieces, a sibling's grandchildren, great-uncles ("قاسم
   عمّ والد أحمد"), parents, grandparents, descendants and spouses.
-- **Further relations:** named through the shared ancestor, with how far
-  each is from them ("second cousin once removed").
-- **The path:** shown on the panel, the shared ancestor marked. Each name
-  opens that person. The path is lit on the poster until you press
-  **Clear** (src/lib/relationship.ts, tests/relationship.test.ts).
+- **Cousins of every degree:** "ابن عمّ أحمد من الدرجة الثانية" (second
+  cousin), and those a generation apart by the person they are a cousin
+  of: "حازم ابن عمّ والد أحمد" (first cousin once removed), "أحمد ابن ابن
+  عمّ حازم". Great-grandparents and far ancestors with how many
+  generations up ("11th great-grandfather").
+- **In-laws:** by the spouse they come through or the relative they
+  married: "سلمى زوجة ابن أحمد (كنّته)", "أحمد والد زوج سلمى (حموها)",
+  "فهد زوج أخت أحمد", "طارق أخو زوجة زياد", a son's wife's father, a
+  wife's sister's husband (عديل), two wives of one husband (ضرّة), and a
+  cousin's wife ("نورة زوجة ابن عمّ أحمد"). Whichever tie is nearer
+  leads; a wife who is also a cousin is named both ways ("Also: …").
+- **The path:** shown on the panel, the shared ancestor marked, ↑ to a
+  parent, ↓ to a child and = for a marriage. Each name opens that
+  person. The path is lit on the poster until you press **Clear**
+  (src/lib/relationship.ts, tests/relationship.test.ts). Checked on a
+  real family of 243: every one of its 58,806 pairs gets a named tie,
+  or "no recorded ancestor or marriage" where there is none, and every
+  path connects, step by step.
 
 ## The order of brothers and sisters
 
