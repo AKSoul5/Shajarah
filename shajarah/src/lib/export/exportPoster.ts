@@ -10,6 +10,7 @@
 //   in Inkscape and "Save as PDF", or add a headless-Chromium route.)
 
 import { PAPER_SIZES, SHEET_SIZES, type PaperSize, type SheetSize } from "../paper";
+import { withPngResolution } from "./pngDpi";
 
 export { PAPER_SIZES, type PaperSize };
 
@@ -291,7 +292,9 @@ export async function exportPng(svg: SVGSVGElement, filename: string, paper: Pap
   const { canvas, dpi: used } = await rasterise(svg, paper, dpi);
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
   if (!blob) throw new Error("PNG encoding failed (image too large?)");
-  download(blob, `${filename}-${paper}-${used}dpi.png`);
+  // the resolution it was drawn at, so print software sizes it right
+  const png = withPngResolution(new Uint8Array(await blob.arrayBuffer()), used);
+  download(new Blob([png], { type: "image/png" }), `${filename}-${paper}-${used}dpi.png`);
   return used;
 }
 

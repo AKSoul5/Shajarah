@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { computePosterLayout, textWidth, type PosterLayout } from "@/lib/layout/botanical";
 import { SOIL_STYLES, SOIL_STYLE_ORDER, soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from "@/lib/layout/soil";
-import { RUQAA_WIDTH, omissionLabel, shortenSoil } from "@/lib/layout/soil/common";
+import { RUQAA_WIDTH, omissionLabel, rootsTo, shortenSoil } from "@/lib/layout/soil/common";
 import { soilOrnament } from "@/components/poster/frames";
 import { computeGenerations } from "@/lib/genealogy";
 import { kalaliTree } from "@/lib/samples/kalali";
@@ -427,3 +427,107 @@ describe("Soil 2.0: honest shortening, both directions, every design's ornaments
     }
   });
 });
+
+describe("v1.0.45: what the 300 DPI exports showed", () => {
+  // the Al-Kalali line to آدم under 120 descendants: on a branch poster on
+  // A3, the shortened lineage once kept only the nearest ancestor (73 of 76
+  // left out)
+  const base = kalaliTree();
+  const rand = mulberry32(11);
+  const members = [...base.members];
+  let n = 0;
+  const grow = (fatherId: string, d: number) => {
+    for (let i = 0, k = d === 0 ? 6 : 1 + Math.floor(rand() * 4); i < k && n < 120 && d < 4; i++) {
+      const m = { ...members[0], id: `x${n++}`, name: ["أحمد", "خالد", "سعد", "محمد", "عمر"][Math.floor(rand() * 5)], laqab: null, fatherId, birthOrder: i };
+      members.push(m);
+      grow(m.id, d + 1);
+    }
+  };
+  grow(base.crownBaseId!, 0);
+  const gens = computeGenerations(members, "PATRILINEAL");
+  const long: TreeDTO = { ...base, trunkStartId: null, members: members.map((m) => ({ ...m, generation: gens.get(m.id) ?? 0 })) };
+  const shortened = (style: SoilStyleId, paper: "A3" | "A2", focusId: string | null) =>
+    computePosterLayout(long, { ...layoutOptionsFor(resolveTheme(long.settings), paper), soilStyle: style, soilShorten: true, focusId });
+
+  for (const style of SOIL_STYLE_ORDER) {
+    it(`${SOIL_STYLES[style].label}: a shortened branch lineage on A3 keeps a run of the nearest ancestors, still legible`, () => {
+      const l = shortened(style, "A3", "x0");
+      const s = l.soil!;
+      const marker = s.texts.find((t) => /… [٠-٩]+/.test(t.text));
+      if (!marker) return; // short enough to keep whole
+      const left = Number(marker.text.match(/[٠-٩]+/)![0].replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))));
+      // the nearest names before the marker (in the running text of the paragraph styles too)
+      const read = s.texts.map((t) => t.text).join(" ");
+      const before = read.slice(0, read.indexOf("…")).split(/ بن |\s+/).filter((w) => w && w !== "بن");
+      expect(before.length, read.slice(0, 80)).toBeGreaterThanOrEqual(5);
+      expect(left).toBeLessThan(73);
+      expect(read).toContain("آدم");
+      expect(l.legibility.ok).toBe(true);
+    }, 120_000);
+  }
+
+  it("keeping more never costs a legible poster: the whole family on A3 stays as legible as with the plain cut", () => {
+    for (const style of ["column", "roots", "banner"] as const) {
+      const l = shortened(style, "A3", null);
+      const plain = computePosterLayout(long, { ...layoutOptionsFor(resolveTheme(long.settings), "A3"), soilStyle: style, soilShorten: true, soilKeep: false });
+      if (plain.legibility.ok) expect(l.legibility.ok, style).toBe(true);
+    }
+  }, 240_000);
+
+  it("the Calligraphic Column sets every name in one typeface", () => {
+    for (const focusId of [null, "x0"]) {
+      const s = shortened("column", "A3", focusId).soil!;
+      const column = s.texts.filter((t) => t.memberId || /…/.test(t.text) && !t.text.startsWith("بن"));
+      const fonts = new Set(s.texts.filter((t) => t.memberId).map((t) => t.font));
+      expect(fonts.size, `fonts ${[...fonts]}`).toBe(1);
+      expect(column.length).toBeGreaterThan(0);
+    }
+  }, 120_000);
+
+  it("clear paper between a foundation ending in an ornament and the footer's key, at least 4 mm at print size", () => {
+    for (const style of SOIL_STYLE_ORDER.filter((s) => SOIL_STYLES[s].endsInOrnament)) for (const focusId of [null, "x0"]) {
+      const l = shortened(style, "A3", focusId);
+      const mm = 297 / l.width;
+      // the key's top (see TreePoster's Footer)
+      const keyTop = l.frame.footerY - l.width * 0.012 * (4.15 + 0.6);
+      const gap = (keyTop - (l.soil!.box.y + l.soil!.box.h)) * mm;
+      expect(gap, `${style} ${focusId ?? "whole"}`).toBeGreaterThanOrEqual(4 - 1e-6);
+    }
+  }, 240_000);
+
+  it("fine roots under the trunk end cleanly on both sides (no hook back past their tips)", () => {
+    const p = { ...soilCtx(), cx: 900, groundY: 2000, threadFrom: 1990, trunkWidth: 120, W: 1800 };
+    const roots = rootsTo(p, 2100, 200, 3, 1);
+    for (const d of roots) {
+      // one edge from the trunk to the tip, then the other back (the left
+      // ones once ran past their tip and bent back: 770, 765, 767, 776)
+      const xs = [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => Number(m[1]));
+      const edge = xs.slice(0, xs.length / 2);
+      const dir = Math.sign(edge[edge.length - 1] - edge[0]);
+      for (let i = 1; i < edge.length; i++) expect((edge[i] - edge[i - 1]) * dir, d.slice(0, 40)).toBeGreaterThanOrEqual(-0.11);
+    }
+  });
+
+  it("Ancestral Roots: the roots under the taproot, the gold thread on it and ending inside it", () => {
+    const g = soilStyle("roots").layout({ ...soilCtx(), cx: 900, groundY: 2000, threadFrom: 1990, trunkWidth: 120, W: 1800 });
+    const roots = g.shapes.findIndex((s) => s.fill === "root");
+    const taproot = g.shapes.findIndex((s) => s.fill === "trunk");
+    const thread = g.shapes.findIndex((s) => s.stroke === "goldLight");
+    expect(roots).toBeGreaterThanOrEqual(0);
+    expect(taproot).toBeGreaterThan(roots);
+    expect(thread).toBeGreaterThan(taproot);
+    // nothing is drawn see-through over the taproot
+    expect(g.shapes.filter((s) => s.fill === "root" || s.fill === "trunk").every((s) => s.opacity === undefined)).toBe(true);
+    // the thread ends above the taproot's point
+    const ys = (d: string) => [...d.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => Number(m[2]));
+    expect(Math.max(...ys(g.shapes[thread].d))).toBeLessThan(Math.max(...ys(g.shapes[taproot].d)) - 1);
+  });
+});
+
+function soilCtx(): SoilContext {
+  const entries = Array.from({ length: 8 }, (_, i) => ({ id: `a${i}`, label: ["محمد", "عبد الرحمن", "سالم", "ذو رعين"][i % 4], generation: 100 - i }));
+  return {
+    entries, text: ["أحمد", ...entries.map((e) => e.label)].join(" بن "), custom: false, trunkName: "أحمد", rtl: true, joiner: " بن ",
+    f: 20, floor: 14, maxFont: 40, maxWidth: 1400, avail: 2400, textWidth,
+  };
+}

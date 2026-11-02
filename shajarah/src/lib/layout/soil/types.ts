@@ -67,12 +67,24 @@ export interface SoilPlacement extends SoilContext {
   /** Where the gold thread joining the trunk's ancestors ends (the lowest badge), to continue it. */
   threadFrom: number;
   trunkWidth: number;
+  /**
+   * Where the trunk's outline ends below the ground line, for the root flare
+   * the style asks for (its trunkSpread): a shape continuing the trunk starts
+   * exactly there. Absent (previews, tests): the ground line.
+   */
+  trunkBaseY?: (spread: number) => number;
   /** Page width, for proportional strokes. */
   W: number;
 }
 
-/** Colours are roles; the renderer maps them to the palette (and to black in the print-mono style). */
-export type SoilInk = "ink" | "gold" | "goldLight" | "muted" | "bark" | "trunk" | "ivory" | "line" | "paper";
+/**
+ * Colours are roles; the renderer maps them to the palette (and to black in
+ * the print-mono style). "trunk" is the trunk's own shading, laid across the
+ * page exactly as on the trunk, so a shape filled with it continues the trunk
+ * without a seam; "root" is the same for the roots (solid black in mono, as
+ * the trunk's roots are).
+ */
+export type SoilInk = "ink" | "gold" | "goldLight" | "muted" | "bark" | "trunk" | "ivory" | "line" | "paper" | "root";
 
 export interface SoilText {
   x: number;
@@ -181,4 +193,10 @@ export interface SoilStyleDef {
    */
   height(ctx: SoilContext): number;
   layout(ctx: SoilPlacement): SoilGeometry;
+  /**
+   * The style ends in a lone ornament on the axis (a finial, the taproot's
+   * point), not a panel or a rule with room of its own: the layout keeps
+   * clear paper under it, above the footer's key (see SOIL_FOOT_MM).
+   */
+  endsInOrnament?: boolean;
 }
