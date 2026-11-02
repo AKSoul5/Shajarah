@@ -47,6 +47,9 @@ export const themeSchema = z
     frame: z.boolean(),
     femaleCapsule: z.boolean(),
     branchColors: z.boolean(),
+    inkOnly: z.boolean(),
+    // (saved themes carry only what differs from their preset from version 2 on)
+    v: z.number().int().min(0).max(100),
   })
   .partial();
 

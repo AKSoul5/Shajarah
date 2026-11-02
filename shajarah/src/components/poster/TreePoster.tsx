@@ -6,7 +6,7 @@ import type { SoilInk } from "@/lib/layout/soil";
 import { textWidth } from "@/lib/layout/botanical";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
-import { lineageColor, paletteOf, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
+import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
 import type { PosterTheme } from "@/lib/types";
 
@@ -55,6 +55,8 @@ interface Props {
 const FONT = "Amiri, 'Traditional Arabic', 'Noto Naskh Arabic', 'Times New Roman', serif";
 /** Calligraphic face for headings. */
 const RUQAA = "'Aref Ruqaa', Amiri, 'Traditional Arabic', serif";
+/** Geometric Kufi for the titles of the modern designs (Platinum, Modern Archive). */
+const KUFI = "'Noto Kufi Arabic', Amiri, 'Traditional Arabic', sans-serif";
 // The editor's own marks (dragging a name) keep fixed colours; the poster
 // itself is drawn only in its theme's palette (see paletteOf).
 const PAPER = "#f7f1e3";
@@ -102,7 +104,7 @@ function makePalette(theme: PosterTheme, layout: PosterLayout): Palette {
         return { fill: tone, border: shade(tone, -0.4), text: "#ffffff" };
       }
       const base = female ? theme.female : theme.male;
-      return { fill: theme.metallic ? satin(n.member.gender) : base, border: shade(base, -0.38), text: textOn(base) };
+      return { fill: theme.metallic ? satin(n.member.gender) : base, border: rimOn(base, tokens.paper), text: textOn(base) };
     },
   };
 }
@@ -844,8 +846,10 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
   const { width: W, height: H, rtl } = layout;
   const hd = layout.frame.header;
   const avail = layout.medallions.length ? Math.min(hd.maxTitleWidth, W * 0.44) : hd.maxTitleWidth;
-  // Ruqaa runs a little wider than Amiri, which textWidth is tuned for
-  const titleFs = meta.title ? Math.min(W * 0.042, avail / ((textWidth(meta.title, 1) || 1) * 1.1)) : 0;
+  // Ruqaa runs a little wider than Amiri, which textWidth is tuned for;
+  // Kufi wider still
+  const kufi = pal.titleFont === "kufi";
+  const titleFs = meta.title ? Math.min(W * (kufi ? 0.036 : 0.042), avail / ((textWidth(meta.title, 1) || 1) * (kufi ? 1.45 : 1.1))) : 0;
   // Under the basmala, the title keeps clear of its long lower stroke: the
   // glyph reaches 0.61 em below its baseline and Ruqaa capitals 1.23 em above.
   const basmalaFs = W * 0.024;
@@ -867,7 +871,7 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
         </text>
       )}
       {meta.title && (
-        <text x={W / 2} y={titleY} textAnchor="middle" fontFamily={RUQAA} fontSize={titleFs} fontWeight={700}
+        <text x={W / 2} y={titleY} textAnchor="middle" fontFamily={kufi ? KUFI : RUQAA} fontSize={titleFs} fontWeight={kufi ? 400 : 700}
           fill={pal.mono ? pal.ink : "url(#sh-gold-text)"} direction={rtl ? "rtl" : "ltr"}>
           {meta.title}
         </text>
@@ -942,7 +946,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   const items: Item[] = [];
   const maleFill = pal.mono ? "#fff" : satin ? "url(#sh-satin-m)" : theme.male;
   const femaleFill = pal.mono ? "#fff" : satin ? "url(#sh-satin-f)" : theme.female;
-  const rim = (c: string) => (pal.mono ? "#111" : shade(c, -0.38));
+  const rim = (c: string) => (pal.mono ? "#111" : rimOn(c, pal.paper));
   // colouring by generation replaces the son / daughter / father colours
   const byGender = theme.colorBy !== "generation";
   if (byGender) items.push({

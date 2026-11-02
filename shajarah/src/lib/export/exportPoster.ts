@@ -35,6 +35,8 @@ class CanvasTooLarge extends Error {}
 const FONT_FILES: { file: string; weight: number; range: string; family?: string }[] = [
   { family: "Aref Ruqaa", file: "aref-ruqaa-arabic-400-normal.woff2", weight: 400, range: "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF" },
   { family: "Aref Ruqaa", file: "aref-ruqaa-arabic-700-normal.woff2", weight: 700, range: "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF" },
+  { family: "Noto Kufi Arabic", file: "noto-kufi-arabic-arabic-400-normal.woff2", weight: 400, range: "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF" },
+  { family: "Noto Kufi Arabic", file: "noto-kufi-arabic-arabic-700-normal.woff2", weight: 700, range: "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF" },
   { file: "amiri-arabic-400-normal.woff2", weight: 400, range: "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF" },
   { file: "amiri-arabic-700-normal.woff2", weight: 700, range: "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF" },
   { file: "amiri-latin-400-normal.woff2", weight: 400, range: "U+0000-00FF, U+2000-206F" },
@@ -128,6 +130,7 @@ const PROBE_FACES = [
   { family: "Amiri", weight: 400, text: "أبجد" }, { family: "Amiri", weight: 700, text: "أبجد" },
   { family: "Amiri", weight: 400, text: "Abg" }, { family: "Amiri", weight: 700, text: "Abg" },
   { family: "Aref Ruqaa", weight: 400, text: "أبجد" }, { family: "Aref Ruqaa", weight: 700, text: "أبجد" },
+  { family: "Noto Kufi Arabic", weight: 400, text: "أبجد" }, { family: "Noto Kufi Arabic", weight: 700, text: "أبجد" },
 ];
 
 /**

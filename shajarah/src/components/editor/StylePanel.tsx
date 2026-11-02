@@ -49,7 +49,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                   <button
                     key={p}
                     type="button"
-                    onClick={() => onChange({ ...t, preset: p })}
+                    onClick={() => { const { label: _l, description: _d, ...design } = t; onChange({ ...design, preset: p }); }}
                     className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-start text-xs ${
                       theme.preset === p ? "border-bark-700 bg-parchment-100" : "border-parchment-300"
                     }`}

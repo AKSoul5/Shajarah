@@ -12,7 +12,7 @@ import { relationship } from "@/lib/relationship";
 import { branchHeads, clearestPaper, rankBranches, smallestClearPaper, type BranchOption } from "@/lib/layout/branches";
 import { generationColor } from "@/lib/layout/palette";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
-import type { Gender, MemberDTO, TreeDTO } from "@/lib/types";
+import type { Gender, MemberDTO, PosterTheme, TreeDTO } from "@/lib/types";
 import type { CreateMemberInput } from "@/lib/validation";
 import { ExportMenu } from "../poster/ExportMenu";
 import { PosterViewport } from "../poster/PosterViewport";
@@ -26,7 +26,7 @@ import { importReceipt, type ImportReceipt } from "@/lib/imports";
 import { emptyHistory, forget, record, redo, undo, type History } from "@/lib/history";
 import { RelationsPanel } from "./RelationsPanel";
 import { StylePanel } from "./StylePanel";
-import { layoutOptionsFor, resolveTheme } from "@/lib/theme";
+import { compactTheme, layoutOptionsFor, resolveTheme } from "@/lib/theme";
 import { isPaperSize, PAPER_ORDER, PAPER_SIZES, paperForScale, type PaperSize } from "@/lib/paper";
 import { ConflictError, apiRepository, localRepository, type FamilyRepository } from "./repository";
 import { readProjectFile, withNewIds } from "@/lib/project";
@@ -277,6 +277,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const pendingSettings = useRef<{ timer: ReturnType<typeof setTimeout>; saved: TreeDTO["settings"]; stepId: number } | null>(null);
   const updateSettings = (patch: Partial<NonNullable<TreeDTO["settings"]>>) => {
     const base = treeRef.current;
+    // (a theme is saved as its preset and only what differs from it, so a
+    // later refinement of the preset reaches this poster too)
+    if (patch.theme) patch = { ...patch, theme: compactTheme(patch.theme as PosterTheme) as NonNullable<TreeDTO["settings"]>["theme"] };
     const settings = {
       ...base.settings, showFemales: base.settings?.showFemales ?? false, seed: base.settings?.seed ?? 7, ...patch,
     };
