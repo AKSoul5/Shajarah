@@ -5,13 +5,15 @@
 // Defects (the poster misleads or hides something):
 //  - every relationship-clarity issue (see clarity.ts): a connection missing
 //    or drawn from the wrong parent, a line ending away from its name, a
-//    line under an unrelated name, a crossing too shallow or at a label,
-//    two lines running together, a false junction, the trunk out of order;
+//    line under an unrelated name, any line crossing another (siblings'
+//    lines once they leave their parent's name, steep crossings too), two
+//    lines running together, a false junction, the trunk out of order;
 //  - names overlapping one another;
 //  - the foundation's text overlapping itself, a name or line of the
 //    canopy, or the footer's key.
-// For review (allowed by design, but worth a look at print size):
-//  - clear crossings: steep, away from names (one line visibly over the other);
+// For review (worth a look at print size):
+//  - clear crossings: steep, away from names, listed again on their own
+//    (each is also a defect above);
 //  - near misses: two unrelated lines passing closer than NEAR_MM at print
 //    size without touching, which can read as connected once printed.
 

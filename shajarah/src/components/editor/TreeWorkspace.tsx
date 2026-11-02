@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { computePosterLayout } from "@/lib/layout/botanical";
 import { usePosterLayout } from "./usePosterLayout";
-import { useReadablePaper } from "./useReadablePaper";
+import { smallestClearPaperOffPage, useReadablePaper } from "./useReadablePaper";
 import { ViewMenu } from "./ViewMenu";
 import { UndoControls } from "./UndoControls";
 import { PersonMenu, type PersonMenuItem } from "./PersonMenu";
 import { MemberPicker } from "./MemberPicker";
 import { relationship } from "@/lib/relationship";
-import { branchHeads, clearestPaper, rankBranches, smallestClearPaper, type BranchOption } from "@/lib/layout/branches";
+import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branches";
 import { generationColor } from "@/lib/layout/palette";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
 import type { Gender, MemberDTO, PosterTheme, TreeDTO } from "@/lib/types";
@@ -409,15 +408,17 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const nextPaper = PAPER_ORDER[PAPER_ORDER.indexOf(posterSize) + 1] ?? null;
   const fallbacks: Fallbacks = {
     branches,
-    measure: (id) => clearestPaper(deferredTree, id, (p) => ({ showFemales, seed, ...layoutOptionsFor(theme, p) })),
+    measure: (id, signal) => smallestClearPaperOffPage(deferredTree, PAPER_ORDER.map((p) => ({ paper: p, options: { showFemales, seed, ...layoutOptionsFor(theme, p), focusId: id } })), signal),
     onFocus: (id, paper) => updateSettings({ focusId: id, ...(paper ? { posterSize: paper } : {}) }),
     onHideDaughters: showFemales && tree.lineage !== "MATRILINEAL" ? () => updateSettings({ showFemales: false }) : null,
     // (a larger paper, printed in tiles: there is always a larger one)
     onTiled: nextPaper ? () => updateSettings({ posterSize: nextPaper }) : null,
   };
   /** The smallest larger poster on which every connection is unambiguous. */
-  const findClearSize = () =>
-    nextPaper && smallestClearPaper((p) => computePosterLayout(deferredTree, { showFemales, seed, ...layoutOptionsFor(theme, p) }), nextPaper);
+  // (in a worker: it lays the poster out once per size)
+  const findClearSize = () => nextPaper
+    ? smallestClearPaperOffPage(deferredTree, PAPER_ORDER.slice(PAPER_ORDER.indexOf(nextPaper)).map((p) => ({ paper: p, options: { showFemales, seed, ...layoutOptionsFor(theme, p) } })))
+    : Promise.resolve(null);
   // the options replace a too-dense poster again whenever the layout changes
   useEffect(() => setShowDense(false), [layout]);
   // a branch poster needs at least one descendant to be a branch
@@ -1348,7 +1349,7 @@ function LegibilityNotice({
 
 /**
  * Shown when some connections could still be misread (a line under an
- * unrelated name, a shallow crossing, two lines running together). The
+ * unrelated name, a crossing, two lines running together). The
  * spots are circled on the poster; a larger poster usually resolves them.
  */
 function ClarityNotice({
@@ -1359,7 +1360,7 @@ function ClarityNotice({
   tooDense: boolean;
   paper: PaperSize;
   fallbacks: Fallbacks;
-  findSize: () => PaperSize | null;
+  findSize: () => Promise<PaperSize | null>;
   onChoose: (p: PaperSize) => void;
 }) {
   const [state, setState] = useState<"idle" | "searching" | PaperSize | "none">("idle");
@@ -1370,7 +1371,7 @@ function ClarityNotice({
       <p className="mt-1">
         {tooDense
           ? `${issues} connections could be misread at this size. Do not print it on ${paper}.`
-          : `${issues} place${issues === 1 ? "" : "s"} (circled) where a line passes under another name, crosses too shallowly or runs into another line, so a reader could misread who descends from whom.`}
+          : `${issues} place${issues === 1 ? "" : "s"} (circled) where a line passes under another name, crosses another line or runs into one, so a reader could misread who descends from whom.`}
       </p>
       {state === "idle" && (
         <button
@@ -1379,7 +1380,7 @@ function ClarityNotice({
           onClick={() => {
             setState("searching");
             // let the button repaint before the (blocking) layout runs
-            setTimeout(() => setState(findSize() ?? "none"), 30);
+            void findSize().then((p) => setState(p ?? "none"));
           }}
         >
           Find a poster size where every line is clear
@@ -1416,7 +1417,7 @@ function TooDensePanel({
   branch: boolean;
   paper: PaperSize;
   fallbacks: Fallbacks;
-  findSize: () => PaperSize | null;
+  findSize: () => Promise<PaperSize | null>;
   onChoose: (p: PaperSize) => void;
   onShowAnyway: () => void;
 }) {
@@ -1446,7 +1447,7 @@ function TooDensePanel({
                   className="btn-primary py-1.5 text-sm"
                   onClick={() => {
                     setState("searching");
-                    setTimeout(() => setState(findSize() ?? "none"), 30);
+                    void findSize().then((p) => setState(p ?? "none"));
                   }}
                 >
                   Find the smallest size where every line is clear
@@ -1476,8 +1477,8 @@ function TooDensePanel({
 
 type Fallbacks = {
   branches: Omit<BranchOption, "clearAt">[];
-  /** Smallest clear poster for one branch (runs layouts: slow on big families). */
-  measure: (id: string) => PaperSize | null;
+  /** Smallest clear poster for one branch (runs layouts, in a worker: slow on big families). */
+  measure: (id: string, signal: AbortSignal) => Promise<PaperSize | null>;
   onFocus: (id: string, paper: PaperSize | null) => void;
   onHideDaughters: (() => void) | null;
   onTiled: (() => void) | null;
@@ -1495,28 +1496,28 @@ function FallbackActions({ branches, measure, onFocus, onHideDaughters, onTiled 
   const [choice, setChoice] = useState("");
   const key = branches.map((b) => b.id).join(",");
   useEffect(() => {
-    let live = true;
+    const abort = new AbortController();
     setRanked(null);
     setDone(0);
     const results: BranchOption[] = [];
-    // one branch per tick, so the notice can show progress between layouts
+    // one branch after another (each in a worker), showing progress
     const next = (i: number) => {
-      if (!live) return;
+      if (abort.signal.aborted) return;
       if (i === branches.length) {
         const r = rankBranches(results);
         setRanked(r);
         setChoice(r[0]?.id ?? "");
         return;
       }
-      results.push({ ...branches[i], clearAt: measure(branches[i].id) });
-      setDone(i + 1);
-      setTimeout(() => next(i + 1), 0);
+      void measure(branches[i].id, abort.signal).then((clearAt) => {
+        if (abort.signal.aborted) return;
+        results.push({ ...branches[i], clearAt });
+        setDone(i + 1);
+        next(i + 1);
+      });
     };
-    const t = setTimeout(() => next(0), 30);
-    return () => {
-      live = false;
-      clearTimeout(t);
-    };
+    next(0);
+    return () => abort.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure only when the branches change
   }, [key]);
   const chosen = ranked?.find((b) => b.id === choice);
