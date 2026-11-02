@@ -1274,11 +1274,23 @@ ancestor they share, by fathers and by mothers:
   عمّ حازم". Great-grandparents and far ancestors with how many
   generations up ("11th great-grandfather").
 - **In-laws:** by the spouse they come through or the relative they
-  married: "سلمى زوجة ابن أحمد (كنّته)", "أحمد والد زوج سلمى (حموها)",
-  "فهد زوج أخت أحمد", "طارق أخو زوجة زياد", a son's wife's father, a
-  wife's sister's husband (عديل), two wives of one husband (ضرّة), and a
-  cousin's wife ("نورة زوجة ابن عمّ أحمد"). Whichever tie is nearer
-  leads; a wife who is also a cousin is named both ways ("Also: …").
+  married: "دانة زوجة ابن أحمد (كنّته)", "نوفل حمو لبنى", "منى حماة
+  أحمد", "أمل زوجة شقيق أحمد", "طلال شقيق زوجة أحمد", a son's wife's
+  father, a wife's sister's husband (عديل), a husband's brother's wife
+  (سلفة), "خلود ضرّة ندى", and a cousin's wife ("رهف زوجة ابن عمّ
+  أحمد"). Whichever tie is nearer leads; a wife who is also a cousin is
+  named both ways ("Also: …").
+- **The wording** follows one policy:
+  - Clear, formal Arabic that a Saudi reader recognises at once.
+  - Always between two named people, never from a speaker's side. Before
+    a name, a brother is never "أخي" (it reads as "my brother"):
+    "زوجة شقيق أسعد", or "زوجة أخٍ لأسعد من أبيه" for a half-brother.
+  - عمّ، عمّة، خال and خالة are kept apart, down through their
+    descendants.
+  - The same terms are used in both directions.
+  - Nothing is inferred from missing records. شقيق and شقيقة only when
+    both parents are recorded and shared; with a parent not recorded,
+    just أخ or أخت, with no side.
 - **The path:** shown on the panel, the shared ancestor marked, ↑ to a
   parent, ↓ to a child and = for a marriage. Each name opens that
   person. The path is lit on the poster until you press **Clear**
