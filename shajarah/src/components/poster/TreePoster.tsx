@@ -10,6 +10,7 @@ import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterP
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
 import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
 import type { PosterTheme } from "@/lib/types";
+import { LEGEND, NAMED_GENERATIONS, say, spouseLabel, statCards } from "@/lib/legend";
 
 export interface PosterMeta {
   title: string | null;
@@ -969,6 +970,11 @@ function TextMedallion({ x, y, r, content, pal }: { x: number; y: number; r: num
  * line means), the family's numbers on small cards, and the credit with the
  * date it was last updated.
  */
+/** The least a key too wide for its row is scaled to (see Footer). */
+const KEY_MIN = 0.8;
+/** Between the key's entries, in its text size. */
+const KEY_GAP = 1.8;
+
 function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: PosterTheme; pal: Palette; meta: PosterMeta }) {
   const { width: W, rtl, stats, generationsPresent, generationOffset } = layout;
   const fs = W * 0.012;
@@ -978,10 +984,13 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   const y = layout.frame.footerY - fs * 4.15;
   const sw = fs * 1.9; // swatch width
   const satin = theme.metallic && !pal.mono;
+  // the key's row: inside the frame, or most of the page's width
+  const keyRoom = W * (layout.frame.framed ? 0.74 : 0.9);
   const pill = (x: number, fill: string, stroke: string) => (
     <rect x={x} y={y - fs * 0.45} width={sw} height={fs * 0.9} rx={fs * 0.45} fill={fill} stroke={stroke} strokeWidth={fs * 0.09} />
   );
-  type Item = { label: string; swatch: (x: number) => ReactNode };
+  /** A key entry: its symbol (`width` wide, the usual swatch's by default) and what it means. */
+  type Item = { label: string; swatch: (x: number) => ReactNode; width?: number };
   const items: Item[] = [];
   const maleFill = pal.mono ? "#fff" : satin ? `url(#${pal.uid}-satin-m)` : theme.male;
   const femaleFill = pal.mono ? "#fff" : satin ? `url(#${pal.uid}-satin-f)` : theme.female;
@@ -989,16 +998,16 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   // colouring by generation replaces the son / daughter / father colours
   const byGender = theme.colorBy !== "generation";
   if (byGender) items.push({
-    label: rtl ? "ابن" : "Son",
+    label: say(LEGEND.son, rtl),
     // (the shape actually drawn: "auto" may have chosen either)
     swatch: (x) => layout.nodes.some((n) => n.shape === "leaf")
       ? <path transform={`translate(${x + sw / 2} ${y}) scale(${sw})`} d={leafPath(1, 0.45)} fill={maleFill} stroke={rim(theme.male)} strokeWidth={0.04} />
       : pill(x, maleFill, rim(theme.male)),
   });
-  if (byGender && layout.nodes.some((n) => n.member.gender === "FEMALE")) items.push({ label: rtl ? "بنت" : "Daughter", swatch: (x) => pill(x, femaleFill, rim(theme.female)) });
+  if (byGender && layout.nodes.some((n) => n.member.gender === "FEMALE")) items.push({ label: say(LEGEND.daughter, rtl), swatch: (x) => pill(x, femaleFill, rim(theme.female)) });
   // (a parent: the same colours, with a second gold ring)
   items.push({
-    label: rtl ? "له ذرية" : "Has descendants",
+    label: say(LEGEND.descendants, rtl),
     swatch: (x) => (
       <g>
         <rect x={x - fs * 0.14} y={y - fs * 0.59} width={sw + fs * 0.28} height={fs * 1.18} rx={fs * 0.59} fill="none" stroke={pal.ornament} strokeWidth={fs * 0.09} />
@@ -1006,31 +1015,36 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
       </g>
     ),
   });
-  if (layout.trunkLabels.length) items.push({ label: rtl ? "سلسلة الآباء" : "Ancestral line", swatch: (x) => pill(x, pal.ivory, pal.line) });
-  if (theme.branchColors && !pal.mono && new Set(layout.nodes.map((n) => n.lineage).filter((x) => x != null)).size >= 2) {
+  // (the trunk's names: the line the poster follows, through fathers or through mothers)
+  if (layout.trunkLabels.length) items.push({ label: say(LEGEND.lineage, rtl), swatch: (x) => pill(x, pal.ivory, pal.line) });
+  // every branch colour the poster actually uses (the palette's colours
+  // repeat past its length), each a short bar
+  const lineages = new Set(layout.nodes.map((n) => n.lineage).filter((x): x is number => x != null));
+  if (theme.branchColors && !pal.mono && lineages.size >= 2) {
+    const used = [...new Set([...lineages].map((i) => pal.branch(i)))];
     items.push({
-      label: rtl ? "لكل فرع لونه" : "Each branch its colour",
+      label: say(LEGEND.branchColours, rtl),
       swatch: (x) => (
         <g>
-          {[0, 1, 2].map((k) => (
-            <rect key={k} x={x + (k * sw) / 3} y={y - fs * 0.12} width={sw / 3.4} height={fs * 0.24} rx={fs * 0.1} fill={pal.branch(k)} />
+          {used.map((c, k) => (
+            <rect key={k} data-branch-colour={c} x={x + (k * sw) / used.length} y={y - fs * 0.12} width={sw / used.length - fs * 0.08} height={fs * 0.24} rx={fs * 0.08} fill={c} />
           ))}
         </g>
       ),
+      width: Math.max(sw, used.length * fs * 0.5),
     });
   }
   if (layout.branches.some((b) => b.dotted)) {
     items.push({
-      label: rtl ? "عن طريق البنات" : "Through a daughter",
+      label: say(LEGEND.throughDaughters, rtl),
       swatch: (x) => (
         <line x1={x + fs * 0.2} y1={y} x2={x + sw - fs * 0.2} y2={y} stroke={pal.branch(null)} strokeWidth={fs * 0.22} strokeLinecap="round" strokeDasharray={`0.01 ${(fs * 0.46).toFixed(1)}`} />
       ),
     });
   }
   if (layout.spouses.some((s) => !s.knot)) {
-    const kinds = new Set(layout.spouses.filter((s) => !s.knot).map((s) => s.member.gender));
     items.push({
-      label: rtl ? (kinds.size > 1 ? "زوج / زوجة" : kinds.has("MALE") ? "زوج" : "زوجة") : "Spouse",
+      label: spouseLabel(layout.spouses.filter((s) => !s.knot).map((s) => s.member.gender), rtl),
       swatch: (x) => {
         const style = theme.spouseStyle ?? "manuscript";
         const rule = style === "capsule" ? pal.spouseRim : pal.rule;
@@ -1049,18 +1063,51 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
       },
     });
   }
-  if (theme.colorBy === "generation") {
-    for (const g of generationsPresent.slice(0, 8)) {
-      const c = generationColor(g - generationOffset).fill;
-      items.push({ label: generationLabel(g - generationOffset, rtl), swatch: (x) => pill(x, c, shade(c, -0.35)) });
+  // Every generation's colour on the poster is explained: each named while
+  // there are few, otherwise one row of chips numbered by generation.
+  if (theme.colorBy === "generation" && generationsPresent.length) {
+    if (generationsPresent.length <= NAMED_GENERATIONS) {
+      for (const g of generationsPresent) {
+        const c = generationColor(g - generationOffset).fill;
+        items.push({ label: generationLabel(g - generationOffset, rtl), swatch: (x) => pill(x, c, shade(c, -0.35)) });
+      }
+    } else {
+      // (narrower chips for many generations: as wide as the room the other
+      // entries leave, so the key keeps inside the frame)
+      const chipGap = fs * 0.1;
+      const others = items.reduce((a, it) => a + (it.width ?? sw) + fs * 0.5 + textWidth(it.label, fs) + KEY_GAP * fs, 0);
+      const left = keyRoom / KEY_MIN - others - fs * 0.5 - textWidth(say(LEGEND.generations, rtl), fs);
+      const chip = Math.max(fs * 0.8, Math.min(fs * 1.25, left / generationsPresent.length - chipGap));
+      const gens = generationsPresent;
+      const stripW = gens.length * chip + (gens.length - 1) * chipGap;
+      items.push({
+        label: say(LEGEND.generations, rtl),
+        width: stripW,
+        swatch: (x) => (
+          <g>
+            {gens.map((g, k) => {
+              const c = generationColor(g - generationOffset);
+              // reading order: the first generation on the right in Arabic
+              const cx = rtl ? x + stripW - chip / 2 - k * (chip + chipGap) : x + chip / 2 + k * (chip + chipGap);
+              return (
+                <g key={g} data-generation={g - generationOffset + 1}>
+                  <rect x={cx - chip / 2} y={y - fs * 0.5} width={chip} height={fs} rx={fs * 0.22} fill={c.fill} stroke={shade(c.fill, -0.35)} strokeWidth={fs * 0.06} />
+                  <text x={cx} y={y} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.62} fontWeight={700} fill={c.text}>
+                    {(g - generationOffset + 1).toLocaleString(rtl ? "ar-EG" : "en-US", { useGrouping: false })}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        ),
+      });
     }
   }
   const fmt = (n: number) => n.toLocaleString(rtl ? "ar-SA" : "en-US");
   // The numbers, each on its own small card (a number over its name)
-  const cards: [string, number][] = rtl
-    ? [["المجموع", stats.total], ["الذكور", stats.males], ["الإناث", stats.females], ["أجيال النسب", stats.generations]]
-    : [["People", stats.total], ["Males", stats.males], ["Females", stats.females], ["Generations", stats.generations]];
-  const cardW = fs * 4.4, cardH = fs * 1.95, cardGap = fs * 0.7, cardY = layout.frame.footerY - fs * 2.05;
+  const cards = statCards(stats, rtl);
+  // (as wide as the longest label needs, "Number of generations" included)
+  const cardW = Math.max(fs * 4.4, ...cards.map(([label]) => textWidth(label, fs * 0.62) + fs * 0.9)), cardH = fs * 1.95, cardGap = fs * 0.7, cardY = layout.frame.footerY - fs * 2.05;
   const cardsW = cards.length * cardW + (cards.length - 1) * cardGap;
   const ink = pal.footerInk;
   const gold = pal.rule;
@@ -1087,29 +1134,37 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   const named = rtl ? /[\u0600-\u06FF]/.test(meta.name) : !!meta.name.trim();
   const credit = rtl ? `${named ? `${meta.name} — ` : ""}صُمّمت بواسطة شجرة` : `${named ? `${meta.name} — ` : ""}made with Shajarah`;
   // lay the key out from the centre; RTL reads right to left
-  const gap = fs * 1.8;
-  const widths = items.map((it) => sw + fs * 0.5 + textWidth(it.label, fs));
-  const total = widths.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
+  // (a key wider than the space inside the frame is set a little smaller
+  // to fit, as far as KEY_MIN of its size; it has never needed to be)
+  const gap = fs * KEY_GAP;
+  const symW = (it: Item) => it.width ?? sw;
+  const natural = items.map((it) => symW(it) + fs * 0.5 + textWidth(it.label, fs));
+  const room = keyRoom;
+  const rawTotal = natural.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
+  const k = Math.max(KEY_MIN, Math.min(1, room / Math.max(1, rawTotal)));
+  const total = rawTotal * k;
   let cursor = rtl ? W / 2 + total / 2 : W / 2 - total / 2;
   const placed = items.map((it, i) => {
-    const w = widths[i];
+    const w = natural[i] * k;
     const x0 = rtl ? cursor - w : cursor;
-    cursor = rtl ? cursor - w - gap : cursor + w + gap;
+    cursor = rtl ? cursor - w - gap * k : cursor + w + gap * k;
     // swatch on the reading-start side of each label
-    const swX = rtl ? x0 + w - sw : x0;
-    const textX = rtl ? swX - fs * 0.5 : x0 + sw + fs * 0.5;
+    const sx = rtl ? x0 + w - symW(it) * k : x0;
+    const textX = rtl ? sx - fs * 0.5 * k : x0 + (symW(it) + fs * 0.5) * k;
     return (
       <g key={i}>
-        {it.swatch(swX)}
+        <g transform={k < 1 ? `translate(${sx.toFixed(1)} ${y.toFixed(1)}) scale(${k.toFixed(3)}) translate(${(-sx).toFixed(1)} ${(-y).toFixed(1)})` : undefined}>
+          {it.swatch(sx)}
+        </g>
         {/* with direction=rtl, "start" is the right edge of the text */}
-        <text x={textX} y={y} dominantBaseline="central" textAnchor="start" direction={rtl ? "rtl" : "ltr"} fontSize={fs} fill={pal.ink}>
+        <text x={textX} y={y} dominantBaseline="central" textAnchor="start" direction={rtl ? "rtl" : "ltr"} fontSize={fs * k} fill={pal.ink}>
           {it.label}
         </text>
       </g>
     );
   });
   return (
-    <g>
+    <g data-key-width={total.toFixed(1)} data-key-room={room.toFixed(1)}>
       {placed}
       {cardEls}
       <text x={W / 2} y={layout.frame.footerY} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.72} fill={pal.creditInk} direction={rtl ? "rtl" : "ltr"}>
