@@ -197,17 +197,27 @@ export function metalStops(c: string): [string, string, string] {
 }
 
 /**
- * The main branches' colours: four muted heritage tones of like weight
- * (deep teal, antique gold, dusty plum, slate blue), ordered so neighbours
- * differ strongly. Fewer than one per branch on purpose: six or seven
- * colours read as a rainbow, and branches four apart are far apart. All
- * are dark enough to read as lines on ivory (≥ 3:1).
+ * The main branches' colours: muted heritage tones of like weight, the
+ * first four those every poster had (deep teal, antique gold, dusty plum,
+ * slate blue), then four more, ordered so neighbours differ strongly; each
+ * design has its own eight, its first four likewise its old ones. All are
+ * dark enough to read as lines on ivory (≥ 3:1).
  */
-export const LINEAGE_COLORS = ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380"] as const;
+export const LINEAGE_COLORS = ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380", "#a3543d", "#697044", "#8e3a41", "#76533b"] as const;
 
-export function lineageColor(i: number | null | undefined, fallback: string, colours: readonly string[] = LINEAGE_COLORS): string {
-  return i == null ? fallback : colours[i % colours.length];
+/** Main branches with distinct colours by default; the seventh and eighth colours only for a poster with that many. */
+export const LINEAGE_DEFAULT = 6;
+
+/**
+ * The colour of main branch `i` of `count`: each its own up to six, the
+ * seventh and eighth only on a poster with seven or eight, then repeating.
+ */
+export function lineageColor(i: number | null | undefined, fallback: string, colours: readonly string[] = LINEAGE_COLORS, count = LINEAGE_DEFAULT): string {
+  if (i == null) return fallback;
+  const n = Math.min(colours.length, Math.max(LINEAGE_DEFAULT, count));
+  return colours[i % n];
 }
+
 
 /**
  * Every colour a poster is drawn in, beyond the ones a person can choose
@@ -298,7 +308,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2e2418", inkSoft: "#5c4834", muted: "#5c4834", footerInk: "#4f3e2c", creditInk: "#5f4d38",
     canopyWash: "#ece2cb", canopyWashOpacity: 0.4,
     spouseFill: "#f3ece0", spouseRim: "#8a7350", spouseInk: "#4a3b2a", legendParent: "#e6dcc6",
-    lineage: ["#5a6a5c", "#8a6a2e", "#7a4a52", "#3f5a7e"],
+    lineage: ["#5a6a5c", "#8a6a2e", "#7a4a52", "#3f5a7e", "#a24e36", "#5a4232", "#6a6a3a", "#5a4a78"],
     frame: "rule", titleStyle: "divider", rimStyle: "fill", texture: "none",
   },
   // opulent: rich parchment, espresso, foil gold kept to frame, title and ornament
@@ -308,7 +318,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2d2119", inkSoft: "#49301f", muted: "#49301f", footerInk: "#49301f", creditInk: "#5a4330",
     canopyWash: "#e4cf9f", canopyWashOpacity: 0.22,
     spouseFill: "#f4e7cc", spouseRim: "#8d6626", spouseInk: "#49301f", legendParent: "#e5d4ad",
-    lineage: ["#86601d", "#4f4a2a", "#7a3e34", "#3f4f5c"],
+    lineage: ["#86601d", "#4f4a2a", "#7a3e34", "#3f4f5c", "#4a3020", "#6a4060", "#6e6a2a", "#94512a"],
     frame: "foil", titleStyle: "cartouche", rimStyle: "metal", texture: "none",
   },
   // historic: aged parchment, ink brown, brass
@@ -318,7 +328,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2b1e12", inkSoft: "#5a3e27", muted: "#5a3e27", footerInk: "#4a3320", creditInk: "#54402b",
     canopyWash: "#dcc69c", canopyWashOpacity: 0.2,
     spouseFill: "#f2e5c9", spouseRim: "#7f6131", spouseInk: "#4a3320", legendParent: "#e0cfa8",
-    lineage: ["#6b3e26", "#4b5a3a", "#3e4e63", "#80691f"],
+    lineage: ["#6b3e26", "#4b5a3a", "#3e4e63", "#80691f", "#7a2e34", "#5e3a5a", "#9a4630", "#2e5a52"],
     frame: "manuscript", titleStyle: "panel", rimStyle: "engraved", texture: "grain",
   },
   // contemporary: porcelain, platinum, champagne, steel
@@ -328,7 +338,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#22282e", inkSoft: "#4a525c", muted: "#4a525c", footerInk: "#3a4149", creditInk: "#4f5761",
     canopyWash: "#e9ebe8", canopyWashOpacity: 0.5,
     spouseFill: "#f2f1ec", spouseRim: "#7b6a44", spouseInk: "#3a4149", legendParent: "#e4e6e8",
-    lineage: ["#3f5f86", "#836a33", "#4f6f55", "#7a4f6a"],
+    lineage: ["#3f5f86", "#836a33", "#4f6f55", "#7a4f6a", "#3c3c44", "#707070", "#2e5e5e", "#8a5a3a"],
     frame: "metal", titleStyle: "steel", rimStyle: "metal", texture: "none",
   },
   // organic: deep teal, dusty rose, walnut, antique gold for the lineage
@@ -338,7 +348,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2a2620", inkSoft: "#4b4035", muted: "#4b4035", footerInk: "#4b4035", creditInk: "#564a3c",
     canopyWash: "#dfe6d6", canopyWashOpacity: 0.45,
     spouseFill: "#f5e5e6", spouseRim: "#9a6656", spouseInk: "#5a3730", legendParent: "#e5ded0",
-    lineage: ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380"],
+    lineage: ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380", "#a3543d", "#697044", "#8e3a41", "#76533b"],
     frame: "botanical", titleStyle: "sprig", rimStyle: "fill", texture: "none",
   },
   // regal: forest emerald, brass, deep green
@@ -348,7 +358,7 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#1c2a22", inkSoft: "#3d4a40", muted: "#5c431f", footerInk: "#2c4639", creditInk: "#45554b",
     canopyWash: "#d7e6dc", canopyWashOpacity: 0.5,
     spouseFill: "#edf2ea", spouseRim: "#2c6a4e", spouseInk: "#123f30", legendParent: "#e1e4d6",
-    lineage: ["#236347", "#856522", "#2f5e73", "#6e4a5c"],
+    lineage: ["#236347", "#856522", "#2f5e73", "#6e4a5c", "#9a4e2a", "#4a3020", "#5a6a2e", "#5a3a6e"],
     frame: "regal", titleStyle: "star", rimStyle: "gold", texture: "none",
   },
   // minimal: black ink on soft white

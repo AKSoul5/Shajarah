@@ -87,12 +87,15 @@ function makePalette(theme: PosterTheme, layout: PosterLayout, uid = "sh"): Pale
   const satin = (gender: string) => (gender === "FEMALE" ? `url(#${uid}-satin-f)` : `url(#${uid}-satin-m)`);
   const coloured = theme.branchColors && !mono;
   const bark = mono ? "#1a1a1a" : theme.branch;
+  // how many main branches the poster has (the seventh and eighth colours
+  // only for one with that many; see lineageColor)
+  const count = 1 + Math.max(-1, ...layout.nodes.map((n) => n.lineage ?? -1));
   return {
     ...tokens,
     uid,
     mono,
-    branch: (i) => (coloured ? lineageColor(i, bark, tokens.lineage) : bark),
-    rim: (i) => (coloured && i != null ? lineageColor(i, bark, tokens.lineage) : null),
+    branch: (i) => (coloured ? lineageColor(i, bark, tokens.lineage, count) : bark),
+    rim: (i) => (coloured && i != null ? lineageColor(i, bark, tokens.lineage, count) : null),
     line: tokens.rule,
     fill: (n) => {
       if (mono) return { fill: "#ffffff", border: "#111111", text: "#111111" };
