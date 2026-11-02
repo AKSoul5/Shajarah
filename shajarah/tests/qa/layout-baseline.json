@@ -348,8 +348,7 @@
 "legible": false
 },
 "C-en_all_heritage_A1": {
-"legible": true,
-"occlusion": 4
+"legible": false
 },
 "C-en_all_heritage_A3": {
 "legible": false
@@ -361,8 +360,7 @@
 "legible": false
 },
 "C-en_all_mono_A1": {
-"legible": true,
-"occlusion": 3
+"legible": false
 },
 "C-en_all_mono_A3": {
 "legible": false
@@ -512,18 +510,13 @@
 "legible": true
 },
 "C_all_classic_A1": {
-"legible": true,
-"occlusion": 1
+"legible": true
 },
 "C_all_classic_A2_banner": {
 "legible": false
 },
 "C_all_classic_A2_column": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_classic_A2_paragraph": {
 "legible": false
@@ -532,11 +525,7 @@
 "legible": false
 },
 "C_all_classic_A2_roots": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_classic_A2_spine": {
 "legible": false
@@ -551,18 +540,13 @@
 "legible": true
 },
 "C_all_emerald_A1": {
-"legible": true,
-"occlusion": 1
+"legible": true
 },
 "C_all_emerald_A2_banner": {
 "legible": false
 },
 "C_all_emerald_A2_column": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_emerald_A2_paragraph": {
 "legible": false
@@ -571,11 +555,7 @@
 "legible": false
 },
 "C_all_emerald_A2_roots": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_emerald_A2_spine": {
 "legible": false
@@ -596,11 +576,7 @@
 "legible": false
 },
 "C_all_heritage_A2_column": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_heritage_A2_paragraph": {
 "legible": false
@@ -609,21 +585,13 @@
 "legible": false
 },
 "C_all_heritage_A2_roots": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_heritage_A2_spine": {
 "legible": false
 },
 "C_all_heritage_A3": {
-"crossing": 11,
-"junction": 4,
-"legible": true,
-"merge": 2,
-"occlusion": 78
+"legible": false
 },
 "C_all_luxe_2A0": {
 "legible": true
@@ -632,18 +600,13 @@
 "legible": true
 },
 "C_all_luxe_A1": {
-"legible": true,
-"occlusion": 2
+"legible": true
 },
 "C_all_luxe_A2_banner": {
 "legible": false
 },
 "C_all_luxe_A2_column": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_luxe_A2_paragraph": {
 "legible": false
@@ -652,11 +615,7 @@
 "legible": false
 },
 "C_all_luxe_A2_roots": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_luxe_A2_spine": {
 "legible": false
@@ -674,28 +633,22 @@
 "legible": true
 },
 "C_all_mono_A2_banner": {
-"legible": true,
-"occlusion": 5
+"legible": false
 },
 "C_all_mono_A2_column": {
-"legible": true,
-"occlusion": 6
+"legible": false
 },
 "C_all_mono_A2_paragraph": {
-"legible": true,
-"occlusion": 4
+"legible": false
 },
 "C_all_mono_A2_pedestal": {
-"legible": true,
-"occlusion": 5
+"legible": false
 },
 "C_all_mono_A2_roots": {
-"legible": true,
-"occlusion": 5
+"legible": false
 },
 "C_all_mono_A2_spine": {
-"legible": true,
-"occlusion": 6
+"legible": false
 },
 "C_all_mono_A3": {
 "legible": false
@@ -710,35 +663,25 @@
 "legible": true
 },
 "C_all_refined_A2_banner": {
-"legible": true,
-"occlusion": 2
+"legible": false
 },
 "C_all_refined_A2_column": {
-"legible": true,
-"occlusion": 6
+"legible": false
 },
 "C_all_refined_A2_paragraph": {
-"legible": true,
-"occlusion": 4
+"legible": false
 },
 "C_all_refined_A2_pedestal": {
-"legible": true,
-"occlusion": 5
+"legible": false
 },
 "C_all_refined_A2_roots": {
-"legible": true,
-"occlusion": 2
+"legible": false
 },
 "C_all_refined_A2_spine": {
-"legible": true,
-"occlusion": 6
+"legible": false
 },
 "C_all_refined_A3": {
-"crossing": 7,
-"junction": 2,
-"legible": true,
-"merge": 7,
-"occlusion": 79
+"legible": false
 },
 "C_all_silver-gold_2A0": {
 "legible": true
@@ -747,18 +690,13 @@
 "legible": true
 },
 "C_all_silver-gold_A1": {
-"legible": true,
-"occlusion": 2
+"legible": true
 },
 "C_all_silver-gold_A2_banner": {
 "legible": false
 },
 "C_all_silver-gold_A2_column": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_silver-gold_A2_paragraph": {
 "legible": false
@@ -767,11 +705,7 @@
 "legible": false
 },
 "C_all_silver-gold_A2_roots": {
-"crossing": 5,
-"junction": 1,
-"legible": true,
-"merge": 3,
-"occlusion": 33
+"legible": false
 },
 "C_all_silver-gold_A2_spine": {
 "legible": false

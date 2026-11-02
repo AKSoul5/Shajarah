@@ -112,6 +112,11 @@ export interface LayoutOptions {
   soilStyle?: SoilStyleId;
   /** A foundation too long for its share leaves names out ("…") instead of taking more room. Default false. */
   soilShorten?: boolean;
+  /**
+   * Internal (see computePosterLayout): a poster that cannot be clean at a
+   * legible size is laid out clean, its names as large as that allows.
+   */
+  cleanFirst?: boolean;
   /** Where the trunk starts; older ancestors go into the soil. Defaults to tree.trunkStartId. */
   trunkStartId?: string | null;
   /** In automatic mode: ancestors on the trunk before the rest move into the soil. */
@@ -345,6 +350,41 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const layout = layoutOnce(tree, opts);
+  const clean = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
+  if (clean(layout) && layout.legibility.ok) return layout;
+  // Another balance of the canopy's two halves: the balance is judged once,
+  // early, from the first attempt (see sideLean); a poster left legible
+  // with a few ambiguous connections is often clean with its middle moved
+  // a little the other way. The first that is clean and legible is taken.
+  if (opts.sideBias === undefined && layout.overlaps === 0 && layout.legibility.ok && layout.clarity.issues.length <= BALANCE_ISSUES) {
+    for (const sideBias of BALANCES) {
+      const l = layoutOnce(tree, { ...opts, sideBias });
+      if (clean(l) && l.legibility.ok) return l;
+    }
+  }
+  // Correct relationships first: a poster that cannot be both clean and
+  // legible on its paper is drawn clean, its names as large as that allows,
+  // rather than legible with a line that reads as joining the wrong people.
+  // (Its names below the legible size, the editor recommends a larger
+  // paper, where it is both.)
+  if (!clean(layout)) {
+    const c = layoutOnce(tree, { ...opts, cleanFirst: true });
+    if (clean(c)) return c;
+  }
+  return layout;
+}
+
+/**
+ * Balances tried for a poster left legible with a few ambiguities (as
+ * LayoutOptions.sideBias), most often clean first; and the most
+ * ambiguities a poster may have for them to be tried.
+ */
+const BALANCES = [-0.04, 0.06, -0.02];
+const BALANCE_ISSUES = 15;
+
+/** One layout of the poster (see computePosterLayout, which may lay it out again). */
+function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // Each attempt is verified for overlapping names AND for relationship
   // clarity (every line from the right parent to the right child, none
   // hidden under another name, no ambiguous crossings). Ambiguity means the
@@ -670,6 +710,29 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
       }
     }
   }
+  // Clean first (see computePosterLayout): the largest clean size met, or,
+  // failing that, the largest clean one found below the poster's own.
+  if (opts.cleanFirst && !isClean(best.layout)) {
+    const met = searches
+      .flatMap((sr) => [...sr.tried.entries()].map(([scale, l]) => ({ sr, scale, l })))
+      .filter(({ l }) => isClean(l))
+      .sort((a, b) => b.scale - a.scale)[0];
+    if (met) best = { layout: met.l, chosen: met.scale, strict: false, attempt: met.sr.attempt };
+    else {
+      let lo = MIN_SCALE, hi = best.chosen;
+      let found: PosterLayout | null = null;
+      const low = best.attempt(lo);
+      if (isClean(low)) {
+        found = low;
+        for (let i = 0; i < 7; i++) {
+          const mid = (lo + hi) / 2;
+          const l = best.attempt(mid);
+          if (isClean(l)) { lo = mid; found = l; } else hi = mid;
+        }
+        best = { layout: found, chosen: lo, strict: false, attempt: best.attempt };
+      }
+    }
+  }
   const result = best.layout;
   result.tooDense = result.clarity.issues.length > CLARITY_LIMIT;
   // The balanced centring (a leader up the centred branch, its brothers
@@ -680,7 +743,7 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
   // is the paper's size, which the arrangement does not change.)
   if (opts.centerLead === undefined && opts.centerSides === undefined && result.centerLine?.length
     && !isClean(result) && result.overlaps === 0 && result.clarity.issues.length <= 4) {
-    const plain = computePosterLayout(tree, { ...opts, centerLead: false, centerSides: "room" });
+    const plain = layoutOnce(tree, { ...opts, centerLead: false, centerSides: "room" });
     if (rank(plain) < rank(result)) return plain;
   }
   // The lifted sweep (a crown rising from the trunk) never costs a clean,
@@ -689,7 +752,7 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
   // LARGE_FAMILY names; a larger one was decided on its first attempt, as
   // laying it out twice would be slow.)
   if (opts.sweepLift === undefined && result.nodes.length <= LARGE_FAMILY && (result.sweepLift ?? WIDE_SWEEP) > 0 && !(isClean(result) && result.legibility.ok)) {
-    const wide = computePosterLayout(tree, { ...opts, sweepLift: WIDE_SWEEP });
+    const wide = layoutOnce(tree, { ...opts, sweepLift: WIDE_SWEEP });
     if (rank(wide) < rank(result)) return wide;
   }
   return result;
