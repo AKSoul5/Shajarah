@@ -12,7 +12,7 @@ export const LEGEND = {
   descendants: { ar: "له/لها ذرية", en: "Has descendants" },
   /** The names on the trunk: the line the poster follows, through fathers or through mothers. */
   lineage: { ar: "سلسلة النسب", en: "Ancestral lineage" },
-  branchColours: { ar: "لكل فرع لونه", en: "Each branch its colour" },
+  branchColours: { ar: "لكل فرع لونه", en: "Distinct branch colours" },
   /** Dotted lines: a daughter's husband and children, shown through her. */
   throughDaughters: { ar: "امتداد الأسرة عبر البنات", en: "Family branches through daughters" },
   generations: { ar: "الأجيال", en: "Generations" },
