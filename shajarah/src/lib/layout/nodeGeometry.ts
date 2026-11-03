@@ -26,13 +26,12 @@ export const NODE_STROKE = 0.06;
 export const RING_GAP = 0.16;
 export const RING_STROKE = NODE_STROKE * 1.1;
 /**
- * Room kept between two names' drawn shapes (rings and strokes included),
- * in font sizes, on top of the layout's fixed gap: each name keeps half of
- * it clear around itself, so names converging on one branch never sit edge
- * to edge. It gives way to legibility (see computePosterLayout): a poster
- * that would fall short of the legible size with it is laid out without.
+ * Extra room between two names' drawn shapes, in font sizes, on top of
+ * the layout's fixed gap. None: every amount tried (0.04 to 0.1) tipped
+ * some dense posters to smaller names or a larger paper; the fixed gap and
+ * the reserved rings keep names apart (docs/node-designs.md).
  */
-export const CLEARANCE = 0.1;
+export const CLEARANCE = 0;
 /** A medallion's outline stroke (the coloured rim), in font sizes. */
 export const MEDALLION_STROKE = 0.12;
 
