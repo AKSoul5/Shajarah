@@ -17,6 +17,7 @@ import { PersonProfile } from "./PersonProfile";
 import { LanguageSwitch, useLanguage } from "@/lib/i18n";
 import { RecordsPage } from "./RecordsPage";
 import { AnalyticsPage } from "./AnalyticsPage";
+import { ChartsPage } from "./ChartsPage";
 import { PeopleFilters, activeFilters } from "./PeopleFilters";
 import { peopleSearch, type PeopleQuery } from "@/lib/family/filters";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
@@ -154,14 +155,15 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   );
 
   // Poster or sources page; #sources in the address keeps the choice on reload
-  const [view, setView] = useState<"poster" | "sources" | "records" | "analytics">("poster");
+  const [view, setView] = useState<"poster" | "sources" | "records" | "analytics" | "charts">("poster");
   const [sourceId, setSourceId] = useState<string | null>(null);
   useEffect(() => {
     if (window.location.hash === "#sources") setView("sources");
     if (window.location.hash === "#records") setView("records");
     if (window.location.hash === "#analytics") setView("analytics");
+    if (window.location.hash === "#charts") setView("charts");
   }, []);
-  const showView = (v: "poster" | "sources" | "records" | "analytics") => {
+  const showView = (v: "poster" | "sources" | "records" | "analytics" | "charts") => {
     setView(v);
     window.history.replaceState(null, "", v === "poster" ? window.location.pathname + window.location.search : `#${v}`);
   };
@@ -672,7 +674,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           </p>
         </div>
         <div role="tablist" aria-label="View" className="flex shrink-0 overflow-hidden rounded-md border border-parchment-300 text-sm">
-          {(["poster", "sources", "records", "analytics"] as const).map((v) => (
+          {(["poster", "sources", "records", "analytics", "charts"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -681,7 +683,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               className={`whitespace-nowrap px-3 py-1 ${view === v ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}
               onClick={() => showView(v)}
             >
-              {v === "poster" ? t("view.poster") : v === "sources" ? t("view.sources", { n: n(tree.sources.length) }) : t(v === "records" ? "view.records" : "view.analytics")}
+              {v === "poster" ? t("view.poster") : v === "sources" ? t("view.sources", { n: n(tree.sources.length) }) : t(v === "records" ? "view.records" : v === "analytics" ? "view.analytics" : "view.charts")}
             </button>
           ))}
         </div>
@@ -1281,7 +1283,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             ];
             return <PersonMenu name={nasab(tree.members, id, 2)} x={personMenu.x} y={personMenu.y} items={items} onClose={() => setPersonMenu(null)} />;
           })()}
-          {view === "analytics" ? (
+          {view === "charts" ? (
+            <ChartsPage ix={family} subjectId={selectedId} onOpenMember={openPerson} />
+          ) : view === "analytics" ? (
             <AnalyticsPage ix={family} tree={tree} onOpenMember={openPerson} />
           ) : view === "records" ? (
             <RecordsPage ix={family} tree={tree} onOpenMember={openPerson} />
