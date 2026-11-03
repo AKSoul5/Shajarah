@@ -89,7 +89,7 @@ describe("the Charts view", () => {
     const ix = buildFamilyIndex(t);
     for (const lang of ["en", "ar"] as const) {
       for (const m of t.members) {
-        const html = renderToStaticMarkup(React.createElement(LanguageProvider, { initial: lang, children: React.createElement(ChartsPage, { ix, marriages: t.marriages, subjectId: m.id, onOpenMember: () => {} }) }));
+        const html = renderToStaticMarkup(React.createElement(LanguageProvider, { initial: lang, children: React.createElement(ChartsPage, { ix, marriages: t.marriages, sources: t, subjectId: m.id, onOpenMember: () => {} }) }));
         expect(html).toContain("<svg");
         expect(html).toContain(m.name);
       }
@@ -140,5 +140,21 @@ describe("the family timeline", () => {
     expect(undatedBirths).toBe(2);
     // limited to one branch
     expect(timeline(ix, t.marriages, new Set(["c"])).events.map((e) => e.people[0].id)).toEqual(["c"]);
+  });
+});
+
+describe("the family register", () => {
+  it("numbers families in order, lists children with roman numerals, and gives the number of those with families of their own", async () => {
+    const { familyRegister, roman } = await import("@/lib/family/reports");
+    const t = tree([["P", "M"], ["A", "M", "P"], ["B", "F", "P"], ["a1", "M", "A"], ["a2", "M", "A"], ["x", "M", "a1"]]);
+    t.sources = [{ id: "s1", title: "Family papers", author: null, publication: null, notes: null } as never];
+    t.citations = [{ id: "c1", sourceId: "s1", memberId: "A", eventType: null, page: null } as never, { id: "c2", sourceId: "s1", memberId: "A", eventType: null, page: null } as never];
+    const r = familyRegister(buildFamilyIndex(t), t, "P", 4);
+    expect(r.map((e) => [e.number, e.person.id, e.generation, e.line.join(">")])).toEqual([
+      [1, "P", 1, ""], [2, "A", 2, "1"], [3, "a1", 3, "1>2"],
+    ]);
+    expect(r[0].children.map((c) => [c.roman, c.person.id, c.number])).toEqual([["i", "A", 2], ["ii", "B", null]]);
+    expect(r[1].sources).toEqual(["Family papers"]);
+    expect([roman(4), roman(9), roman(14)]).toEqual(["iv", "ix", "xiv"]);
   });
 });

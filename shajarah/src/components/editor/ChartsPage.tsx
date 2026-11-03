@@ -8,7 +8,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { nasabIn, type FamilyIndex } from "@/lib/family/index";
-import { ahnentafel, descendantTree, groupSheets, pedigree, timeline, type PedigreeNode } from "@/lib/family/reports";
+import { ahnentafel, descendantTree, familyRegister, groupSheets, pedigree, timeline, type PedigreeNode } from "@/lib/family/reports";
 import { RadialTree, Timeline } from "./TimelineRadial";
 import type { MarriageDTO } from "@/lib/types";
 import { BowtieChart, FanChart, HourglassChart } from "./MoreCharts";
@@ -16,7 +16,7 @@ import { generationText } from "@/lib/family/generations";
 import { useLanguage } from "@/lib/i18n";
 import type { MemberDTO } from "@/lib/types";
 
-type Format = "pedigree" | "fan" | "hourglass" | "bowtie" | "radial" | "ahnentafel" | "groupSheet" | "timeline";
+type Format = "pedigree" | "fan" | "hourglass" | "bowtie" | "radial" | "ahnentafel" | "groupSheet" | "timeline" | "register";
 const GRAPHICAL: readonly Format[] = ["pedigree", "fan", "hourglass", "bowtie", "radial"];
 
 const years = (m: MemberDTO | null | undefined) =>
@@ -74,7 +74,10 @@ function PedigreeChart({ rows, rtl, onPick, t }: { rows: PedigreeNode[][]; rtl: 
   );
 }
 
-export function ChartsPage({ ix, marriages, subjectId, onOpenMember }: { ix: FamilyIndex; marriages: readonly MarriageDTO[]; subjectId: string | null; onOpenMember: (id: string) => void }) {
+export function ChartsPage({ ix, marriages, sources, subjectId, onOpenMember }: {
+  ix: FamilyIndex; marriages: readonly MarriageDTO[]; subjectId: string | null; onOpenMember: (id: string) => void;
+  sources: { sources: readonly { id: string; title: string }[]; citations: readonly { sourceId: string; memberId: string }[] };
+}) {
   const { t, n, lang, dir } = useLanguage();
   const [format, setFormat] = useState<Format>("pedigree");
   const [generations, setGenerations] = useState(4);
@@ -85,6 +88,7 @@ export function ChartsPage({ ix, marriages, subjectId, onOpenMember }: { ix: Fam
   const sheets = useMemo(() => (subject ? groupSheets(ix, subject.id) : []), [ix, subject]);
   const below = useMemo(() => (subject && format === "hourglass" ? descendantTree(ix, subject.id, 3) : null), [ix, subject, format]);
   const radial = useMemo(() => (subject && format === "radial" ? descendantTree(ix, subject.id, Math.min(generations, 5)) : null), [ix, subject, format, generations]);
+  const register = useMemo(() => (subject && format === "register" ? familyRegister(ix, sources, subject.id, Math.max(generations, 3)) : []), [ix, sources, subject, format, generations]);
   // the timeline: the whole family, or the main branch the person belongs to
   const [wholeFamily, setWholeFamily] = useState(true);
   const events = useMemo(() => {
@@ -120,7 +124,7 @@ export function ChartsPage({ ix, marriages, subjectId, onOpenMember }: { ix: Fam
             <p className="text-xs text-bark-400">{t("charts.howToChoose")}</p>
           </div>
           <div role="tablist" className="ms-auto inline-flex overflow-hidden rounded-md border border-parchment-300 text-sm">
-            {(["pedigree", "fan", "hourglass", "bowtie", "radial", "ahnentafel", "groupSheet", "timeline"] as const).map((f) => (
+            {(["pedigree", "fan", "hourglass", "bowtie", "radial", "ahnentafel", "groupSheet", "timeline", "register"] as const).map((f) => (
               <button key={f} type="button" role="tab" aria-selected={format === f} onClick={() => setFormat(f)}
                 className={`px-3 py-1 ${format === f ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}>
                 {t(`charts.${f}`)}
@@ -160,6 +164,43 @@ export function ChartsPage({ ix, marriages, subjectId, onOpenMember }: { ix: Fam
                   <Timeline events={events.events} onPick={onOpenMember} label={(e) => t(`charts.event.${e.kind}`)} />
                 ) : <p className="text-sm text-bark-500">{t("analytics.noYears")}</p>}
               </div>
+            )}
+            {format === "register" && (
+              <article className="space-y-5">
+                <p className="text-xs text-bark-400">{t("charts.registerNote")}</p>
+                {[...new Set(register.map((e) => e.generation))].map((gen) => (
+                  <section key={gen} className="space-y-4">
+                    <h3 className="border-b border-parchment-300 pb-1 text-base font-semibold text-bark-900">{t("charts.registerGeneration", { n: n(gen) })}</h3>
+                    {register.filter((e) => e.generation === gen).map((e) => (
+                      <div key={e.number} className="space-y-1 text-sm leading-relaxed">
+                        <p>
+                          <span className="me-2 font-semibold tabular-nums">{n(e.number)}.</span>
+                          <Name m={e.person} />
+                          {e.line.length > 0 && <span className="text-xs text-bark-400"> ({e.line.map(n).join(" › ")})</span>}
+                          {years(e.person) && <span className="text-bark-500"> · {years(e.person)}</span>}
+                          {e.spouses.length > 0 && <span> · {t("charts.married")} {e.spouses.map((s, k) => <span key={s.person.id}>{k > 0 && t("list.separator")}<Name m={s.person} />{s.marriage.startYear ? ` (${s.marriage.startYear})` : ""}</span>)}</span>}
+                        </p>
+                        {e.person.notes && <p className="whitespace-pre-line ps-6 text-bark-700" dir="auto">{e.person.notes}</p>}
+                        {e.children.length > 0 && (
+                          <div className="ps-6">
+                            <p className="text-xs text-bark-500">{t("row.children", { n: n(e.children.length) })}</p>
+                            <ol className="space-y-0.5">
+                              {e.children.map((c) => (
+                                <li key={c.person.id} className="flex gap-2">
+                                  <span className="w-5 shrink-0 text-center">{c.number ? "+" : ""}</span>
+                                  <span className="w-8 shrink-0 text-bark-500">{c.roman}.</span>
+                                  <span><Name m={c.person} />{years(c.person) && <span className="text-bark-500"> · {years(c.person)}</span>}{c.number ? <span className="text-xs text-bark-400"> → {n(c.number)}</span> : null}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                        {e.sources.length > 0 && <p className="ps-6 text-xs text-bark-500">{t("charts.sources")}: {e.sources.join(t("list.separator"))}</p>}
+                      </div>
+                    ))}
+                  </section>
+                ))}
+              </article>
             )}
             {format === "bowtie" && <BowtieChart rows={rows} rtl={dir === "rtl"} onPick={onOpenMember} notRecorded={t("kin.notRecorded")} />}
 

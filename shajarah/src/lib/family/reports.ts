@@ -168,3 +168,76 @@ export function timeline(ix: FamilyIndex, marriages: readonly MarriageDTO[], amo
   events.sort((x, y) => x.year - y.year || order[x.kind] - order[y.kind]);
   return { events, undatedBirths };
 }
+
+export interface RegisterChild {
+  person: MemberDTO;
+  /** i, ii, iii… in birth order. */
+  roman: string;
+  /** The child's own number in the register, when they have a family of their own in it. */
+  number: number | null;
+}
+export interface RegisterEntry {
+  /** 1, 2, 3… in the order the register sets out the families. */
+  number: number;
+  person: MemberDTO;
+  /** Generation in the register (1: the person it starts from). */
+  generation: number;
+  /** The line back to the start, as register numbers ("1 › 3 › 7"), nearest last. */
+  line: number[];
+  spouses: { person: MemberDTO; marriage: MarriageDTO }[];
+  children: RegisterChild[];
+  /** Titles of the sources cited for this person, each once. */
+  sources: string[];
+}
+
+const ROMAN: [number, string][] = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
+export const roman = (n: number) => ROMAN.reduce((s, [v, r]) => { while (n >= v) { s += r; n -= v; } return s; }, "");
+
+/**
+ * The family register (the Register style of genealogical books): the
+ * person and their descendants by birth, `generations` deep, generation by
+ * generation. Each person with children of their own (within the depth)
+ * gets a number and an entry; children are listed under their parents with
+ * roman numerals, and those with an entry of their own carry its number.
+ */
+export function familyRegister(
+  ix: FamilyIndex,
+  tree: { sources: readonly { id: string; title: string }[]; citations: readonly { sourceId: string; memberId: string }[] },
+  subjectId: string,
+  generations = 4,
+): RegisterEntry[] {
+  const subject = ix.get(subjectId);
+  if (!subject) return [];
+  const sourceTitle = new Map(tree.sources.map((s) => [s.id, s.title]));
+  const sourcesOf = (id: string) => [...new Set(tree.citations.filter((c) => c.memberId === id).map((c) => sourceTitle.get(c.sourceId)).filter((x): x is string => !!x))];
+  const entries: RegisterEntry[] = [];
+  const numberOf = new Map<string, number>();
+  // generation by generation: a person gets an entry when they are the start, or have children within the depth
+  let level: { person: MemberDTO; line: number[] }[] = [{ person: subject, line: [] }];
+  const placed = new Set([subject.id]);
+  for (let gen = 1; gen <= generations && level.length; gen++) {
+    const next: { person: MemberDTO; line: number[] }[] = [];
+    for (const { person, line } of level) {
+      const kids = gen < generations ? ix.children(person.id).filter((c) => !placed.has(c.id)) : [];
+      if (gen > 1 && !kids.length) continue;
+      const number = entries.length + 1;
+      numberOf.set(person.id, number);
+      entries.push({
+        number, person, generation: gen, line,
+        spouses: ix.spouses(person.id).map((s) => ({ person: s.person, marriage: s.marriage })),
+        children: [], sources: sourcesOf(person.id),
+      });
+      for (const c of kids) {
+        placed.add(c.id);
+        next.push({ person: c, line: [...line, number] });
+      }
+    }
+    level = next;
+  }
+  // children, with the numbers their own entries were given
+  for (const e of entries) {
+    const kids = e.generation < generations ? ix.children(e.person.id) : [];
+    e.children = kids.map((c, i) => ({ person: c, roman: roman(i + 1), number: numberOf.get(c.id) ?? null }));
+  }
+  return entries;
+}

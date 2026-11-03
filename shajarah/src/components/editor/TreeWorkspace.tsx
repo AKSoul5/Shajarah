@@ -1284,7 +1284,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             return <PersonMenu name={nasab(tree.members, id, 2)} x={personMenu.x} y={personMenu.y} items={items} onClose={() => setPersonMenu(null)} />;
           })()}
           {view === "charts" ? (
-            <ChartsPage ix={family} marriages={tree.marriages} subjectId={selectedId} onOpenMember={openPerson} />
+            <ChartsPage ix={family} marriages={tree.marriages} sources={tree} subjectId={selectedId} onOpenMember={openPerson} />
           ) : view === "analytics" ? (
             <AnalyticsPage ix={family} tree={tree} onOpenMember={openPerson} />
           ) : view === "records" ? (
