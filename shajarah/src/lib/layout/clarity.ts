@@ -82,8 +82,10 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
   let expected = 0;
   // (children of a daughter whose family is shown are drawn from her)
   const through = new Set(layout.familiesThrough ?? []);
+  // (a child of a cousin marriage stays with their parent of the line)
+  const line = layout.lineIds ? new Set(layout.lineIds) : undefined;
   for (const n of [...layout.nodes, ...layout.stubs]) {
-    const parentId = posterParentId(n.member, tree.lineage, through);
+    const parentId = posterParentId(n.member, tree.lineage, through, line);
     if (!parentId || !boxes.has(parentId)) continue;
     expected++;
     const viaSpouse = [...spouses.values()].some((s) =>
@@ -94,7 +96,7 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
     const child = byMember.get(e.childId);
     const from = spouses.get(e.parentId)?.partnerId ?? e.parentId;
     if (spouses.has(e.childId) ? spouses.get(e.childId)!.partnerId !== e.parentId
-      : child && posterParentId(child, tree.lineage, through) !== from) {
+      : child && posterParentId(child, tree.lineage, through, line) !== from) {
       issues.push({ kind: "missing", edge: [e.parentId, e.childId], detail: "drawn from the wrong parent" });
     }
   }
@@ -103,7 +105,7 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
   for (let i = 1; i < chain.length; i++) {
     // (a family shown through a daughter stands on her: her child's parent
     // on the poster is the daughter)
-    if (posterParentId(chain[i], tree.lineage, through) !== chain[i - 1].id) {
+    if (posterParentId(chain[i], tree.lineage, through, line) !== chain[i - 1].id) {
       issues.push({ kind: "trunk-order", edge: [chain[i - 1].id, chain[i].id] });
     }
   }

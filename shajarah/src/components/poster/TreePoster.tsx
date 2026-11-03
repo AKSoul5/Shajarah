@@ -583,7 +583,21 @@ const lozengePath = (x: number, y: number, s: number) =>
  * colour (pointed ends, a lozenge at each end, or a ruled inscription with
  * no box), so a spouse is never told from a person by colour alone.
  */
-export function SpouseFrame({ style, w, h, fs, pal, dotted }: { style: PosterTheme["spouseStyle"]; w: number; h: number; fs: number; pal: Palette; dotted: boolean }) {
+/**
+ * The mark of a spouse who is also drawn in their own right elsewhere on the
+ * poster (a cousin married within the family): a small ring with a dot,
+ * centred on 0, 0, inside the frame.
+ */
+export function ElsewhereMark({ fs, pal, x = 0, y = 0 }: { fs: number; pal: Palette; x?: number; y?: number }) {
+  return (
+    <g data-elsewhere-mark transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}>
+      <circle r={fs * 0.24} fill={pal.mono ? "#fff" : pal.paper} stroke={pal.rule} strokeWidth={fs * 0.06} />
+      <circle r={fs * 0.08} fill={pal.rule} />
+    </g>
+  );
+}
+
+export function SpouseFrame({ style, w, h, fs, pal, dotted, elsewhere = false }: { style: PosterTheme["spouseStyle"]; w: number; h: number; fs: number; pal: Palette; dotted: boolean; elsewhere?: boolean }) {
   const dash = dotted ? `${(fs * 0.25).toFixed(1)} ${(fs * 0.18).toFixed(1)}` : undefined;
   const rule = pal.rule;
   if (style === "capsule") {
@@ -591,7 +605,8 @@ export function SpouseFrame({ style, w, h, fs, pal, dotted }: { style: PosterThe
     return (
       <g data-spouse-frame="capsule">
         <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} fill={pal.spouseFill} stroke={pal.spouseRim} strokeWidth={fs * 0.05} strokeDasharray={dash} />
-        <path d={lozengePath(-w / 2 + mark, 0, fs * 0.09) + lozengePath(w / 2 - mark, 0, fs * 0.09)} fill={pal.mono ? rule : pal.spouseRim} opacity={0.85} />
+        <path d={(elsewhere ? "" : lozengePath(-w / 2 + mark, 0, fs * 0.09)) + lozengePath(w / 2 - mark, 0, fs * 0.09)} fill={pal.mono ? rule : pal.spouseRim} opacity={0.85} />
+        {elsewhere && <ElsewhereMark fs={fs} pal={pal} x={-w / 2 + mark} />}
       </g>
     );
   }
@@ -603,6 +618,7 @@ export function SpouseFrame({ style, w, h, fs, pal, dotted }: { style: PosterThe
         <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={fs * 0.5} fill={pal.paper} />
         <path d={`M${(-half).toFixed(1)} ${y.toFixed(1)}H${(-fs * 0.3).toFixed(1)}M${(fs * 0.3).toFixed(1)} ${y.toFixed(1)}H${half.toFixed(1)}`} stroke={rule} strokeWidth={fs * 0.045} strokeDasharray={dash} strokeLinecap="round" />
         <path d={lozengePath(0, y, fs * 0.13)} fill={rule} />
+        {elsewhere && <ElsewhereMark fs={fs} pal={pal} x={-w / 2 + fs * 0.45} />}
       </g>
     );
   }
@@ -610,7 +626,8 @@ export function SpouseFrame({ style, w, h, fs, pal, dotted }: { style: PosterThe
   return (
     <g data-spouse-frame="manuscript">
       <path d={manuscriptPath(w, h, tip)} fill={pal.ivory} stroke={rule} strokeWidth={fs * 0.06} strokeDasharray={dash} />
-      {!pal.mono && <path d={lozengePath(-w / 2 + tip * 0.42, 0, fs * 0.09) + lozengePath(w / 2 - tip * 0.42, 0, fs * 0.09)} fill={pal.spouseRim} opacity={0.8} />}
+      {!pal.mono && <path d={(elsewhere ? "" : lozengePath(-w / 2 + tip * 0.42, 0, fs * 0.09)) + lozengePath(w / 2 - tip * 0.42, 0, fs * 0.09)} fill={pal.spouseRim} opacity={0.8} />}
+      {elsewhere && <ElsewhereMark fs={fs} pal={pal} x={-w / 2 + Math.max(tip * 0.55, fs * 0.5)} />}
     </g>
   );
 }
@@ -623,21 +640,24 @@ function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; p
   // (a knot where a daughter's children by an unrecorded father part: a
   // bead on her dotted line, a little larger than its dots)
   if (s.knot) {
+    // (filled: the other parent not recorded; open: a marriage hidden on this poster)
     return (
-      <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick}>
+      <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick} data-knot={s.collapsed ? "hidden-spouse" : "unrecorded"}>
         <title>{s.member.name}</title>
-        <circle r={fs * 0.3} fill={pal.branch(s.lineage ?? null)} />
+        {s.collapsed
+          ? <circle r={fs * 0.3} fill={pal.paper} stroke={pal.branch(s.lineage ?? null)} strokeWidth={fs * 0.11} />
+          : <circle r={fs * 0.3} fill={pal.branch(s.lineage ?? null)} />}
       </g>
     );
   }
   const ink = pal.spouseInk;
   const text = s.lines.map((line, i) => (
-    <text key={i} y={(i - (s.lines.length - 1) / 2) * fs * 1.05 - (style === "inscribed" ? fs * 0.12 : 0)} textAnchor="middle" dominantBaseline="central"
+    <text key={i} x={s.elsewhere ? fs * 0.35 : 0} y={(i - (s.lines.length - 1) / 2) * fs * 1.05 - (style === "inscribed" ? fs * 0.12 : 0)} textAnchor="middle" dominantBaseline="central"
       fontSize={fs} fill={style === "inscribed" ? ink : pal.ink}>{line}</text>
   ));
-  const frame = <SpouseFrame style={style} w={s.w} h={s.h} fs={fs} pal={pal} dotted={s.dotted} />;
+  const frame = <SpouseFrame style={style} w={s.w} h={s.h} fs={fs} pal={pal} dotted={s.dotted} elsewhere={!!s.elsewhere} />;
   return (
-    <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick} data-kind="spouse" data-spouse-of={s.partnerId} data-spouse-member={s.member.id}>
+    <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick} data-kind="spouse" data-spouse-of={s.partnerId} data-spouse-member={s.member.id} data-elsewhere={s.elsewhere ? "true" : undefined}>
       <title>{s.member.name}</title>
       {frame}
       {text}
@@ -1096,6 +1116,26 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
           <SpouseFrame style={theme.spouseStyle ?? "manuscript"} w={sw} h={fs * 0.95} fs={fs} pal={pal} dotted={drawnSpouses.every((s) => s.dotted)} />
         </g>
       ),
+    });
+  }
+  // the beads on dotted lines: children whose other parent is not recorded,
+  // and children of a marriage hidden on this poster
+  for (const [key, label, open] of [["unrecorded", LEGEND.unrecorded, false], ["hidden-spouse", LEGEND.hiddenSpouse, true]] as const) {
+    if (!layout.spouses.some((s) => s.knot && !!s.collapsed === open)) continue;
+    items.push({
+      key,
+      label: say(label, rtl),
+      swatch: (x) => open
+        ? <circle cx={x + sw / 2} cy={y} r={fs * 0.3} fill={pal.paper} stroke={pal.branch(null)} strokeWidth={fs * 0.11} />
+        : <circle cx={x + sw / 2} cy={y} r={fs * 0.3} fill={pal.branch(null)} />,
+    });
+  }
+  // a spouse drawn again beside their partner (also a name in their own right elsewhere)
+  if (drawnSpouses.some((s) => s.elsewhere)) {
+    items.push({
+      key: "elsewhere",
+      label: say(LEGEND.elsewhere, rtl),
+      swatch: (x) => <ElsewhereMark fs={fs} pal={pal} x={x + sw / 2} y={y} />,
     });
   }
   // Every generation's colour on the poster is explained: each named while

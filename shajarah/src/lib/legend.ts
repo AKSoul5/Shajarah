@@ -16,6 +16,12 @@ export const LEGEND = {
   /** Dotted lines: a daughter's husband and children, shown through her. */
   throughDaughters: { ar: "امتداد الأسرة عبر البنات", en: "Family branches through daughters" },
   generations: { ar: "الأجيال", en: "Generations" },
+  /** The ring on a spouse's frame: the same person is drawn in their own right elsewhere (a cousin). */
+  elsewhere: { ar: "يظهر أيضًا في فرعه", en: "Also shown in their own branch" },
+  /** A filled bead on a dotted line: children whose other parent is not recorded part there. */
+  unrecorded: { ar: "الوالد الآخر غير مسجّل", en: "Other parent not recorded" },
+  /** An open bead: children of a marriage not drawn on this poster (recorded, hidden from it). */
+  hiddenSpouse: { ar: "زوج غير معروض في هذا الملصق", en: "Spouse not shown on this poster" },
 } as const;
 
 export const say = (label: { ar: string; en: string }, rtl: boolean) => (rtl ? label.ar : label.en);
