@@ -580,8 +580,47 @@ const lozengePath = (x: number, y: number, s: number) =>
 
 
 /**
- * A spouse's name on the branch, in one of three designs (theme.spouseStyle).
- * A daughter's husband (a family shown through her) is set with a dashed rule.
+ * The frame of a spouse's name, in one of three designs (theme.spouseStyle),
+ * centred on 0, 0: drawn on the branches and, smaller, in the key, so the
+ * key's spouse is the poster's spouse. A daughter's husband (a family shown
+ * through her) has a dashed rule. Every design carries a cue that is not
+ * colour (pointed ends, a lozenge at each end, or a ruled inscription with
+ * no box), so a spouse is never told from a person by colour alone.
+ */
+export function SpouseFrame({ style, w, h, fs, pal, dotted }: { style: PosterTheme["spouseStyle"]; w: number; h: number; fs: number; pal: Palette; dotted: boolean }) {
+  const dash = dotted ? `${(fs * 0.25).toFixed(1)} ${(fs * 0.18).toFixed(1)}` : undefined;
+  const rule = pal.rule;
+  if (style === "capsule") {
+    const mark = h * 0.42;
+    return (
+      <g data-spouse-frame="capsule">
+        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} fill={pal.spouseFill} stroke={pal.spouseRim} strokeWidth={fs * 0.05} strokeDasharray={dash} />
+        <path d={lozengePath(-w / 2 + mark, 0, fs * 0.09) + lozengePath(w / 2 - mark, 0, fs * 0.09)} fill={pal.mono ? rule : pal.spouseRim} opacity={0.85} />
+      </g>
+    );
+  }
+  if (style === "inscribed") {
+    // no box: a soft paper ground keeps the name clear of branches, a fine gold rule with a lozenge under it
+    const y = h / 2 - fs * 0.22, half = w / 2 - fs * 0.45;
+    return (
+      <g data-spouse-frame="inscribed">
+        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={fs * 0.5} fill={pal.paper} />
+        <path d={`M${(-half).toFixed(1)} ${y.toFixed(1)}H${(-fs * 0.3).toFixed(1)}M${(fs * 0.3).toFixed(1)} ${y.toFixed(1)}H${half.toFixed(1)}`} stroke={rule} strokeWidth={fs * 0.045} strokeDasharray={dash} strokeLinecap="round" />
+        <path d={lozengePath(0, y, fs * 0.13)} fill={rule} />
+      </g>
+    );
+  }
+  const tip = Math.min(fs * 0.85, h * 0.55);
+  return (
+    <g data-spouse-frame="manuscript">
+      <path d={manuscriptPath(w, h, tip)} fill={pal.ivory} stroke={rule} strokeWidth={fs * 0.06} strokeDasharray={dash} />
+      {!pal.mono && <path d={lozengePath(-w / 2 + tip * 0.42, 0, fs * 0.09) + lozengePath(w / 2 - tip * 0.42, 0, fs * 0.09)} fill={pal.spouseRim} opacity={0.8} />}
+    </g>
+  );
+}
+
+/**
+ * A spouse's name on the branch: its frame (SpouseFrame) and the name.
  */
 function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; pal: Palette; style: PosterTheme["spouseStyle"]; onClick: object }) {
   const fs = s.fontSize;
@@ -596,36 +635,13 @@ function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; p
     );
   }
   const ink = pal.spouseInk;
-  const rule = pal.rule;
-  const dash = s.dotted ? `${(fs * 0.25).toFixed(1)} ${(fs * 0.18).toFixed(1)}` : undefined;
   const text = s.lines.map((line, i) => (
     <text key={i} y={(i - (s.lines.length - 1) / 2) * fs * 1.05 - (style === "inscribed" ? fs * 0.12 : 0)} textAnchor="middle" dominantBaseline="central"
       fontSize={fs} fill={style === "inscribed" ? ink : pal.ink}>{line}</text>
   ));
-  let frame: ReactNode;
-  if (style === "capsule") {
-    frame = <rect x={-s.w / 2} y={-s.h / 2} width={s.w} height={s.h} rx={s.h / 2} fill={pal.spouseFill} stroke={pal.spouseRim} strokeWidth={fs * 0.05} strokeDasharray={dash} />;
-  } else if (style === "inscribed") {
-    // no box: a soft paper ground keeps the name clear of branches, a fine gold rule with a lozenge under it
-    const y = s.h / 2 - fs * 0.22, half = s.w / 2 - fs * 0.45;
-    frame = (
-      <>
-        <rect x={-s.w / 2} y={-s.h / 2} width={s.w} height={s.h} rx={fs * 0.5} fill={pal.paper} />
-        <path d={`M${(-half).toFixed(1)} ${y.toFixed(1)}H${(-fs * 0.3).toFixed(1)}M${(fs * 0.3).toFixed(1)} ${y.toFixed(1)}H${half.toFixed(1)}`} stroke={rule} strokeWidth={fs * 0.045} strokeDasharray={dash} strokeLinecap="round" />
-        <path d={lozengePath(0, y, fs * 0.13)} fill={rule} />
-      </>
-    );
-  } else {
-    const tip = Math.min(fs * 0.85, s.h * 0.55);
-    frame = (
-      <>
-        <path d={manuscriptPath(s.w, s.h, tip)} fill={pal.ivory} stroke={rule} strokeWidth={fs * 0.06} strokeDasharray={dash} />
-        {!pal.mono && <path d={lozengePath(-s.w / 2 + tip * 0.42, 0, fs * 0.09) + lozengePath(s.w / 2 - tip * 0.42, 0, fs * 0.09)} fill={pal.spouseRim} opacity={0.8} />}
-      </>
-    );
-  }
+  const frame = <SpouseFrame style={style} w={s.w} h={s.h} fs={fs} pal={pal} dotted={s.dotted} />;
   return (
-    <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick}>
+    <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick} data-kind="spouse" data-spouse-of={s.partnerId} data-spouse-member={s.member.id}>
       <title>{s.member.name}</title>
       {frame}
       {text}
@@ -724,7 +740,7 @@ function PersonNode({
     }
   })();
   return (
-    <g transform={`translate(${node.x.toFixed(1)} ${node.y.toFixed(1)})${leaf ? ` rotate(${node.angle.toFixed(1)})` : ""}`} {...onClick}>
+    <g transform={`translate(${node.x.toFixed(1)} ${node.y.toFixed(1)})${leaf ? ` rotate(${node.angle.toFixed(1)})` : ""}`} {...onClick} data-kind="person" data-person={node.id} data-shape={node.shape}>
       <title>{node.label}</title>
       {ring}
       {body}
@@ -999,7 +1015,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     <rect x={x} y={y - fs * 0.45} width={sw} height={fs * 0.9} rx={fs * 0.45} fill={fill} stroke={stroke} strokeWidth={fs * 0.09} />
   );
   /** A key entry: its symbol (`width` wide, the usual swatch's by default) and what it means. */
-  type Item = { label: string; swatch: (x: number) => ReactNode; width?: number };
+  type Item = { key?: string; label: string; swatch: (x: number) => ReactNode; width?: number };
   const items: Item[] = [];
   const maleFill = pal.mono ? "#fff" : satin ? `url(#${pal.uid}-satin-m)` : theme.male;
   const femaleFill = pal.mono ? "#fff" : satin ? `url(#${pal.uid}-satin-f)` : theme.female;
@@ -1007,15 +1023,17 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   // colouring by generation replaces the son / daughter / father colours
   const byGender = theme.colorBy !== "generation";
   if (byGender) items.push({
+    key: "son",
     label: say(LEGEND.son, rtl),
     // (the shape actually drawn: "auto" may have chosen either)
     swatch: (x) => layout.nodes.some((n) => n.shape === "leaf")
       ? <path transform={`translate(${x + sw / 2} ${y}) scale(${sw})`} d={leafPath(1, 0.45)} fill={maleFill} stroke={rim(theme.male)} strokeWidth={0.04} />
       : pill(x, maleFill, rim(theme.male)),
   });
-  if (byGender && layout.nodes.some((n) => n.member.gender === "FEMALE")) items.push({ label: say(LEGEND.daughter, rtl), swatch: (x) => pill(x, femaleFill, rim(theme.female)) });
+  if (byGender && layout.nodes.some((n) => n.member.gender === "FEMALE")) items.push({ key: "daughter", label: say(LEGEND.daughter, rtl), swatch: (x) => pill(x, femaleFill, rim(theme.female)) });
   // (a parent: the same colours, with a second gold ring)
   items.push({
+    key: "descendants",
     label: say(LEGEND.descendants, rtl),
     swatch: (x) => (
       <g>
@@ -1025,13 +1043,14 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     ),
   });
   // (the trunk's names: the line the poster follows, through fathers or through mothers)
-  if (layout.trunkLabels.length) items.push({ label: say(LEGEND.lineage, rtl), swatch: (x) => pill(x, pal.ivory, pal.line) });
+  if (layout.trunkLabels.length) items.push({ key: "lineage", label: say(LEGEND.lineage, rtl), swatch: (x) => pill(x, pal.ivory, pal.line) });
   // every branch colour the poster actually uses (the palette's colours
   // repeat past its length), each a short bar
   const lineages = new Set(layout.nodes.map((n) => n.lineage).filter((x): x is number => x != null));
   if (theme.branchColors && !pal.mono && lineages.size >= 2) {
     const used = [...new Set([...lineages].map((i) => pal.branch(i)))];
     items.push({
+      key: "branch-colours",
       label: say(LEGEND.branchColours, rtl),
       swatch: (x) => (
         <g>
@@ -1045,31 +1064,25 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   }
   if (layout.branches.some((b) => b.dotted)) {
     items.push({
+      key: "through-daughters",
       label: say(LEGEND.throughDaughters, rtl),
       swatch: (x) => (
         <line x1={x + fs * 0.2} y1={y} x2={x + sw - fs * 0.2} y2={y} stroke={pal.branch(null)} strokeWidth={fs * 0.22} strokeLinecap="round" strokeDasharray={`0.01 ${(fs * 0.46).toFixed(1)}`} />
       ),
     });
   }
-  if (layout.spouses.some((s) => !s.knot)) {
+  const drawnSpouses = layout.spouses.filter((s) => !s.knot);
+  if (drawnSpouses.length) {
     items.push({
-      label: spouseLabel(layout.spouses.filter((s) => !s.knot).map((s) => s.member.gender), rtl),
-      swatch: (x) => {
-        const style = theme.spouseStyle ?? "manuscript";
-        const rule = style === "capsule" ? pal.spouseRim : pal.rule;
-        const fill = style === "capsule" ? pal.spouseFill : pal.ivory;
-        return (
-          <g transform={`translate(${x + sw / 2} ${y})`}>
-            {style === "inscribed" ? (
-              <path d={`M${(-sw / 2).toFixed(1)} ${(fs * 0.3).toFixed(1)}H${(sw / 2).toFixed(1)}`} stroke={rule} strokeWidth={fs * 0.08} />
-            ) : style === "capsule" ? (
-              <rect x={-sw / 2} y={-fs * 0.47} width={sw} height={fs * 0.95} rx={fs * 0.47} fill={fill} stroke={rule} strokeWidth={fs * 0.08} />
-            ) : (
-              <path d={manuscriptPath(sw, fs * 0.95, fs * 0.5)} fill={fill} stroke={rule} strokeWidth={fs * 0.08} />
-            )}
-          </g>
-        );
-      },
+      key: "spouse",
+      label: spouseLabel(drawnSpouses.map((s) => s.member.gender), rtl),
+      // (the poster's own frame, at the key's size; dashed when every spouse
+      // drawn is a daughter's husband on her dotted line)
+      swatch: (x) => (
+        <g transform={`translate(${x + sw / 2} ${y})`}>
+          <SpouseFrame style={theme.spouseStyle ?? "manuscript"} w={sw} h={fs * 0.95} fs={fs} pal={pal} dotted={drawnSpouses.every((s) => s.dotted)} />
+        </g>
+      ),
     });
   }
   // Every generation's colour on the poster is explained: each named while
@@ -1093,6 +1106,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
       const gens = generationsPresent;
       const stripW = gens.length * chip + (gens.length - 1) * chipGap;
       items.push({
+        key: "generations",
         label: say(LEGEND.generations, rtl),
         width: stripW,
         swatch: (x) => (
@@ -1164,7 +1178,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     const sx = rtl ? x0 + w - symW(it) * k : x0;
     const textX = rtl ? sx - fs * 0.5 * k : x0 + (symW(it) + fs * 0.5) * k;
     return (
-      <g key={i}>
+      <g key={i} data-legend={it.key}>
         <g transform={k < 1 ? `translate(${sx.toFixed(1)} ${y.toFixed(1)}) scale(${k.toFixed(3)}) translate(${(-sx).toFixed(1)} ${(-y).toFixed(1)})` : undefined}>
           {it.swatch(sx)}
         </g>
