@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { decodeGedcom } from "@/lib/gedcom";
 import { looksLikeOutline } from "@/lib/outline";
 import { fileOf, useDesktopCommands } from "@/lib/desktop";
+import { useLanguage } from "@/lib/i18n";
+import { localizeWarning } from "@/lib/importWarnings";
 
 /** A family's name from the file: an outline's "# Family:" line, else the file name. */
-function familyName(text: string, fileName: string): string {
+function familyName(text: string, fileName: string, fallback: string): string {
   const fromOutline = text.match(/^#\s*Family:\s*(.+?)(?:\s+·.*)?$/m)?.[1]?.trim();
-  return fromOutline || fileName.replace(/\.[^.]+$/, "").replace(/[-_]+(family|tree)$/i, "").replace(/[-_]+/g, " ").trim() || "Imported family";
+  return fromOutline || fileName.replace(/\.[^.]+$/, "").replace(/[-_]+(family|tree)$/i, "").replace(/[-_]+/g, " ").trim() || fallback;
 }
 
 /**
@@ -21,13 +23,14 @@ function familyName(text: string, fileName: string): string {
 export function ImportFamilyButton() {
   const input = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { t, n, lang } = useLanguage();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const start = async (file: File | undefined) => {
     if (!file) return;
     setError(null);
-    setBusy(`Reading ${file.name}…`);
+    setBusy(t("importFamily.reading", { file: file.name }));
     let treeId: string | null = null;
     try {
       const { text } = decodeGedcom(new Uint8Array(await file.arrayBuffer()));
@@ -35,17 +38,17 @@ export function ImportFamilyButton() {
       const post = async (url: string, body: unknown) => {
         const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error ?? `The server answered ${res.status}`);
+        if (!res.ok) throw new Error(data.error ?? t("importFamily.server", { status: res.status }));
         return data;
       };
-      const tree = await post("/api/trees", { name: familyName(text, file.name), title: null, lineage: "PATRILINEAL" });
+      const tree = await post("/api/trees", { name: familyName(text, file.name, t("importFamily.fallbackName")), title: null, lineage: "PATRILINEAL" });
       treeId = tree.id;
-      setBusy(`Importing ${outline ? "the family outline" : "the GEDCOM file"}…`);
+      setBusy(t(outline ? "importFamily.outline" : "importFamily.gedcom"));
       await post(`/api/trees/${tree.id}/import-gedcom`, { text });
       router.push(`/trees/${tree.id}`);
     } catch (e) {
       if (treeId) await fetch(`/api/trees/${treeId}`, { method: "DELETE" }).catch(() => undefined);
-      setError(`Could not import ${file.name}: ${(e as Error).message}`);
+      setError(t("importFamily.failed", { file: file.name, message: localizeWarning((e as Error).message, lang, n) }));
       setBusy(null);
     } finally {
       if (input.current) input.current.value = "";
@@ -61,7 +64,7 @@ export function ImportFamilyButton() {
     <div className="space-y-2">
       <input ref={input} type="file" accept=".ged,.gedcom,.txt,text/plain" className="hidden" onChange={(e) => void start(e.target.files?.[0])} />
       <button type="button" className="btn-outline w-full justify-center" disabled={!!busy} onClick={() => input.current?.click()}>
-        {busy ?? "Choose a GEDCOM or family outline…"}
+        {busy ?? t("importFamily.choose")}
       </button>
       {error && <p className="text-sm text-red-700">{error}</p>}
     </div>

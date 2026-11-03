@@ -25,6 +25,7 @@
 
 import { lineageParentId } from "./genealogy";
 import type { Gender, MarriageDTO, MemberDTO, TreeDTO } from "./types";
+import { warning } from "./importWarnings";
 
 export const OUTLINE_EXTENSION = ".txt";
 
@@ -231,10 +232,10 @@ export function parseOutline(text: string): OutlineFamily {
     mark(/\((?:\?|؟)\)/, "UNKNOWN");
     let label: string | null = null;
     name = name.replace(/#(\d+)/, (_, t) => { label = t; return " "; }).replace(/\s+/g, " ").trim();
-    if (!name) { warnings.push(`Line ${lineNo}: no name.`); return; }
+    if (!name) { warnings.push(warning("outline.noName", { line: lineNo })); return; }
     const m = person(name, gender);
     if (label) {
-      if (tags.has(label)) warnings.push(`Line ${lineNo}: #${label} is used twice.`);
+      if (tags.has(label)) warnings.push(warning("outline.labelTwice", { line: lineNo, label }));
       tags.set(label, m);
     }
     // its parent: the nearest line above with less indent
@@ -252,12 +253,12 @@ export function parseOutline(text: string): OutlineFamily {
       const at = field.search(/[:：]/);
       const key = at > 0 ? KEYS[field.slice(0, at).trim().toLowerCase()] : undefined;
       const value = at > 0 ? field.slice(at + 1).trim() : field.trim();
-      if (!key) { if (field.trim()) warnings.push(`Line ${lineNo}: "${field.trim()}" is not a known detail.`); continue; }
+      if (!key) { if (field.trim()) warnings.push(warning("outline.unknownDetail", { line: lineNo, field: field.trim() })); continue; }
       if (!value) continue;
       if (key === "spouse") pendingSpouses.push({ of: m, value, line: lineNo });
       else if (key === "mother" || key === "father") {
         if (parent) pending.push({ child: m, key, value, parent: parent.m, line: lineNo });
-        else warnings.push(`Line ${lineNo}: a ${key} is given for someone with no parent above them.`);
+        else warnings.push(warning(key === "mother" ? "outline.noParent.mother" : "outline.noParent.father", { line: lineNo }));
       } else if (key === "born") m.birthYear = year(value);
       else if (key === "died") { m.deathYear = year(value); m.isDeceased = true; }
       else if (key === "laqab") m.laqab = value;
@@ -271,7 +272,7 @@ export function parseOutline(text: string): OutlineFamily {
     let label: string | null = null;
     const name = value.replace(/#(\d+)/, (_, t) => { label = t; return " "; }).replace(/\s+/g, " ").trim();
     if (label && tags.has(label)) return tags.get(label)!;
-    if (label && !name) warnings.push(`Line ${line}: #${label} is not given to anyone.`);
+    if (label && !name) warnings.push(warning("outline.unusedLabel", { line, label }));
     const known = (spouses.get(of.id) ?? []).find((s) => s.name === name);
     if (known) {
       if (label) tags.set(label, known);
@@ -292,6 +293,6 @@ export function parseOutline(text: string): OutlineFamily {
     if (p.key === "mother") p.child.motherId = other.id; else p.child.fatherId = other.id;
     if (other !== p.parent) marry(p.parent, other);
   }
-  if (!members.length) warnings.push("No people found: write one name per line.");
+  if (!members.length) warnings.push(warning("outline.noPeople"));
   return { members, marriages, rootMemberId: found.top?.id ?? null, warnings };
 }

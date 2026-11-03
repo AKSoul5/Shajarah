@@ -8,6 +8,7 @@ import { previewGedcom, type GedcomPreview } from "./gedcomPreview";
 import { PROJECT_EXTENSION } from "@/lib/project";
 import { saveProjectFile } from "../projectFiles";
 import { useLanguage } from "@/lib/i18n";
+import { localizeWarning, warning } from "@/lib/importWarnings";
 
 interface Props {
   tree: TreeDTO;
@@ -59,7 +60,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
   };
   const [file, setFile] = useState<{ name: string; size: number; bytes: ArrayBuffer } | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const { t, n } = useLanguage();
+  const { t, n, lang } = useLanguage();
   const [inputKey, setInputKey] = useState(0);
   const worker = useRef<Worker | null>(null);
   const request = useRef(0);
@@ -70,7 +71,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
     if (!file) return;
     const id = ++request.current;
     if (file.size > REFUSE_BYTES) {
-      setStatus({ kind: "error", message: `This file is ${formatSize(file.size)}; one import accepts up to 20 MB of text.` });
+      setStatus({ kind: "error", message: warning("files.tooLarge", { size: formatSize(file.size) }) });
       return;
     }
     setStatus({ kind: "reading" });
@@ -96,11 +97,11 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
     worker.current = w;
     w.onmessage = (e: MessageEvent<{ id: number; ok: boolean; preview?: GedcomPreview; error?: string }>) => {
       if (e.data.id !== id) return;
-      done(e.data.ok ? { kind: "ready", preview: e.data.preview! } : { kind: "error", message: e.data.error ?? "Could not read the file." });
+      done(e.data.ok ? { kind: "ready", preview: e.data.preview! } : { kind: "error", message: e.data.error ?? warning("files.unreadable") });
       w.terminate();
       if (worker.current === w) worker.current = null;
     };
-    w.onerror = (e) => done({ kind: "error", message: e.message || "Could not read the file." });
+    w.onerror = (e) => done({ kind: "error", message: e.message || warning("files.unreadable") });
     const bytes = file.bytes.slice(0); // the copy is moved to the worker
     w.postMessage({ id, bytes, tree: input }, [bytes]);
   }, [file, tree.members, tree.marriages, tree.lineage, tree.rootMemberId, tree.sources, tree.citations, tree.media]);
@@ -176,7 +177,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
             {t("files.reading", { file: file ? `${file.name} (${formatSize(file.size)})` : t("files.theFile") })}
           </p>
         )}
-        {status.kind === "error" && <p className="text-red-700">{t("files.couldNot", { message: status.message })}</p>}
+        {status.kind === "error" && <p className="text-red-700">{t("files.couldNot", { message: localizeWarning(status.message, lang, n) })}</p>}
 
         {p && file && (
           <div className="space-y-2 rounded-md border border-parchment-200 bg-parchment-50 p-3" data-testid="gedcom-preview">
@@ -211,7 +212,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
             )}
             {p.warnings.length > 0 && (
               <ul className="list-disc space-y-0.5 ps-4 text-xs text-amber-800">
-                {p.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                {p.warnings.map((w, i) => <li key={i}>{localizeWarning(w, lang, n)}</li>)}
               </ul>
             )}
           </div>

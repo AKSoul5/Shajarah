@@ -8,7 +8,7 @@
 // Each text lives in src/lib/messages.ts in both languages; a test checks
 // that none is missing in either.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { MESSAGES, type MessageKey } from "./messages";
 
 export type Lang = "en" | "ar";
@@ -19,6 +19,18 @@ export function translate(lang: Lang, key: MessageKey, vars?: Record<string, str
   let s: string = MESSAGES[key][lang];
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
   return s;
+}
+
+/**
+ * A translated text with parts that are not plain text (a link, a bold
+ * word, a name kept in its own direction): each {placeholder} in the text
+ * becomes the matching node.
+ */
+export function rich(text: string, nodes: Record<string, ReactNode>): ReactNode[] {
+  return text.split(/(\{\w+\})/).map((part, i) => {
+    const key = part.match(/^\{(\w+)\}$/)?.[1];
+    return key && key in nodes ? <Fragment key={i}>{nodes[key]}</Fragment> : part;
+  });
 }
 
 /** Digits as the language writes them (Arabic-Indic in Arabic). */

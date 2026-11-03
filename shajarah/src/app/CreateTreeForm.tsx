@@ -3,9 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useDesktopCommands, useDesktopState } from "@/lib/desktop";
+import { useLanguage } from "@/lib/i18n";
 
 export function CreateTreeForm() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [lineage, setLineage] = useState("PATRILINEAL");
@@ -38,18 +40,18 @@ export function CreateTreeForm() {
         });
         const data = await res.json().catch(() => ({}));
         setBusy(false);
-        if (!res.ok) return setError(data.error ?? "Could not create the tree");
+        if (!res.ok) return setError(data.error ?? t("create.error"));
         router.push(`/trees/${data.id}`);
       }}
     >
-      <input ref={nameInput} className="input font-naskh text-base" dir="auto" required aria-label="Family name" placeholder="Family name, e.g. آل حقيل" value={name} onChange={(e) => setName(e.target.value)} />
-      <input className="input font-naskh text-base" dir="auto" aria-label="Poster title" placeholder="Poster title (optional), e.g. شجرة أسرة آل حقيل" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <select className="input" aria-label="Lineage" value={lineage} onChange={(e) => setLineage(e.target.value)}>
-        <option value="PATRILINEAL">Patrilineal (branches follow fathers)</option>
-        <option value="MATRILINEAL">Matrilineal (branches follow mothers)</option>
+      <input ref={nameInput} className="input font-naskh text-base" dir="auto" required aria-label={t("create.name")} placeholder={t("create.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} />
+      <input className="input font-naskh text-base" dir="auto" aria-label={t("create.title")} placeholder={t("create.titlePlaceholder")} value={title} onChange={(e) => setTitle(e.target.value)} />
+      <select className="input" aria-label={t("create.lineage")} value={lineage} onChange={(e) => setLineage(e.target.value)}>
+        <option value="PATRILINEAL">{t("create.patrilineal")}</option>
+        <option value="MATRILINEAL">{t("create.matrilineal")}</option>
       </select>
       {error && <p className="text-sm text-red-700">{error}</p>}
-      <button className="btn-primary w-full justify-center" disabled={busy || !name.trim()}>{busy ? "Creating…" : "Create the family"}</button>
+      <button className="btn-primary w-full justify-center" disabled={busy || !name.trim()}>{busy ? t("create.creating") : t("create.submit")}</button>
     </form>
   );
 }

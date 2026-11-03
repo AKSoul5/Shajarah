@@ -15,6 +15,7 @@ import { childrenIndex, computeGenerations, lineageParentId } from "./genealogy"
 import { normalizeName, parseNasab, splitLaqab } from "./nasab";
 import type { CitationDTO, Gender, MarriageDTO, MediaDTO, MemberDTO, SourceDTO, TreeDTO } from "./types";
 import { looksLikeOutline, parseOutline } from "./outline";
+import { countedWarning, warning } from "./importWarnings";
 
 /** Largest file the server accepts (characters of text, about the same in bytes). */
 export const GEDCOM_MAX_CHARS = 20_000_000;
@@ -39,10 +40,7 @@ export function decodeGedcom(bytes: Uint8Array): { text: string; warnings: strin
     // ANSEL or a Windows code page: Latin-1 keeps ASCII names intact
     const text = decode("latin1", bytes);
     const charset = /\n\s*1\s+CHAR\s+(\S+)/.exec(text)?.[1] ?? "unknown";
-    warnings.push(
-      `The file is not UTF-8 (character set: ${charset}). Names with accents or non-Latin letters may be garbled; ` +
-        "export it again as UTF-8 if your software offers it.",
-    );
+    warnings.push(warning("gedcom.notUtf8", { charset }));
     return { text, warnings };
   }
 }
@@ -154,7 +152,7 @@ function parseLines(text: string, warnings: string[]): GNode[] {
     }
     stack.push(node);
   }
-  if (bad) warnings.push(`${bad} line${bad === 1 ? "" : "s"} could not be read and ${bad === 1 ? "was" : "were"} skipped.`);
+  if (bad) warnings.push(countedWarning("gedcom.badLines", bad));
   return roots;
 }
 
@@ -220,8 +218,8 @@ export function parseGedcom(text: string): GedcomFile {
   const warnings: string[] = [];
   const records = parseLines(text, warnings);
   if (!records.some((r) => r.tag === "INDI")) {
-    if (!records.some((r) => r.tag === "HEAD")) warnings.push("This does not look like a GEDCOM file (no HEAD record).");
-    return { people: [], families: [], sources: [], source: null, warnings: [...warnings, "No people (INDI records) found."] };
+    if (!records.some((r) => r.tag === "HEAD")) warnings.push(warning("gedcom.noHead"));
+    return { people: [], families: [], sources: [], source: null, warnings: [...warnings, warning("gedcom.noPeople")] };
   }
   const head = records.find((r) => r.tag === "HEAD");
   const sour = head && child(head, "SOUR");
@@ -395,15 +393,13 @@ export function parseGedcom(text: string): GedcomFile {
     if (newest?.name) p.name = newest.name;
   }
   if (multiParents) {
-    warnings.push(`${multiParents} ${multiParents === 1 ? "person has" : "people have"} more than one set of parents (e.g. adoption); the first is used.`);
+    warnings.push(countedWarning("gedcom.multiParents", multiParents));
   }
   if (missingSources) {
-    warnings.push(`${missingSources} citation${missingSources === 1 ? " refers" : "s refer"} to a source record that is not in the file and ${missingSources === 1 ? "was" : "were"} skipped.`);
+    warnings.push(countedWarning("gedcom.missingSources", missingSources));
   }
   if (missingFiles) {
-    warnings.push(
-      `${missingFiles} media link${missingFiles === 1 ? "" : "s"} could not be read (no file name, or a media record missing from the file) and ${missingFiles === 1 ? "was" : "were"} skipped.`,
-    );
+    warnings.push(countedWarning("gedcom.missingFiles", missingFiles));
   }
   return { people, families, sources: [...sources.values()], source, warnings };
 }
@@ -477,7 +473,7 @@ export function planGedcomImport(
     }
     parents.set(p.xref, pair);
   }
-  if (unplacedParents) warnings.push(`${unplacedParents} parent link${unplacedParents === 1 ? "" : "s"} could not be recorded (two fathers or two mothers).`);
+  if (unplacedParents) warnings.push(countedWarning("gedcom.unplaced", unplacedParents));
   const lineParent = (x: string) => {
     const pr = parents.get(x)!;
     return lineageParentId({ fatherId: pr.father, motherId: pr.mother }, lineage);
@@ -629,7 +625,7 @@ export function planGedcomImport(
       if (reused) relinked.set(m.id, { id: m.id, fatherId: m.fatherId, motherId: m.motherId });
     }
   }
-  if (cycles) warnings.push(`${cycles} parent link${cycles === 1 ? "" : "s"} would make someone their own ancestor and ${cycles === 1 ? "was" : "were"} left out.`);
+  if (cycles) warnings.push(countedWarning("gedcom.cycles", cycles));
 
   // Birth order: the file lists children in birth order, family by family
   // in the order of the parent's marriages; after any children already
