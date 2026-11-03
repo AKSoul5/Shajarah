@@ -1,100 +1,111 @@
 # Progress checklist
 
 Kept up to date during the overnight work. Nothing below is merged into
-`main` or released; every item is on its own branch for review.
+`main` or released except where it says so; every item is on its own
+branch for review.
 
 ## Released (with approval)
 
 | Version | What | Checks |
 | --- | --- | --- |
-| 1.0.46 | No crossing lines; daughters' families; desktop menu bar | 456 tests, 322-poster QA, app driven through every menu item |
+| 1.0.46 | No crossing lines; daughters' families; desktop menu bar | 456 tests, 322-poster QA, the app driven through every menu item |
 | 1.0.47 | Eight branch colours per design | 475 tests, 322-poster QA |
-| 1.0.48 | Hotfix: the Style menu crashed in 1.0.47 | 483 tests; a new Style-preview test; the installer's own smoke test now opens every header menu (it fails on 1.0.47's code and passes here) |
+| 1.0.48 | Hotfix: the Style menu crashed in 1.0.47 | 483 tests; a new Style-preview test; the installer's smoke test now opens every header menu. It fails on 1.0.47's code and passes here; it passed on Windows before 1.0.48 was published. |
 
-## Completed on branches (awaiting review, not merged)
+## The genealogy platform (branches, in the order they build on each other)
+
+Each branch contains the ones above it. `family-register` holds all of it.
 
 | Branch | Tip | What | Tests |
 | --- | --- | --- | --- |
-| `generation-numbering` | `cf86a13` | Generation numbers from a reference person (the model in `docs/generation-numbering.md`, revision 3): the module, its tests, and the editor (member list, person panel, header count, "Count generations from this person") | 18 new tests; full suite 501 pass |
-| `family-engine` | `c0bf940` | `src/lib/family`: kin, siblings by kind, step-relations, lineage, descendants, branches, record findings (missing / possible / confirmed), duplicates, completeness, combined search | 22 new tests (incl. 10,000 people) |
-| `person-profile` | `4facc41` | Profile tab beside the poster: identity, family (all relatives clickable), place in the family, record findings; back and forward | 5 new tests; checked in the running editor |
+| `generation-numbering` | `cf86a13` | Generation numbers from a reference person (model in `docs/generation-numbering.md`, revision 3): module, tests, editor display, "Count generations from this person" | 18 new; full suite 501 pass |
+| `family-engine` | `c0bf940` | `src/lib/family`: kin, siblings by kind, step-relations, lineage, descendants, branches, record findings (missing / possible / confirmed), duplicates, completeness, combined search | 22 new (incl. 10,000 people) |
+| `person-profile` | `4facc41` | Profile tab: identity, family (every relative a link), place in the family, record findings; back and forward | 5 new; checked in the running editor |
 | `people-search` | `c09e089` | Filters on the member list (gender, status, generation, branch, years, incomplete records), combined with the name search | checked in the running editor |
-| `records-quality` | `4d1f817` | Records view: completeness by branch and area; what cannot be right, what is worth checking, what is not recorded | checked in the running editor; full suite running |
-| `node-preview-lab` | `b9b2acd` | `/lab/nodes`: every design's name boxes side by side (evaluation only) | 3 new tests |
-| `a2-poster` | `9d1b32f` | Dense posters: more canopy balances tried, lines from the base's rim untangled (A2 of the real family: 20 problem spots to 1 at full name size) | 475 tests, 322 QA; slower (see below) |
-| `privacy-fixtures` | `31f6eb2` | Real family names in two tests and a comment replaced with invented ones | merge and relationship tests pass |
-| `legend-review` | `58f42a5` | The poster key's wording (`legend-terminology`), updated to 1.0.48; also fixes the English generation key running off the page | legend tests pass; footer comparison sent |
-| `platform-plan` | this file | Audit, plan, schema proposal, milestone 1 plan, this checklist | — |
+| `records-quality` | `4d1f817` | Records view: completeness by branch and area; what cannot be right, what is worth checking, what is not recorded | full suite 528 pass |
+| `interface-language` | `a39d20a` | Arabic/English interface, right to left in Arabic, remembered per person (first pass: the new screens, header, list) | 4 new; checked in the running editor |
+| `family-analytics` | `54325b2` | Analytics view: overview, generations, branches, years by decade with coverage, ages, names, marriages | 7 new |
+| `charts-ancestors` | `a2e72b1` | Charts view: ancestors (pedigree), Ahnentafel (standard numbering, pedigree collapse), family group sheets; SVG download, print / PDF | 8 new |
+| `charts-fan-hourglass` | `a6fd4cb` | Fan, hourglass and bowtie charts | 2 new |
+| `charts-timeline-radial` | `9f252d3` | Family timeline (recorded years only, says how many are undated), radial descendant tree | 1 new |
+| `family-register` | `e59f9ce` | Family register (Register-style genealogical book with notes and sources) | 1 new; full suite running |
 
-The platform branches build on each other, in this order:
-`generation-numbering` → `family-engine` → `person-profile` →
-`people-search` → `records-quality`. `records-quality` holds all of it.
+## Other branches (awaiting review, not merged)
+
+| Branch | Tip | What | Tests |
+| --- | --- | --- | --- |
+| `a2-poster` | `c031b84` | Dense posters: lines from the base's rim untangled; canopy balances tried only near clean, within a bounded time. Your tree's A2: about 15 s (was about 35 s in 1.0.47), the same clean poster | 475 pass in 13 min 15 s (was 26 min); 322-poster QA pass |
+| `node-preview-lab` | `b9b2acd` | `/lab/nodes`: every design's name boxes side by side (evaluation only) | 3 new; full suite to rerun (an earlier run was interrupted) |
+| `privacy-fixtures` | `31f6eb2` | Real family names in two tests and a comment replaced with invented ones | merge and relationship tests pass |
+| `legend-review` | `58f42a5` | The poster key's wording, updated to 1.0.48; also fixes the English generation key running off the page | legend tests pass; footer comparison sent |
+| `platform-plan` | this file | Audit, plan, schema proposal, milestone 1 plan, this checklist | — |
 
 ## Awaiting your decision
 
-1. **Which person is Generation 1 by default.** As built, it is the
-   person the canopy starts from when one is set (in your tree, the
-   founder: Generation 1, with today's family at Generations 2–5), else
-   the tree's root. The alternative is to always use the root. In your
-   tree the root is the oldest recorded ancestor, so the founder would be
-   Generation 82. Any tree can still choose its own Generation 1.
-   *Recommended: the canopy's start, as built.*
+1. **Which person is Generation 1 by default.**
+   - As built: the person the canopy starts from when one is set; else the
+     tree's root. In your tree that is the founder: Generation 1, with
+     today's family at Generations 2–5.
+   - The alternative is always the root. Your tree's root is the oldest
+     recorded ancestor, so the founder would be Generation 82.
+   - Any tree can still choose its own Generation 1.
+   - *Recommended: as built.*
 2. **Adopted children** (once the schema has adoption): numbered in the
-   adoptive family, or not (shown as "raised in Generation 5").
-   *Recommended: not numbered, as nasab does not pass by adoption; a
-   per-tree option can change it.*
+   adoptive family, or shown as "raised in Generation 5" without a number.
+   *Recommended: not numbered, as nasab does not pass by adoption.*
 3. **The database additions** (`docs/schema-proposal.md`): approve the
-   design before any migration is written.
-4. **The A2 balance search** (`a2-poster`): it gives better posters for
-   dense families but doubles the test suite's time (12 to 26 minutes)
-   and makes your tree's A2 poster take about 56 s instead of about
-   35 s. Under the clean-first rule you confirmed, your A2 poster is drawn
-   clean at 2.9 mm with A1 recommended either way. The optimisation
-   options are in the next section.
-5. **Releasing the legend change** (`legend-review`), after you have
-   looked at the footer comparison.
-6. **Git history clean-up** (privacy report): only after your decision.
+   design before any migration is written. These are needed for English
+   names, places, full and Hijri dates, biographies, typed relationships
+   and events. Without them there is no map, no residence filter and no
+   adoption.
+4. **Merging and releasing.** Which branches to merge, in what order, and
+   when to publish. *Suggested:*
+   - **First,** `a2-poster` (the performance fix) and `legend-review`, as
+     1.0.49.
+   - **Then** the platform branches together (`family-register` contains
+     all of them) after you have tried them, as 1.1.0.
+5. **The genogram and the relationship network.**
+   - **Genogram:** it needs health and relationship-quality information,
+     which Shajarah does not record. It would add sensitive personal
+     data, so it needs your decision.
+   - **Relationship network:** a force-directed graph, which would need a
+     new library (d3-force) or a hand-written layout.
+   - *Recommended: defer both.*
+6. **Git history clean-up** (the privacy report): only after your
+   decision.
 
-## Performance findings (A2 layout and editor loading)
+## Performance (A2 layout and editor loading)
 
-- **Your tree on A2** (`a2-poster` branch): the first layout takes 9 s,
-  two balance attempts 31 s, and the clean-first fallback 16 s.
-  Because the clean-first rule wins whenever no attempt is both clean and
-  readable, the balance attempts only help a poster that one of them makes
-  fully clean. For yours they cost 31 s and change nothing shown.
-- **The test suite's doubling** comes from the same search running on the
-  test families' crowded posters (each one a full layout again).
-- **Options:**
-  - **(a)** Try the balances only when the first layout is within a
-    handful of problem spots of clean. This keeps today's 15-spot
-    threshold, but measures the time limit from the first layout's own
-    duration.
-  - **(b)** Remember, per tree and paper, the balance that worked last
-    time, and try it first.
-  - **(c)** Make a balance attempt cheaper by reusing the first layout's
-    name size instead of searching for it again.
-  - *Recommended: (a) now, (b) next.* (a) keeps the rim-line fix and
-    restores the old timings.
-- **Opening your tree in the editor:** about 12 s on this machine before
-  the poster appears (2A0, 11 daughters' families). The layout itself has
-  not slowed since 1.0.44 on your paper (about 10.5 s). The daughters'
-  families cost little time but halve the names' size (7.1 mm to 3.9 mm on
-  2A0).
-- **Biggest win available:** keep the last layout and show it at once
-  when a tree is opened, while the new one is computed in the background.
+- **Done on `a2-poster`:**
+  - The wider balance search is withdrawn: it doubled the suite's time and
+    changed nothing shown under the clean-first rule.
+  - Balances are tried only within 15 problem spots of clean.
+  - The time limit is now relative to the first layout, at most one
+    minute.
+  - The trunk-top line fix stays.
+- **Result:**
+  - The suite takes 13 min 15 s.
+  - Your A2 poster takes about 15 s.
+- **Opening your tree in the editor:** about 12 s on this machine (2A0).
+  The layout itself has not slowed since 1.0.44 on that paper.
+  - *Next win:* keep the last layout and show it at once when a tree
+    opens, while the new one is computed.
+  - The daughters' families cost little time, but halve the names' size
+    on 2A0 (7.1 mm to 3.9 mm).
 
-## Remaining (in order)
+## Remaining
 
-- Interface translation layer (Arabic/English) and right-to-left layout of
-  the editor.
-- Database additions (after approval), then profiles, search and records
-  use them (English names, places, full dates, biographies, typed
-  relationships, events).
-- Analytics dashboard.
-- Charts: pedigree, Ahnentafel, family group sheet; fan, hourglass,
-  bowtie; timeline, radial, map; network, family register, genogram.
-- Poster: generation key from Generation 1 (the model's §6), with the
-  322-poster QA.
+- **Database additions** (after approval), then use them everywhere:
+  English names in search and posters, places (the geographic map and the
+  residence filter), full and Hijri dates in the timeline, biographies in
+  profiles and the register, typed relationships in profiles and charts,
+  and events.
+- **Interface translation, later passes:** the Style, View and Export
+  menus, the forms, the notices and the start page.
+- **Poster:** a generation key counted from Generation 1 (the model's §6),
+  checked against the 322-poster QA.
+- **Loading:** show the last layout at once.
+- **Deferred:** genogram and relationship network (decision 5).
 
 ## Test and build results
 
@@ -102,7 +113,8 @@ The platform branches build on each other, in this order:
 | --- | --- |
 | `hotfix-style-crash` (1.0.48), full suite | 483 passed |
 | `generation-numbering`, full suite | 501 passed |
-| `a2-poster`, full suite / layout QA | 475 passed / 322 passed |
-| `node-preview-lab`, page and its tests | renders all seven designs, no page errors; 3 tests pass |
-| `records-quality` (all platform work), full suite | running |
+| `records-quality`, full suite | 528 passed |
+| `a2-poster`, full suite / layout QA | 475 passed in 13 min 15 s / 322 passed |
+| `family-register` (everything), full suite | running |
+| New screens in the running editor | profile, search and filters, Records, Analytics, every chart format: no page errors; Arabic and English checked |
 | 1.0.48 installer workflow (Windows) | passed, including the new menu smoke test |
