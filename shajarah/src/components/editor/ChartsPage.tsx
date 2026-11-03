@@ -8,12 +8,14 @@
 
 import { useMemo, useRef, useState } from "react";
 import { nasabIn, type FamilyIndex } from "@/lib/family/index";
-import { ahnentafel, groupSheets, pedigree, type PedigreeNode } from "@/lib/family/reports";
+import { ahnentafel, descendantTree, groupSheets, pedigree, type PedigreeNode } from "@/lib/family/reports";
+import { BowtieChart, FanChart, HourglassChart } from "./MoreCharts";
 import { generationText } from "@/lib/family/generations";
 import { useLanguage } from "@/lib/i18n";
 import type { MemberDTO } from "@/lib/types";
 
-type Format = "pedigree" | "ahnentafel" | "groupSheet";
+type Format = "pedigree" | "fan" | "hourglass" | "bowtie" | "ahnentafel" | "groupSheet";
+const GRAPHICAL: readonly Format[] = ["pedigree", "fan", "hourglass", "bowtie"];
 
 const years = (m: MemberDTO | null | undefined) =>
   !m ? "" : m.birthYear || m.deathYear ? `${m.birthYear ?? "?"}–${m.deathYear ?? (m.isDeceased ? "?" : "")}` : "";
@@ -79,6 +81,7 @@ export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; s
   const rows = useMemo(() => (subject ? pedigree(ix, subject.id, generations) : []), [ix, subject, generations]);
   const entries = useMemo(() => (subject ? ahnentafel(ix, subject.id, Math.max(generations, 2)) : []), [ix, subject, generations]);
   const sheets = useMemo(() => (subject ? groupSheets(ix, subject.id) : []), [ix, subject]);
+  const below = useMemo(() => (subject && format === "hourglass" ? descendantTree(ix, subject.id, 3) : null), [ix, subject, format]);
   const title = subject ? `${t(`charts.${format}`)}: ${nasabIn(ix, subject.id, 2)}` : "";
 
   const download = () => {
@@ -106,7 +109,7 @@ export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; s
             <p className="text-xs text-bark-400">{t("charts.howToChoose")}</p>
           </div>
           <div role="tablist" className="ms-auto inline-flex overflow-hidden rounded-md border border-parchment-300 text-sm">
-            {(["pedigree", "ahnentafel", "groupSheet"] as const).map((f) => (
+            {(["pedigree", "fan", "hourglass", "bowtie", "ahnentafel", "groupSheet"] as const).map((f) => (
               <button key={f} type="button" role="tab" aria-selected={format === f} onClick={() => setFormat(f)}
                 className={`px-3 py-1 ${format === f ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}>
                 {t(`charts.${f}`)}
@@ -122,7 +125,7 @@ export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; s
             </label>
           )}
           <div className="flex gap-2">
-            {format === "pedigree" && <button type="button" className="btn-outline text-sm" onClick={download} disabled={!subject}>{t("charts.svg")}</button>}
+            {GRAPHICAL.includes(format) && <button type="button" className="btn-outline text-sm" onClick={download} disabled={!subject}>{t("charts.svg")}</button>}
             <button type="button" className="btn-outline text-sm" onClick={print} disabled={!subject}>{t("charts.print")}</button>
           </div>
         </header>
@@ -130,6 +133,9 @@ export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; s
         {subject && (
           <div ref={box} className="rounded-lg border border-parchment-300 bg-white p-4">
             {format === "pedigree" && <PedigreeChart rows={rows} rtl={dir === "rtl"} onPick={onOpenMember} t={t} />}
+            {format === "fan" && <FanChart rows={rows} rtl={dir === "rtl"} onPick={onOpenMember} notRecorded={t("kin.notRecorded")} />}
+            {format === "hourglass" && <HourglassChart rows={rows} below={below} onPick={onOpenMember} notRecorded={t("kin.notRecorded")} />}
+            {format === "bowtie" && <BowtieChart rows={rows} rtl={dir === "rtl"} onPick={onOpenMember} notRecorded={t("kin.notRecorded")} />}
 
             {format === "ahnentafel" && (
               <table className="w-full text-sm">

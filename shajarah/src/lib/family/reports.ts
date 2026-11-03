@@ -113,3 +113,26 @@ export function pedigree(ix: FamilyIndex, subjectId: string, generations = 4): P
   }
   return levels;
 }
+
+export interface DescendantNode {
+  person: MemberDTO;
+  /** 1: the subject; 2: their children… */
+  generation: number;
+  children: DescendantNode[];
+}
+
+/**
+ * The subject's descendants by birth, `generations` deep (the subject's own
+ * generation counts as the first), eldest first. A descendant reached by
+ * two lines (cousins' children) is drawn once, under the first.
+ */
+export function descendantTree(ix: FamilyIndex, subjectId: string, generations = 3): DescendantNode | null {
+  const subject = ix.get(subjectId);
+  if (!subject) return null;
+  const seen = new Set([subject.id]);
+  const build = (p: MemberDTO, gen: number): DescendantNode => ({
+    person: p, generation: gen,
+    children: gen >= generations ? [] : ix.children(p.id).filter((c) => !seen.has(c.id) && (seen.add(c.id), true)).map((c) => build(c, gen + 1)),
+  });
+  return build(subject, 1);
+}

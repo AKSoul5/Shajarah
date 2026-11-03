@@ -95,4 +95,33 @@ describe("the Charts view", () => {
       }
     }
   });
+
+  it("draws the fan, hourglass and bowtie charts without error", async () => {
+    const { FanChart, HourglassChart, BowtieChart } = await import("@/components/editor/MoreCharts");
+    const { pedigree, descendantTree } = await import("@/lib/family/reports");
+    const t = QA_FIXTURES.B();
+    const ix = buildFamilyIndex(t);
+    for (const m of t.members.slice(0, 40)) {
+      const rows = pedigree(ix, m.id, 4);
+      for (const el of [
+        React.createElement(FanChart, { rows, rtl: true, onPick: () => {}, notRecorded: "—" }),
+        React.createElement(HourglassChart, { rows, below: descendantTree(ix, m.id, 3), onPick: () => {}, notRecorded: "—" }),
+        React.createElement(BowtieChart, { rows, rtl: false, onPick: () => {}, notRecorded: "—" }),
+      ]) expect(renderToStaticMarkup(el)).toContain(m.name);
+    }
+  });
+});
+
+describe("the descendant tree (the hourglass's lower half)", () => {
+  it("goes as deep as asked, eldest first, each descendant once", async () => {
+    const { descendantTree } = await import("@/lib/family/reports");
+    const t = tree([["P", "M"], ["A", "M", "P"], ["B", "F", "P"], ["a", "M", "A"], ["b", "F", null, "B"], ["k", "M", "a", "b"]]);
+    const d = descendantTree(buildFamilyIndex(t), "P", 4)!;
+    expect(d.children.map((c) => c.person.id)).toEqual(["A", "B"]);
+    const ids: string[] = [];
+    const walk = (n: typeof d) => { ids.push(n.person.id); n.children.forEach(walk); };
+    walk(d);
+    expect(ids.filter((x) => x === "k")).toHaveLength(1);
+    expect(descendantTree(buildFamilyIndex(t), "P", 2)!.children.every((c) => c.children.length === 0)).toBe(true);
+  });
 });
