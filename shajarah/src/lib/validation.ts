@@ -63,6 +63,7 @@ export const updateTreeSchema = createTreeSchema.partial().extend({
       showFemales: z.boolean().optional(),
       posterSize: z.string().refine(isPaperSize, "Unknown paper size").optional(),
       focusId: z.string().nullable().optional(),
+      referenceId: z.string().nullable().optional(),
       centerBranchId: z.string().nullable().optional(),
       familiesThrough: z.array(z.string()).max(1000).optional(),
       hiddenIds: z.array(z.string()).max(1000).optional(),
