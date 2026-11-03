@@ -112,10 +112,20 @@ The design's spec also says:
 
 - `decorOutset(node)` is how far the drawing reaches past the box: the
   stroke, or a parent's ring.
-- The layout stores it on every name (`pad`). Relaxation and the overlap
-  count keep `w/2 + pad` clear.
-- So **what is drawn is what is reserved**: no design can invent its own
-  spacing.
+- On a poster in one of the **new designs**, the layout stores it on
+  every name (`pad`). Relaxation and the overlap count keep `w/2 + pad`
+  clear, so **what is drawn is what is reserved**: no design can invent
+  its own spacing.
+- On the **original designs** (leaves, ovals, circles), names are laid
+  out exactly as before, and two parents' rings can still touch on a
+  dense poster.
+  - Reserving their room was tried, at ring gaps from 0.06 to 0.16 of
+    the type size, with and without extra clearance (0.04 to 0.1).
+  - Every variant moved three borderline test posters: a dominant-branch
+    family went to smaller branch names in two designs; the Calligraphic
+    Column foundation, when shortened, went to a much smaller poster; and
+    the Sultan family's recommended paper went from A0 to 2A0.
+  - Extending it to the original shapes is left for decision.
 
 ### Checks
 
