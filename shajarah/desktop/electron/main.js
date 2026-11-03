@@ -286,8 +286,63 @@ async function smokeTest() {
   const tree = await created.json().catch(() => ({}));
   results.readTree = tree.id ? (await fetch(`${appUrl}/api/trees/${tree.id}`)).status : 0;
   if (tree.id) results.deleteTree = (await fetch(`${appUrl}/api/trees/${tree.id}`, { method: "DELETE" })).status;
-  const ok = results.home === 200 && results.demo === 200 && results.createTree === 201 && results.readTree === 200;
+  results.ui = await uiSmoke().catch((err) => ({ ok: false, errors: [`smoke test failed: ${err.message}`] }));
+  const ok = results.home === 200 && results.demo === 200 && results.createTree === 201 && results.readTree === 200 && results.ui.ok;
   return { ok, results };
+}
+
+/**
+ * The editor itself, as a person uses it: a sample family opened in a
+ * (hidden) window, the poster drawn, then every menu in its header opened
+ * and closed (the Style menu draws every design and foundation style), and
+ * a name chosen. Any error on the page, a crashed page, or the page's
+ * "Application error" fails the smoke test, so a build that breaks on a
+ * click is never published.
+ */
+async function uiSmoke() {
+  const errors = [];
+  const win = new BrowserWindow({ show: false, width: 1400, height: 900, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  const wc = win.webContents;
+  // (Electron passes the level as a number before version 35, as a word since)
+  wc.on("console-message", (...args) => {
+    const e = args[0];
+    const level = typeof args[1] === "number" ? args[1] : e?.level;
+    const message = typeof args[2] === "string" ? args[2] : e?.message ?? "";
+    if ((level === 3 || level === "error") && !/favicon|DevTools/i.test(message)) errors.push(message.slice(0, 300));
+  });
+  wc.on("render-process-gone", (_e, d) => errors.push(`page crashed: ${d.reason}`));
+  const run = (js) => wc.executeJavaScript(js, true);
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    await win.loadURL(`${appUrl}/demo?sample=nouri`);
+    const drawn = await run(`new Promise((done) => {
+      const t0 = Date.now();
+      const look = () => document.querySelector("main svg[role=img]") ? done(true) : Date.now() - t0 > 180000 ? done(false) : setTimeout(look, 500);
+      look();
+    })`);
+    if (!drawn) errors.push("the poster was not drawn within 3 minutes");
+    const broken = () => run(`/Application error/.test(document.body.innerText)`);
+    // every menu in the header (buttons that open a panel), opened and closed
+    const menus = await run(`[...document.querySelectorAll("header button[aria-expanded]")].map((b) => b.innerText.trim()).filter(Boolean)`);
+    const opened = [];
+    for (let i = 0; i < menus.length; i++) {
+      await run(`document.querySelectorAll("header button[aria-expanded]")[${i}]?.click()`);
+      await pause(2500);
+      opened.push(menus[i]);
+      if (await broken()) { errors.push(`the page broke on opening "${menus[i]}"`); break; }
+      await run(`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); document.body.click()`);
+      await pause(500);
+    }
+    // a name chosen on the poster opens the person's panel
+    if (!errors.length) {
+      await run(`document.querySelector("main [data-member]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+      await pause(1500);
+      if (await broken()) errors.push("the page broke on choosing a name");
+    }
+    return { ok: drawn && errors.length === 0 && opened.length > 0, menus: opened, errors: errors.slice(0, 5) };
+  } finally {
+    win.destroy();
+  }
 }
 
 // ── Updates ──────────────────────────────────────────────────────────
