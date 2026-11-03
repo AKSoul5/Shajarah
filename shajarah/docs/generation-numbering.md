@@ -1,100 +1,180 @@
-# Generation numbering — proposed model
+# Generation numbering: proposed model (revision 2)
 
 Status: proposal, awaiting approval. Nothing here is implemented yet.
 
-## The reference person
+Revision 2 adds:
+- how the reference person is chosen;
+- an exact algorithm;
+- maternal trees;
+- adoptive, step and foster links;
+- unknown parents;
+- people related by more than one path;
+- large trees.
 
-- One person is **Generation 1**: the tree's *reference person*.
-- By default it is the tree's root (the oldest recorded person on the main
-  line). The family can choose another person on the main line instead,
-  typically the founder the poster's canopy starts from. When a long
-  lineage is recorded above the family (dozens of generations), counting
-  from the oldest ancestor makes today's family Generation 80 or more, so
-  this choice matters.
-- The choice is stored with the tree. Adding a father above the oldest
-  ancestor ("grow upward") does **not** move it, so nobody's number changes
-  silently. Changing it is an explicit setting.
+## 1. Principles
 
-## The rule
+1. A generation number says how many parent–child steps a person stands
+   from the family's reference generation. It is the same for everyone
+   at the same depth, whichever branch they are on.
+2. Each person has **one** number, the same wherever they appear (editor,
+   profile, poster, branch poster, every chart, every export).
+3. Only blood (birth) links count. Marriages never add a generation.
+   Adoptive, step and foster links are shown, but they never place
+   someone in the line (§5).
+4. When a number would be ambiguous or misleading, the person gets no
+   number and the reason is shown. A wrong number is never shown.
 
-Each person who is related by blood to the reference person has one
-*level*: their distance in generations from the reference person's
-generation, counted along parent–child links.
+## 2. The reference person (Generation 1)
 
-1. The reference person is level 1.
-2. A child is one level below the parent they are numbered through.
-3. **Which parent:** if only one parent is related to the reference person,
-   that parent. This is how a daughter's children (whose father is from
-   another family, or not recorded) follow their mother. If both parents
-   are related, the parent the tree is traced through (the father in a
-   paternal tree, the mother in a maternal one). That is also the parent
-   the poster draws the child from, so the number always matches the
-   drawing.
-4. If the two parents would give different numbers (a marriage between
-   relatives of different generations), rule 3 decides. The person's page
-   says so ("Generation 5 through his father; 6 through his mother"). The
-   two numbers are never averaged.
-5. A parent is one level above their child. This places the reference
-   person's ancestors, and from them the collateral relatives.
+- **Who it is.**
+  - The tree has one reference person.
+  - **Proposed default:** the person the poster's canopy starts from, when
+    the tree has one set. That is the family's founder as the family
+    presents it. Otherwise, the tree's root.
+  - **Why:** a recorded lineage above the family would otherwise push
+    today's family to very high numbers. In the real tree checked, counting
+    from the oldest recorded ancestor puts the canopy's founder at
+    Generation 82.
+- **Changing it.**
+  - It is stored with the tree and changed only explicitly. Adding a father
+    above the oldest ancestor ("grow upward") does not move it.
+  - When it is changed, every number changes together, and the editor says
+    so before applying it.
+- **Different roots.**
+  - A tree may record several unrelated families: a wife's own parents and
+    grandparents, say, or a second lineage.
+  - Their people are numbered only if they are blood relatives of the
+    reference person (§3). Otherwise they show as "not related by blood to
+    Generation 1", with the family they belong to.
 
-A person has **one number wherever they appear**: in the editor, on the
-poster, on a branch poster (which keeps the family's numbering instead of
-starting again from the branch head), and in exports.
+## 3. The algorithm
 
-## Who gets which number
+The input is people and their birth parents (`fatherId`, `motherId`, either
+possibly unknown). The output is, for each person, one of:
+- a level (an integer);
+- *spouse only*;
+- *not related by blood*;
+- *ambiguous*, with the paths found.
 
-| Person | Number |
+1. **The traced parent.**
+   - In a paternal tree it is the father; in a maternal tree, the mother.
+     This is the tree's existing lineage setting.
+   - It is the parent the poster draws a child from, so the numbers always
+     match the drawing.
+2. **Anchor.**
+   - From the reference person, follow traced parents upward as far as they
+     are recorded. That gives the line's oldest person, A.
+   - Level(A) = 1 − (steps from A down to the reference person).
+3. **Descent.**
+   - Visit A's descendants breadth-first, eldest first.
+   - A child whose traced parent has a level gets that level + 1.
+   - Otherwise, a child whose other parent has a level gets that level + 1.
+     This is how a daughter's children, whose father is from another family
+     or unknown, follow their mother.
+4. **Ascent, for the other side of the family.**
+   - Some untraced ancestors of an already-numbered person are still
+     unnumbered: the reference person's mother's parents, for instance.
+   - Each such parent gets their child's level − 1.
+   - Their own descendants are then numbered by step 3, and the process
+     repeats until nothing changes.
+   - This places the mother's side, and the cousins through it, at the
+     right levels.
+5. **People reached two ways.**
+   - Someone can be reached by two paths, as in a marriage between relatives
+     of different generations.
+   - The number from the traced parent wins. The other path is kept and
+     shown on the profile: "Generation 5 through his father; 6 through his
+     mother".
+   - A person whose traced parent is unnumbered while both other routes
+     disagree is marked *ambiguous*. They get no number, and the profile
+     lists both paths.
+6. **Spouses.**
+   - A person with no blood link who is married to a numbered person is
+     *spouse only*: "wife of a Generation 4 member".
+   - Their own recorded parents are numbered only through blood links, as
+     everyone else is.
+7. **Everyone else** is *not related by blood*.
+
+The cost is one pass over people and parent links (linear). Most people get
+their number in step 3; step 4 adds the other sides. It runs in well under a
+second for 10,000 people; a test measures it.
+
+## 4. The cases asked about
+
+| Case | Result |
 | --- | --- |
-| Descendants of the reference person | 2, 3, 4… by rules 2–3 |
-| Children through a daughter (any depth) | from their mother (rule 3), so a daughter's son is the same generation as his cousins through her brothers |
-| Brothers and sisters, full or half | the same number as each other: they share at least one numbered parent |
-| Cousins (any degree) | from their own parent; first cousins always share a number |
-| Children of several marriages | from the parent they share with the family; every wife's children of one father are the same generation |
-| Spouses who married in | **no number of their own.** They are not of the line, and they never add a generation. The editor shows them as "wife of a Generation 4 member" |
-| Ancestors of the reference person (father, grandfather…) | **no generation number.** They are listed as ancestors, in order ("1 generation before", "2 generations before"), as the foundation already shows them. Never 0 or negative |
-| Collateral relatives above Generation 1 (the reference person's uncles, great-uncles: side branches on the trunk) | their level by rule 5. Those at or above the reference person's parents' level are ancestral-level ("1 generation before Generation 1"); their descendants who reach level 1 or below get ordinary numbers (a cousin of the reference person is Generation 1, the cousin's son Generation 2) |
-| People with no blood link and not a spouse | no number; the editor lists them as "not connected to the family" |
+| Different family roots | The reference person sets Generation 1. Unrelated families in the same tree are labelled, not numbered. |
+| Paternal and maternal lineages | The tree's lineage chooses the traced parent (step 1). The other parent is used when the traced one is not related (step 3). |
+| Multiple marriages | One father with several wives: all his children are one below him, whichever wife bore them. A woman married into the family twice is *spouse only* both times. Marriages never change a number. |
+| Half-siblings | They share a parent, so the same number, whether they share the father (paternal half-siblings) or only the mother (maternal half-siblings, numbered through her). |
+| Adoptive and step-parents | Not counted: see §5. |
+| Unknown parents | A child with an unknown father and a known mother is numbered through her. A person with no recorded parents is numbered only if a numbered person is recorded as their child (step 4); otherwise *not related by blood* (or *spouse only*). Nobody is given a parent's level by guessing. |
+| Large trees, many branches | One linear pass; every branch numbered from the same reference; tested on 10,000 people. |
+| Several relationships at once | One number by the traced-parent rule; the other path shown; *ambiguous* (no number) only where no rule decides. |
+| The same person drawn twice (a daughter married to a cousin) | One number, wherever she is drawn. |
 
-## Where the numbers appear
+## 5. Adoptive, step and foster links
 
-- The editor's member list and person page: "Generation 4". For a spouse:
-  "wife of a Generation 4 member". For an ancestor: "Ancestor, 3
-  generations before Generation 1".
-- The poster's generation key (colour by generation): only Generations 1
-  and below are numbered. Ancestors are one entry, "Ancestors".
-- The member count: "N generations" counts numbered generations only.
-- The Timeline Spine foundation's discs: ancestors show their order back
-  from Generation 1, not a generation number.
+These need the typed relationships in the schema proposal. Until then
+they simply do not exist in the data.
 
-## What changes from today
+- **Step-parent.** A spouse of one's parent. It is shown as a relationship
+  ("step-son of …") and never counted: the child is numbered through
+  their birth parents.
+- **Adoptive parent, foster parent, guardian (kafala).**
+  - Shown on the profile and charts with its own label and line style.
+    A child taken into a family does not take its lineage, and the
+    numbering follows that.
+  - An adopted child whose birth parents are recorded in the tree is
+    numbered through them.
+  - Otherwise the child shows as "raised in Generation 5 (adoptive)", with
+    no generation number of their own.
+  - If you prefer adopted children to be numbered within the family, that
+    can be a per-tree option. It is off by default.
 
-- Today a daughter's child with no recorded father is stored as generation
-  0 (no father on the line, so no parent to count from). In the real tree
-  checked, 11 people are affected. Under rule 3 they follow their mother.
-- Today the poster and the editor count from different places: the poster
-  starts the key at the canopy, the editor at the tree's root. Both will
-  count from the reference person.
-- Married-in spouses are stored as generation 0 today; they will have no
-  number.
+## 6. How numbers appear
 
-## Tests to be added
+- **Generations 1 and below:** "Generation 4" / "الجيل الرابع".
+- **Above Generation 1** (the reference person's ancestors, and uncles at
+  their level):
+  - Shown as "3 generations before Generation 1" / "قبل الجيل الأول بثلاثة
+    أجيال".
+  - Never shown as 0 or a negative number.
+- **Poster:**
+  - The generation key numbers only Generations 1 and below. Ancestors are
+    one entry.
+  - Branch posters keep the family's numbers.
+- **"N generations" counts:** only Generations 1 and below.
 
-- Daughters' families: a daughter's child with an outside father, with an
-  unrecorded father, and her grandchildren; all one below their mother.
-- Multiple marriages: one father, two wives, children of each: all the
-  same generation; a wife remarried into the family numbered by neither
-  marriage.
-- Siblings: full, paternal-half and maternal-half siblings share a number.
-- Cousins: first cousins through brothers, through a brother and a sister,
-  through two sisters: same number; second cousins likewise.
-- Branches through different parents: a child of two related parents of
-  different generations takes the traced parent's number, and the other
-  number is reported.
-- Ancestors and collateral relatives: no zero or negative numbers;
-  uncles are ancestral-level; cousins of the reference person are
-  Generation 1.
-- Stability: adding a father above the oldest ancestor changes no number;
-  a branch poster shows the family's numbers; the same person drawn twice
-  (a daughter married to a cousin) shows one number.
-- Spouses: married-in spouses have no number and do not shift their
-  children's numbers.
+## 7. What changes for existing data
+
+- **Daughters' children with no recorded father.** Today they are stored as
+  generation 0: 11 people in the real tree checked. They will follow their
+  mother.
+- **Spouses who married in.** Today they are stored as generation 0. They
+  will be *spouse only*.
+- **Stored values.** The `generation` column stays, recomputed by the new
+  rule (it is derived data). No other record changes.
+
+## 8. Tests
+
+Each case in §4 gets its own test, on small, hand-built families. On top
+of those:
+- **Daughters' families:** an outside father, an unknown father, and her
+  grandchildren.
+- **Multiple marriages:** one father and three wives; a widow remarried
+  within the family; a wife married to two brothers in turn.
+- **Siblings:** full siblings, paternal half-siblings and maternal
+  half-siblings.
+- **Cousins:** through brothers, through a brother and a sister, through two
+  sisters, and second cousins.
+- **People reached two ways:** cousins marrying across generations, and
+  the *ambiguous* case.
+- **Unknown parents:** at every position.
+- **Maternal trees:** a matrilineal tree.
+- **Stability:**
+  - Growing the tree upward changes no number.
+  - Changing the reference person shifts every number by the same amount.
+  - Branch posters show the family's numbers.
+- **Scale:** 10,000 people under a time limit, and a family with 60 recorded
+  generations above the reference person.
