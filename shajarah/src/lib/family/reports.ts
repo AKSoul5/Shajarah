@@ -136,3 +136,35 @@ export function descendantTree(ix: FamilyIndex, subjectId: string, generations =
   });
   return build(subject, 1);
 }
+
+export interface TimelineEvent {
+  year: number;
+  kind: "birth" | "death" | "marriage";
+  people: MemberDTO[];
+}
+
+/**
+ * The family's dated events, oldest first: births, deaths and marriages
+ * with a recorded year (nothing dated by guess). `among` limits them to a
+ * set of people (a branch); a marriage counts when either spouse is in it.
+ * Also how many people have no recorded year of birth, to say so.
+ */
+export function timeline(ix: FamilyIndex, marriages: readonly MarriageDTO[], among?: ReadonlySet<string>): { events: TimelineEvent[]; undatedBirths: number } {
+  const inScope = (id: string) => !among || among.has(id);
+  const events: TimelineEvent[] = [];
+  let undatedBirths = 0;
+  for (const m of ix.members) {
+    if (!inScope(m.id)) continue;
+    if (m.birthYear !== null) events.push({ year: m.birthYear, kind: "birth", people: [m] });
+    else undatedBirths++;
+    if (m.isDeceased && m.deathYear !== null) events.push({ year: m.deathYear, kind: "death", people: [m] });
+  }
+  for (const mar of marriages) {
+    if (mar.startYear === null || !(inScope(mar.spouseAId) || inScope(mar.spouseBId))) continue;
+    const a = ix.get(mar.spouseAId), b = ix.get(mar.spouseBId);
+    if (a && b) events.push({ year: mar.startYear, kind: "marriage", people: [a, b] });
+  }
+  const order = { birth: 0, marriage: 1, death: 2 };
+  events.sort((x, y) => x.year - y.year || order[x.kind] - order[y.kind]);
+  return { events, undatedBirths };
+}

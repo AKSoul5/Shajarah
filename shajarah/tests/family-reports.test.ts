@@ -89,7 +89,7 @@ describe("the Charts view", () => {
     const ix = buildFamilyIndex(t);
     for (const lang of ["en", "ar"] as const) {
       for (const m of t.members) {
-        const html = renderToStaticMarkup(React.createElement(LanguageProvider, { initial: lang, children: React.createElement(ChartsPage, { ix, subjectId: m.id, onOpenMember: () => {} }) }));
+        const html = renderToStaticMarkup(React.createElement(LanguageProvider, { initial: lang, children: React.createElement(ChartsPage, { ix, marriages: t.marriages, subjectId: m.id, onOpenMember: () => {} }) }));
         expect(html).toContain("<svg");
         expect(html).toContain(m.name);
       }
@@ -123,5 +123,22 @@ describe("the descendant tree (the hourglass's lower half)", () => {
     walk(d);
     expect(ids.filter((x) => x === "k")).toHaveLength(1);
     expect(descendantTree(buildFamilyIndex(t), "P", 2)!.children.every((c) => c.children.length === 0)).toBe(true);
+  });
+});
+
+describe("the family timeline", () => {
+  it("lists births, marriages and deaths with recorded years, oldest first, and counts the undated", async () => {
+    const { timeline } = await import("@/lib/family/reports");
+    const t = tree([["P", "M"], ["W", "F"], ["c", "M", "P", "W"], ["d", "F", "P", "W"]], [["P", "W", 1920]]);
+    t.members[0].birthYear = 1890; t.members[0].deathYear = 1960; t.members[0].isDeceased = true;
+    t.members[2].birthYear = 1922;
+    const ix = buildFamilyIndex(t);
+    const { events, undatedBirths } = timeline(ix, t.marriages);
+    expect(events.map((e) => [e.year, e.kind, e.people.map((p) => p.id).join("+")])).toEqual([
+      [1890, "birth", "P"], [1920, "marriage", "P+W"], [1922, "birth", "c"], [1960, "death", "P"],
+    ]);
+    expect(undatedBirths).toBe(2);
+    // limited to one branch
+    expect(timeline(ix, t.marriages, new Set(["c"])).events.map((e) => e.people[0].id)).toEqual(["c"]);
   });
 });

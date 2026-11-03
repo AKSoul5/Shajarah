@@ -8,14 +8,16 @@
 
 import { useMemo, useRef, useState } from "react";
 import { nasabIn, type FamilyIndex } from "@/lib/family/index";
-import { ahnentafel, descendantTree, groupSheets, pedigree, type PedigreeNode } from "@/lib/family/reports";
+import { ahnentafel, descendantTree, groupSheets, pedigree, timeline, type PedigreeNode } from "@/lib/family/reports";
+import { RadialTree, Timeline } from "./TimelineRadial";
+import type { MarriageDTO } from "@/lib/types";
 import { BowtieChart, FanChart, HourglassChart } from "./MoreCharts";
 import { generationText } from "@/lib/family/generations";
 import { useLanguage } from "@/lib/i18n";
 import type { MemberDTO } from "@/lib/types";
 
-type Format = "pedigree" | "fan" | "hourglass" | "bowtie" | "ahnentafel" | "groupSheet";
-const GRAPHICAL: readonly Format[] = ["pedigree", "fan", "hourglass", "bowtie"];
+type Format = "pedigree" | "fan" | "hourglass" | "bowtie" | "radial" | "ahnentafel" | "groupSheet" | "timeline";
+const GRAPHICAL: readonly Format[] = ["pedigree", "fan", "hourglass", "bowtie", "radial"];
 
 const years = (m: MemberDTO | null | undefined) =>
   !m ? "" : m.birthYear || m.deathYear ? `${m.birthYear ?? "?"}–${m.deathYear ?? (m.isDeceased ? "?" : "")}` : "";
@@ -72,7 +74,7 @@ function PedigreeChart({ rows, rtl, onPick, t }: { rows: PedigreeNode[][]; rtl: 
   );
 }
 
-export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; subjectId: string | null; onOpenMember: (id: string) => void }) {
+export function ChartsPage({ ix, marriages, subjectId, onOpenMember }: { ix: FamilyIndex; marriages: readonly MarriageDTO[]; subjectId: string | null; onOpenMember: (id: string) => void }) {
   const { t, n, lang, dir } = useLanguage();
   const [format, setFormat] = useState<Format>("pedigree");
   const [generations, setGenerations] = useState(4);
@@ -82,6 +84,15 @@ export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; s
   const entries = useMemo(() => (subject ? ahnentafel(ix, subject.id, Math.max(generations, 2)) : []), [ix, subject, generations]);
   const sheets = useMemo(() => (subject ? groupSheets(ix, subject.id) : []), [ix, subject]);
   const below = useMemo(() => (subject && format === "hourglass" ? descendantTree(ix, subject.id, 3) : null), [ix, subject, format]);
+  const radial = useMemo(() => (subject && format === "radial" ? descendantTree(ix, subject.id, Math.min(generations, 5)) : null), [ix, subject, format, generations]);
+  // the timeline: the whole family, or the main branch the person belongs to
+  const [wholeFamily, setWholeFamily] = useState(true);
+  const events = useMemo(() => {
+    if (format !== "timeline") return null;
+    const branch = subject ? ix.branchesOf(subject.id)[0] : undefined;
+    const among = !wholeFamily && branch ? new Set([branch.id, ...ix.descendants(branch.id)]) : undefined;
+    return timeline(ix, marriages, among);
+  }, [format, ix, marriages, subject, wholeFamily]);
   const title = subject ? `${t(`charts.${format}`)}: ${nasabIn(ix, subject.id, 2)}` : "";
 
   const download = () => {
@@ -109,14 +120,20 @@ export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; s
             <p className="text-xs text-bark-400">{t("charts.howToChoose")}</p>
           </div>
           <div role="tablist" className="ms-auto inline-flex overflow-hidden rounded-md border border-parchment-300 text-sm">
-            {(["pedigree", "fan", "hourglass", "bowtie", "ahnentafel", "groupSheet"] as const).map((f) => (
+            {(["pedigree", "fan", "hourglass", "bowtie", "radial", "ahnentafel", "groupSheet", "timeline"] as const).map((f) => (
               <button key={f} type="button" role="tab" aria-selected={format === f} onClick={() => setFormat(f)}
                 className={`px-3 py-1 ${format === f ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}>
                 {t(`charts.${f}`)}
               </button>
             ))}
           </div>
-          {format !== "groupSheet" && (
+          {format === "timeline" && (
+            <label className="flex items-center gap-2 text-sm text-bark-700">
+              <input type="checkbox" checked={!wholeFamily} onChange={(e) => setWholeFamily(!e.target.checked)} disabled={!subject || !ix.branchesOf(subject.id).length} />
+              {t("charts.branchOnly")}
+            </label>
+          )}
+          {format !== "groupSheet" && format !== "timeline" && (
             <label className="flex items-center gap-2 text-sm text-bark-700">
               {t("charts.generations")}
               <select className="input h-8 px-2" value={generations} onChange={(e) => setGenerations(Number(e.target.value))}>
@@ -135,6 +152,15 @@ export function ChartsPage({ ix, subjectId, onOpenMember }: { ix: FamilyIndex; s
             {format === "pedigree" && <PedigreeChart rows={rows} rtl={dir === "rtl"} onPick={onOpenMember} t={t} />}
             {format === "fan" && <FanChart rows={rows} rtl={dir === "rtl"} onPick={onOpenMember} notRecorded={t("kin.notRecorded")} />}
             {format === "hourglass" && <HourglassChart rows={rows} below={below} onPick={onOpenMember} notRecorded={t("kin.notRecorded")} />}
+            {format === "radial" && <RadialTree root={radial} onPick={onOpenMember} />}
+            {format === "timeline" && events && (
+              <div className="space-y-3">
+                <p className="text-xs text-bark-400">{t("charts.timelineNote", { n: n(events.undatedBirths) })}</p>
+                {events.events.length ? (
+                  <Timeline events={events.events} onPick={onOpenMember} label={(e) => t(`charts.event.${e.kind}`)} />
+                ) : <p className="text-sm text-bark-500">{t("analytics.noYears")}</p>}
+              </div>
+            )}
             {format === "bowtie" && <BowtieChart rows={rows} rtl={dir === "rtl"} onPick={onOpenMember} notRecorded={t("kin.notRecorded")} />}
 
             {format === "ahnentafel" && (
