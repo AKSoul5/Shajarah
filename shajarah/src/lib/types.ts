@@ -123,6 +123,13 @@ export interface PosterSettings {
    * on (the root, trunk start, canopy start and their ancestors).
    */
   hiddenIds?: string[];
+  /**
+   * Marriages not drawn on the poster, as "spouse id:spouse id" (either order): the
+   * spouse's frame is left off and their children with the partner are
+   * still drawn (parting from an open bead). Nothing is deleted: the
+   * spouse, the marriage and every child's parents stay recorded.
+   */
+  hiddenSpouses?: string[];
   /** Printed size the poster is designed for (legibility is judged at it). Default A2. */
   posterSize?: PaperSize;
   seed?: number;

@@ -640,10 +640,13 @@ function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; p
   // (a knot where a daughter's children by an unrecorded father part: a
   // bead on her dotted line, a little larger than its dots)
   if (s.knot) {
+    // (filled: the other parent not recorded; open: a marriage hidden on this poster)
     return (
-      <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick}>
+      <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick} data-knot={s.collapsed ? "hidden-spouse" : "unrecorded"}>
         <title>{s.member.name}</title>
-        <circle r={fs * 0.3} fill={pal.branch(s.lineage ?? null)} />
+        {s.collapsed
+          ? <circle r={fs * 0.3} fill={pal.paper} stroke={pal.branch(s.lineage ?? null)} strokeWidth={fs * 0.11} />
+          : <circle r={fs * 0.3} fill={pal.branch(s.lineage ?? null)} />}
       </g>
     );
   }
@@ -1113,6 +1116,18 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
           <SpouseFrame style={theme.spouseStyle ?? "manuscript"} w={sw} h={fs * 0.95} fs={fs} pal={pal} dotted={drawnSpouses.every((s) => s.dotted)} />
         </g>
       ),
+    });
+  }
+  // the beads on dotted lines: children whose other parent is not recorded,
+  // and children of a marriage hidden on this poster
+  for (const [key, label, open] of [["unrecorded", LEGEND.unrecorded, false], ["hidden-spouse", LEGEND.hiddenSpouse, true]] as const) {
+    if (!layout.spouses.some((s) => s.knot && !!s.collapsed === open)) continue;
+    items.push({
+      key,
+      label: say(label, rtl),
+      swatch: (x) => open
+        ? <circle cx={x + sw / 2} cy={y} r={fs * 0.3} fill={pal.paper} stroke={pal.branch(null)} strokeWidth={fs * 0.11} />
+        : <circle cx={x + sw / 2} cy={y} r={fs * 0.3} fill={pal.branch(null)} />,
     });
   }
   // a spouse drawn again beside their partner (also a name in their own right elsewhere)

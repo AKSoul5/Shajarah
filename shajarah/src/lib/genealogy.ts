@@ -36,6 +36,25 @@ export function posterParentId(
 }
 
 /**
+ * The line's root among `members`: the tree's root when it is among them,
+ * else the person (with no parent of the line among them) with the most
+ * descendants through the lineage parent. Cycles in bad data count once.
+ */
+export function lineRootOf(members: MemberDTO[], lineage: Lineage, rootId: string | null | undefined): string | null {
+  if (rootId && members.some((m) => m.id === rootId)) return rootId;
+  const plain = childrenIndex(members, lineage);
+  const memo = new Map<string, number>();
+  const size = (id: string): number => {
+    if (memo.has(id)) return memo.get(id)!;
+    memo.set(id, 0);
+    const n = 1 + (plain.get(id) ?? []).reduce((a, c) => a + size(c.id), 0);
+    memo.set(id, n);
+    return n;
+  };
+  return [...(plain.get(null) ?? [])].sort((a, b) => size(b.id) - size(a.id))[0]?.id ?? null;
+}
+
+/**
  * The people of the line: the root and everyone descended from them through
  * the lineage parent (fathers, or mothers in a maternal tree), each once
  * however many ways they are related.

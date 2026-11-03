@@ -43,7 +43,7 @@
  * ISO-216 aspect ratio), so the same layout scales to any A-size paper.
  */
 import { hierarchy, type HierarchyNode } from "d3-hierarchy";
-import { childrenIndex, hiddenFromPoster, lineagePath, lineIds, withAncestors } from "../genealogy";
+import { childrenIndex, hiddenFromPoster, lineagePath, lineIds, lineRootOf, withAncestors } from "../genealogy";
 import { givenAndFamilyName, nameLines } from "../nasab";
 import type { MemberDTO, TreeDTO } from "../types";
 import {
@@ -89,6 +89,8 @@ export interface LayoutOptions {
   familiesThrough?: string[];
   /** People left off the poster with their descendants. Defaults to settings.hiddenIds. */
   hiddenIds?: string[];
+  /** Marriages not drawn ("partner id:spouse id"; their children still are). Defaults to settings.hiddenSpouses. */
+  hiddenSpouses?: string[];
   /** Primary lineage: the branch to centre in the canopy. Defaults to settings.centerBranchId. */
   centerBranchId?: string | null;
   /** With no branch chosen, centre the son whose branch holds the most people. Default true. */
@@ -261,6 +263,12 @@ export interface SpouseHolder {
    * in its key.
    */
   elsewhere?: boolean;
+  /**
+   * A knot where the children of a marriage hidden on this poster part
+   * (settings.hiddenSpouses): the spouse is recorded but not drawn. Drawn
+   * as an open bead, unlike a knot for a father not recorded (filled).
+   */
+  collapsed?: boolean;
 }
 
 export interface TrunkLabel {
@@ -1082,7 +1090,17 @@ function layoutAttempt(
   }
   let counted = hidden.size ? tree.members.filter((m) => !hidden.has(m.id)) : tree.members;
   if (focusMember) {
-    const { ancestors, descendants } = lineagePath(tree.members, tree.lineage, focusMember.id, through);
+    // The branch decides which parent a child is drawn under: the line here
+    // is the branch's own (the person, their descendants through the
+    // lineage parent, and their ancestors). A child of a cousin marriage
+    // stays in their father's branch when it is his branch that is shown,
+    // and is drawn under their mother (her family shown through her) when it
+    // is hers: once either way, the records unchanged.
+    const branchLine = new Set([
+      ...lineIds(tree.members, tree.lineage, focusMember.id),
+      ...lineagePath(tree.members, tree.lineage, focusMember.id).ancestors,
+    ]);
+    const { ancestors, descendants } = lineagePath(tree.members, tree.lineage, focusMember.id, through, branchLine);
     const keep = new Set([focusMember.id, ...ancestors, ...descendants]);
     // the focused person is drawn even when daughters are otherwise hidden
     const shown = new Set(visible);
@@ -1139,21 +1157,7 @@ function layoutAttempt(
   // The line first (the root and their descendants through the lineage
   // parent), so a child of a cousin marriage stays with their parent of
   // the line, never drawn as an outsider through their mother.
-  const lineRootId = (() => {
-    if (visible.some((m) => m.id === tree.rootMemberId)) return tree.rootMemberId;
-    const plain = childrenIndex(visible, tree.lineage);
-    // (each counted once: a cycle in bad data cannot loop)
-    const memo = new Map<string, number>();
-    const size = (id: string): number => {
-      if (memo.has(id)) return memo.get(id)!;
-      memo.set(id, 0);
-      const n = 1 + (plain.get(id) ?? []).reduce((a, c) => a + size(c.id), 0);
-      memo.set(id, n);
-      return n;
-    };
-    return [...(plain.get(null) ?? [])].sort((a, b) => size(b.id) - size(a.id))[0]?.id ?? null;
-  })();
-  const line = lineIds(visible, tree.lineage, lineRootId);
+  const line = lineIds(visible, tree.lineage, lineRootOf(visible, tree.lineage, tree.rootMemberId));
   const index = childrenIndex(visible, tree.lineage, through, line);
   const seen = new Set<string>();
   const build = (m: MemberDTO): TNode => {
@@ -2496,6 +2500,10 @@ function layoutAttempt(
       const pid = parentIdOf(n);
       if (n.parentId && pid) kidsOf.set(pid, [...(kidsOf.get(pid) ?? []), n]);
     }
+    // marriages not drawn on this poster (their children are)
+    const hiddenSpouses = new Set(opts.hiddenSpouses ?? tree.settings?.hiddenSpouses ?? []);
+    // (either way round: hidden from either spouse's side)
+    const isHiddenCouple = (a: string, b: string) => hiddenSpouses.has(`${a}:${b}`) || hiddenSpouses.has(`${b}:${a}`);
     // everyone drawn as a name in their own right: a spouse among them is
     // shown again beside the partner only as a marked reference
     const onPoster = new Set([...nodes.map((n) => n.id), ...(base.data.member ? [base.data.member.id] : [])]);
@@ -2510,12 +2518,30 @@ function layoutAttempt(
       if (!throughHer && !(opts.motherNames && partners.has(pid))) continue;
       const groups = new Map<string, LiveNode[]>();
       const unknown: LiveNode[] = [];
+      // (marriages hidden on this poster: their children part from an open bead)
+      const hiddenGroups = new Map<string, LiveNode[]>();
       for (const k of kids) {
         // through a daughter: her children's fathers; otherwise a father's wives
         if (throughHer !== dotted.has(k.member.id)) continue;
         const other = throughHer ? (matri ? k.member.motherId : k.member.fatherId) : (matri ? k.member.fatherId : k.member.motherId);
-        if (other && byMemberId.has(other)) groups.set(other, [...(groups.get(other) ?? []), k]);
+        if (other && byMemberId.has(other) && isHiddenCouple(pid, other)) {
+          // (a father's hidden wife: her children grow from him, as before spouses are shown)
+          if (throughHer) hiddenGroups.set(other, [...(hiddenGroups.get(other) ?? []), k]);
+        } else if (other && byMemberId.has(other)) groups.set(other, [...(groups.get(other) ?? []), k]);
         else if (throughHer) unknown.push(k);
+      }
+      for (const [sid, group] of hiddenGroups) {
+        const partner = byMemberId.get(pid)!;
+        const fs = Math.max(floorFor(fl), Math.min(...group.map((k) => k.fontSize)) * 0.9);
+        const lineages = new Set(group.map((k) => k.lineage ?? null));
+        const h: Holder = {
+          id: `spouse:${pid}:hidden:${sid}`, member: partner, partnerId: pid, childIds: group.map((k) => k.id),
+          label: "", lines: [], fontSize: fs, w: fs * 0.9, h: fs * 0.9, x: 0, y: 0, dotted: true, knot: true, collapsed: true,
+          lineage: lineages.size === 1 ? [...lineages][0] : null,
+          anchorOf: group[0], kids: group, dir: UP, clear: true,
+        };
+        holders.push(h);
+        for (const k of group) holderOf.set(k.id, h);
       }
       const names = [...groups.keys()].map((id) => givenAndFamilyName(byMemberId.get(id)!.name));
       for (const [sid, group] of groups) {
@@ -2567,7 +2593,7 @@ function layoutAttempt(
           .map((x) => (x.spouseAId === p.id ? x.spouseBId : x.spouseAId));
         for (const sid of new Set(married)) {
           const spouse = byMemberId.get(sid);
-          if (!spouse || holders.some((h) => h.partnerId === p.id && h.member.id === sid)) continue;
+          if (!spouse || holders.some((h) => h.partnerId === p.id && h.member.id === sid) || isHiddenCouple(p.id, sid)) continue;
           if (onPoster.has(sid) && p.member.gender !== (matri ? "FEMALE" : "MALE")) continue;
           const label = givenAndFamilyName(spouse.name);
           const fs = Math.max(floorFor(fl), p.fontSize * 0.85);
