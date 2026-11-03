@@ -7,6 +7,7 @@ import type { CreateMemberInput } from "@/lib/validation";
 import { MemberPicker } from "./MemberPicker";
 import { useConfirm } from "../ConfirmDialog";
 import { useLanguage } from "@/lib/i18n";
+import { referencesTo } from "@/lib/family/matches";
 
 export interface MemberDraft {
   name: string;
@@ -177,7 +178,14 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
               onClick={async () => {
                 const ok = await ask({
                   title: t("form.deleteTitle", { name: member ? nasab(tree.members, member.id, 2) : t("form.thisMember") }),
-                  message: t("form.deleteMessage"),
+                  // (everything still linked to them, named: a cousin may be a child here and a spouse there)
+                  message: (() => {
+                    if (!member) return t("form.deleteMessage");
+                    const r = referencesTo(tree, member.id);
+                    return r.children + r.spouses + r.citations + r.media > 0
+                      ? t("form.deleteRefs", { name: member.name, children: n(r.children), spouses: n(r.spouses), citations: n(r.citations), media: n(r.media) })
+                      : t("form.deleteMessage");
+                  })(),
                   confirm: t("form.delete"), danger: true,
                 });
                 if (ok) onDelete();

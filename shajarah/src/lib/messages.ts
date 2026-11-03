@@ -543,6 +543,12 @@ export const MESSAGES = {
   "rel.addHusband": { en: "Add a husband — type name, press Enter", ar: "إضافة زوج — اكتب الاسم واضغط Enter" },
   "rel.linkExisting": { en: "…or link someone already in the tree", ar: "…أو اربط شخصًا موجودًا في الشجرة" },
 
+  // ── Someone already recorded ──────────────────────────────────────────
+  "rel.alreadyRecorded": { en: "Already in the family? Link them instead of adding someone new:", ar: "موجود في العائلة؟ اربطه بدلًا من إضافة شخص جديد:" },
+  "rel.enterAddsNew": { en: "Enter adds a new person.", ar: "زر Enter يضيف شخصًا جديدًا." },
+  "rel.linkAs": { en: "Link {name}", ar: "ربط {name}" },
+  "form.deleteRefs": { en: "{name} is still linked: {children} children, {spouses} marriages, {citations} citations, {media} photos or documents. Deleting unlinks them all (nothing else is deleted); you can undo this.", ar: "ما زال {name} مرتبطًا: أبناء {children}، زيجات {spouses}، استشهادات {citations}، صور أو وثائق {media}. الحذف يفكّ هذه الروابط كلها (ولا يُحذف غيره)، ويمكنك التراجع." },
+
   // ── Language ──────────────────────────────────────────────────────────
   "language.switch": { en: "العربية", ar: "English" },
 } as const satisfies Record<string, { en: string; ar: string }>;

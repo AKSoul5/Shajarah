@@ -5,6 +5,7 @@ import { compareSiblings, lineageParentId, nasab } from "@/lib/genealogy";
 import { duplicateSpouses } from "@/lib/merge";
 import type { Gender, MemberDTO, TreeDTO } from "@/lib/types";
 import { MemberPicker } from "./MemberPicker";
+import { existingByName } from "@/lib/family/matches";
 import { useLanguage } from "@/lib/i18n";
 
 interface Props {
@@ -85,6 +86,44 @@ export function RelationsPanel({
   const duplicates = duplicateSpouses(tree, member.id);
   const otherRole = member.gender === "FEMALE" ? "fatherId" as const : "motherId" as const;
 
+  // people already recorded who match a typed name: linked rather than recorded twice
+  const linkable = (typed: string, gender: Gender | undefined, exclude: Iterable<string>) =>
+    existingByName(tree.members, typed, { gender, exclude: new Set([member.id, ...exclude]) });
+  const Matches = ({ found, onLink }: { found: MemberDTO[]; onLink: (id: string) => void }) => found.length ? (
+    <div className="mt-1 rounded-md border border-gilt-500/40 bg-parchment-50 p-2 text-xs" role="status">
+      <p className="mb-1 text-bark-700">{t("rel.alreadyRecorded")}</p>
+      <div className="flex flex-wrap gap-1">
+        {found.map((m) => (
+          <button key={m.id} type="button" className="btn-outline py-0.5 font-naskh text-[14px]" dir="auto" disabled={busy}
+            title={t("rel.linkAs", { name: nasab(tree.members, m.id, 4) })} onClick={() => onLink(m.id)}>
+            {nasab(tree.members, m.id, 3)}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-bark-500">{t("rel.enterAddsNew")}</p>
+    </div>
+  ) : null;
+  // (a parent: not the person themself nor anyone descended from them)
+  const descendantsOf = (id: string) => {
+    const out = new Set<string>();
+    const stack = [id];
+    while (stack.length) {
+      const p = stack.pop()!;
+      for (const c of tree.members) if ((c.fatherId === p || c.motherId === p) && !out.has(c.id)) { out.add(c.id); stack.push(c.id); }
+    }
+    return out;
+  };
+  // (a child: not the person's own ancestors)
+  const ancestorsOf = (id: string) => {
+    const out = new Set<string>();
+    const stack = [id];
+    while (stack.length) {
+      const p = byId.get(stack.pop()!);
+      for (const a of [p?.fatherId, p?.motherId]) if (a && !out.has(a)) { out.add(a); stack.push(a); }
+    }
+    return out;
+  };
+
   const submitParent = () => {
     if (!parentName.trim() || !parentGender) return;
     onQuickAddParent(parentName.trim(), parentGender);
@@ -144,6 +183,10 @@ export function RelationsPanel({
               +
             </button>
           </div>
+        )}
+        {parentGender && (
+          <Matches found={linkable(parentName, parentGender, descendantsOf(member.id))}
+            onLink={(id) => { onSetParent(member.id, parentGender === "MALE" ? "fatherId" : "motherId", id); setParentName(""); }} />
         )}
       </section>
 
@@ -217,6 +260,10 @@ export function RelationsPanel({
             +
           </button>
         </div>
+        {/* (someone recorded without this parent: linked as their child) */}
+        <Matches
+          found={linkable(childName, childGender, ancestorsOf(member.id)).filter((m) => !(her ? m.motherId : m.fatherId))}
+          onLink={(id) => { onSetParent(id, her ? "motherId" : "fatherId", member.id); setChildName(""); }} />
         {spouses.length > 1 && (
           <label className="mt-1 flex items-center gap-2 text-xs text-gray-600">
             {t(her ? "rel.fatherOfNew" : "rel.motherOfNew")}
@@ -274,6 +321,8 @@ export function RelationsPanel({
             +
           </button>
         </div>
+        <Matches found={linkable(spouseName, her ? "MALE" : member.gender === "MALE" ? "FEMALE" : undefined, spouseIds)}
+          onLink={(id) => { onAddSpouse(id); setSpouseName(""); }} />
         <div className="mt-2">
           <MemberPicker
             label={t("rel.linkExisting")}
