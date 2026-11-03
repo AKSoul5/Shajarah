@@ -398,17 +398,7 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
-  const layout = withBoxRoom(tree, opts);
-  // The clearance between names gives way to legibility: a poster whose
-  // names fall short of the legible size with it (by at most a fifth) is
-  // laid out again without it (what each name draws past its box is still
-  // kept clear), and that one is kept when it is legible and as clean. A
-  // poster far too dense for its paper is not laid out twice.
-  if (opts.clearance === undefined && !layout.legibility.ok && layout.legibility.smallestTextMm >= layout.legibility.minTextMm * 0.8) {
-    const tight = withBoxRoom(tree, { ...opts, clearance: 0 });
-    if (tight.legibility.ok && (!isCleanPoster(layout) || isCleanPoster(tight))) return tight;
-  }
-  return layout;
+  return withBoxRoom(tree, opts);
 }
 
 function withBoxRoom(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
@@ -2060,7 +2050,10 @@ function layoutAttempt(
     };
     // (the name's drawing past its box, its stroke or a parent's gold ring,
     // and half the clearance kept between names)
-    node.pad = layoutPad(node, opts.clearance);
+    // (the new designs keep their drawing's room clear: rings and strokes;
+    // the original shapes are laid out as they always were, see
+    // docs/node-designs.md for the decision on extending it to them)
+    node.pad = isDesignShape(nodeShape) ? layoutPad(node, opts.clearance) : 0;
     nodes.push(node);
     byId.set(node.id, node);
     return node;
@@ -3583,6 +3576,7 @@ function layoutAttempt(
     for (let j = i + 1; j < nodes.length; j++) {
       const b = nodes[j];
       if (a.region === "fixed" && b.region === "fixed") continue;
+      // (with what each name draws past its box: the new designs' rings)
       const pads = (a.pad ?? 0) + (b.pad ?? 0);
       if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pads - 0.5 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pads - 0.5) overlaps++;
     }
