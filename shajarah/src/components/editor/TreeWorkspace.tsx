@@ -14,6 +14,7 @@ import { generationColor } from "@/lib/layout/palette";
 import { generationBadge, generationText, referenceIdOf, treeGenerations, type GenerationStatus } from "@/lib/family/generations";
 import { buildFamilyIndex } from "@/lib/family/index";
 import { PersonProfile } from "./PersonProfile";
+import { LanguageSwitch, useLanguage } from "@/lib/i18n";
 import { RecordsPage } from "./RecordsPage";
 import { PeopleFilters, activeFilters } from "./PeopleFilters";
 import { peopleSearch, type PeopleQuery } from "@/lib/family/filters";
@@ -62,6 +63,7 @@ type Panel =
   | { kind: "unplaced" };
 
 export function TreeWorkspace({ initialTree, mode }: Props) {
+  const { t, n, lang } = useLanguage();
   const [tree, setTree] = useState(initialTree);
   const repo = useMemo<FamilyRepository>(
     () => (mode === "api" ? apiRepository(initialTree.id, initialTree.version) : localRepository(initialTree)),
@@ -663,8 +665,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         <div className="min-w-0">
           <h1 className="truncate font-naskh text-lg font-bold" dir="auto">{tree.name}</h1>
           <p className="truncate text-xs text-gray-500" title={`${tree.members.length} members · ${generationCount} generations from Generation 1`}>
-            {tree.members.length} members · {generationCount} generations
-            {mode === "local" && " · demo mode (changes are not saved)"}
+            {t("header.counts", { n: n(tree.members.length), g: n(generationCount) })}
+            {mode === "local" && t("header.demo")}
           </p>
         </div>
         <div role="tablist" aria-label="View" className="flex shrink-0 overflow-hidden rounded-md border border-parchment-300 text-sm">
@@ -677,11 +679,12 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               className={`whitespace-nowrap px-3 py-1 ${view === v ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}
               onClick={() => showView(v)}
             >
-              {v === "poster" ? "Poster" : v === "sources" ? `Sources (${tree.sources.length})` : "Records"}
+              {v === "poster" ? t("view.poster") : v === "sources" ? t("view.sources", { n: n(tree.sources.length) }) : t("view.records")}
             </button>
           ))}
         </div>
         <div className="ms-auto flex items-center gap-3">
+          <LanguageSwitch />
           <UndoControls
             undo={history.undo}
             redo={history.redo}
@@ -760,10 +763,10 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           {panel.kind === "list" && (
             <>
               <div className="flex gap-2 border-b border-parchment-200 p-3">
-                <input className="input flex-1" dir="auto" placeholder="Search members…" value={query} onChange={(e) => setQuery(e.target.value)} />
+                <input className="input flex-1" dir="auto" placeholder={t("list.search")} value={query} onChange={(e) => setQuery(e.target.value)} />
                 <button type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}
-                  className={`btn-outline whitespace-nowrap px-2 text-xs ${filtering ? "border-bark-500 text-bark-900" : ""}`} title="Filter the list: gender, status, generation, branch, years, incomplete records">
-                  Filters{filtering ? ` (${activeFilters(filters)})` : ""}
+                  className={`btn-outline whitespace-nowrap px-2 text-xs ${filtering ? "border-bark-500 text-bark-900" : ""}`} title={t("list.filtersTitle")}>
+                  {t("list.filters")}{filtering ? ` (${n(activeFilters(filters))})` : ""}
                 </button>
                 <button type="button" className="btn-primary whitespace-nowrap" onClick={() => setPanel({ kind: "new", draft: emptyDraft() })}>
                   + Person
@@ -798,13 +801,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 )}
                 {(query.trim() || filtering) && filtered.length === 0 && (
                   <li className="p-6 text-center text-sm text-bark-500">
-                    {query.trim() ? <>No one in the family matches «<bdi>{query.trim()}</bdi>»{filtering ? " with these filters" : ""}.</> : "No one matches these filters."}{" "}
-                    {query.trim() && <button type="button" className="underline hover:text-bark-900" onClick={() => setQuery("")}>Clear the search</button>}
-                    {filtering && <> <button type="button" className="underline hover:text-bark-900" onClick={() => setFilters({})}>Clear the filters</button></>}
+                    {query.trim() ? <>{t("list.noMatchText", { q: "" }).replace("«»", "")}«<bdi>{query.trim()}</bdi>»{filtering ? t("list.withFilters") : ""}.</> : t("list.noMatchFilters")}{" "}
+                    {query.trim() && <button type="button" className="underline hover:text-bark-900" onClick={() => setQuery("")}>{t("list.clearSearch")}</button>}
+                    {filtering && <> <button type="button" className="underline hover:text-bark-900" onClick={() => setFilters({})}>{t("list.clearFilters")}</button></>}
                   </li>
                 )}
                 {filtering && filtered.length > 0 && (
-                  <li className="border-b border-parchment-100 px-3 py-1 text-xs text-bark-500">{filtered.length.toLocaleString()} {filtered.length === 1 ? "person matches" : "people match"}</li>
+                  <li className="border-b border-parchment-100 px-3 py-1 text-xs text-bark-500">{t("list.matches", { n: n(filtered.length) })}</li>
                 )}
                 {filtered.slice(0, LIST_LIMIT).map((m) => (
                   <li key={m.id}>
@@ -818,14 +821,14 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                         <span className="block truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
                         {filtering && (
                           <span className="block truncate text-[11px] text-bark-400">
-                            {[family.branchesOf(m.id).map((b) => b.name).join(" / ") || null, m.isDeceased ? "deceased" : "living", m.birthYear ? `b. ${m.birthYear}` : null].filter(Boolean).join(" · ")}
+                            {[family.branchesOf(m.id).map((b) => b.name).join(" / ") || null, m.isDeceased ? t(m.gender === "FEMALE" ? "status.deceased.f" : "status.deceased.m") : t("status.living"), m.birthYear ? t("status.born", { y: m.birthYear }) : null].filter(Boolean).join(" · ")}
                           </span>
                         )}
                       </span>
-                      <span className="whitespace-nowrap text-xs text-bark-400" title={generationText(generations.get(m.id), "en", m.gender)}>
+                      <span className="whitespace-nowrap text-xs text-bark-400" title={generationText(generations.get(m.id), lang, m.gender)}>
                         {(() => {
                           const g = generations.get(m.id);
-                          if (g?.kind === "spouse") return `${generationBadge({ kind: "level", level: g.partnerLevels[0], via: "father" })} · ${m.gender === "FEMALE" ? "wife" : "husband"}`;
+                          if (g?.kind === "spouse") return `${generationBadge({ kind: "level", level: g.partnerLevels[0], via: "father" })} · ${t(m.gender === "FEMALE" ? "role.wife" : "role.husband")}`;
                           return generationBadge(g);
                         })()}
                       </span>
@@ -960,23 +963,23 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     : undefined;
                   return (
                     <span className="ms-auto whitespace-nowrap rounded-full px-2 py-0.5 text-xs" style={{ background: c.fill, color: c.text }} title={why}>
-                      {generationText(g, "en", selected.gender)}{why ? " *" : ""}
+                      {generationText(g, lang, selected.gender)}{why ? " *" : ""}
                     </span>
                   );
                 })()}
               </div>
               {selected.id === referenceId ? (
-                <p className="-mt-3 text-xs text-bark-400">Generations are counted from this person.</p>
+                <p className="-mt-3 text-xs text-bark-400">{t("kin.countedFromHere")}</p>
               ) : generations.get(selected.id)?.kind === "level" && (
                 <button type="button" className="-mt-3 text-xs text-bark-500 underline" onClick={() => updateSettings({ referenceId: selected.id })}>
-                  Count generations from this person
+                  {t("kin.countFromHere")}
                 </button>
               )}
               <div role="tablist" aria-label="Person" className="-mt-2 flex gap-1 border-b border-parchment-200 text-sm">
-                {(["profile", "edit"] as const).map((t) => (
-                  <button key={t} type="button" role="tab" aria-selected={personTab === t} onClick={() => choosePersonTab(t)}
-                    className={`-mb-px border-b-2 px-3 py-1.5 ${personTab === t ? "border-bark-700 font-semibold text-bark-900" : "border-transparent text-bark-500 hover:text-bark-700"}`}>
-                    {t === "profile" ? "Profile" : "Edit"}
+                {(["profile", "edit"] as const).map((tab) => (
+                  <button key={tab} type="button" role="tab" aria-selected={personTab === tab} onClick={() => choosePersonTab(tab)}
+                    className={`-mb-px border-b-2 px-3 py-1.5 ${personTab === tab ? "border-bark-700 font-semibold text-bark-900" : "border-transparent text-bark-500 hover:text-bark-700"}`}>
+                    {t(tab === "profile" ? "person.tabProfile" : "person.tabEdit")}
                   </button>
                 ))}
               </div>
