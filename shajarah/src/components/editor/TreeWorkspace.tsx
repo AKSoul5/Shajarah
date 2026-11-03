@@ -11,6 +11,8 @@ import { MemberPicker } from "./MemberPicker";
 import { relationship } from "@/lib/relationship";
 import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branches";
 import { generationColor } from "@/lib/layout/palette";
+import { buildFamilyIndex } from "@/lib/family/index";
+import { PersonProfile } from "./PersonProfile";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
 import type { Gender, MemberDTO, PosterTheme, TreeDTO } from "@/lib/types";
 import type { CreateMemberInput } from "@/lib/validation";
@@ -216,6 +218,43 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     select(id);
     showOnPoster(id);
   }, [select, showOnPoster]);
+
+  // ── The person's profile (src/components/editor/PersonProfile.tsx) ──────
+  // The family engine over the records as they are now
+  const family = useMemo(() => buildFamilyIndex(tree), [tree]);
+  // Profile or Edit, as last chosen on this computer
+  const [personTab, setPersonTab] = useState<"profile" | "edit">("profile");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("shajarah:personTab") === "edit") setPersonTab("edit");
+    } catch { /* storage unavailable: the profile, as default */ }
+  }, []);
+  const choosePersonTab = (t: "profile" | "edit") => {
+    setPersonTab(t);
+    try { localStorage.setItem("shajarah:personTab", t); } catch { /* not remembered */ }
+  };
+  // Back and forward through the people opened from a profile
+  const [personPast, setPersonPast] = useState<string[]>([]);
+  const [personFuture, setPersonFuture] = useState<string[]>([]);
+  const openPerson = useCallback((id: string) => {
+    if (selectedId && selectedId !== id) setPersonPast((p) => [...p.slice(-49), selectedId]);
+    setPersonFuture([]);
+    selectAndShow(id);
+  }, [selectedId, selectAndShow]);
+  const personBack = () => {
+    const id = personPast.at(-1);
+    if (!id) return;
+    setPersonPast((p) => p.slice(0, -1));
+    if (selectedId) setPersonFuture((f) => [selectedId, ...f]);
+    selectAndShow(id);
+  };
+  const personForward = () => {
+    const [id, ...rest] = personFuture;
+    if (!id) return;
+    setPersonFuture(rest);
+    if (selectedId) setPersonPast((p) => [...p, selectedId]);
+    selectAndShow(id);
+  };
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [findIndex, setFindIndex] = useState(0);
@@ -891,6 +930,18 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   Generation {selected.generation + 1}
                 </span>
               </div>
+              <div role="tablist" aria-label="Person" className="-mt-2 flex gap-1 border-b border-parchment-200 text-sm">
+                {(["profile", "edit"] as const).map((t) => (
+                  <button key={t} type="button" role="tab" aria-selected={personTab === t} onClick={() => choosePersonTab(t)}
+                    className={`-mb-px border-b-2 px-3 py-1.5 ${personTab === t ? "border-bark-700 font-semibold text-bark-900" : "border-transparent text-bark-500 hover:text-bark-700"}`}>
+                    {t === "profile" ? "Profile" : "Edit"}
+                  </button>
+                ))}
+              </div>
+              {personTab === "profile" ? (
+                <PersonProfile ix={family} tree={tree} member={selected} onOpen={openPerson}
+                  onBack={personPast.length ? personBack : undefined} onForward={personFuture.length ? personForward : undefined} />
+              ) : (<>
               <RelationsPanel
                 tree={tree}
                 member={selected}
@@ -1105,6 +1156,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   Make this the root of the trunk
                 </button>
               )}
+              </>)}
             </div>
           )}
         </aside>
