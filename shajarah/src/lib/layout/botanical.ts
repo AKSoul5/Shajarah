@@ -149,7 +149,7 @@ export interface LayoutOptions {
   minTextMm?: number;
 }
 
-import { decorOutset, designSize, isDesignShape, type DesignShape, type PosterShape } from "./nodeGeometry";
+import { layoutPad, designSize, isDesignShape, type DesignShape, type PosterShape } from "./nodeGeometry";
 export type { PosterShape } from "./nodeGeometry";
 
 export interface PosterNode {
@@ -2004,8 +2004,9 @@ function layoutAttempt(
       parentId: n.parent?.data.member?.id ?? null,
       mass: medallion ? 4 : 1, region, side,
     };
-    // (the name's drawing past its box: its stroke, a parent's gold ring)
-    node.pad = decorOutset(node);
+    // (the name's drawing past its box, its stroke or a parent's gold ring,
+    // and half the clearance kept between names)
+    node.pad = layoutPad(node);
     nodes.push(node);
     byId.set(node.id, node);
     return node;

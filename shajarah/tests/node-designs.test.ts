@@ -119,6 +119,7 @@ describe("node designs on the poster", () => {
       const ins = inspectPoster(layout, { ...tree, settings }, 420);
       expect(ins.defects, `${shape}: ${JSON.stringify(ins.counts)}`).toBe(0);
       expect(ins.counts["decor-overlap"] ?? 0, shape).toBe(0);
+      expect(ins.counts["decor-tight"] ?? 0, shape).toBe(0);
       const svg = renderToStaticMarkup(React.createElement(TreePoster, { layout, meta: { title: tree.title, subtitle: null, name: tree.name }, theme: t }));
       expect(svg).toMatch(/data-spouse-frame="manuscript"/);
       expect((svg.match(new RegExp(`data-shape="${shape}"`, "g")) ?? []).length).toBe(layout.nodes.filter((n) => n.shape === shape).length);

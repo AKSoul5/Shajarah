@@ -20,6 +20,7 @@ describe.skipIf(!ENABLED)("layout QA · node designs", () => {
       const r = runCase(fixture, mode, theme, "A2", undefined, shape);
       expect(r.defects, `${r.id}: ${JSON.stringify(r.counts)}`).toBe(0);
       expect(r.counts["decor-overlap"] ?? 0, r.id).toBe(0);
+      expect(r.counts["decor-tight"] ?? 0, r.id).toBe(0);
     }, 600_000);
   }
 });

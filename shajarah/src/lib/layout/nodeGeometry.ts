@@ -25,6 +25,12 @@ export const NODE_STROKE = 0.06;
 /** The gap between a parent's outline and their gold ring, and the ring's stroke, in font sizes. */
 export const RING_GAP = 0.16;
 export const RING_STROKE = NODE_STROKE * 1.1;
+/**
+ * The least room between two names' drawn shapes (rings and strokes
+ * included), in font sizes: each name keeps half of it clear around itself,
+ * so names converging on one branch never sit edge to edge.
+ */
+export const CLEARANCE = 0.1;
 /** A medallion's outline stroke (the coloured rim), in font sizes. */
 export const MEDALLION_STROKE = 0.12;
 
@@ -132,8 +138,9 @@ export const DESIGNS: Record<DesignShape, DesignSpec> = {
   // An octagonal seal: a plaque with its corners cut square.
   octagon: {
     padX: 1.5, height: 2.0, textDy: 0,
-    points: (w, h) => {
-      const x = w / 2, y = h / 2, c = Math.min(h * 0.3, w * 0.25);
+    points: (w, h, fs) => {
+      // (the corners cut the same at any height: a second line does not deepen them)
+      const x = w / 2, y = h / 2, c = Math.min(fs * 0.6, h * 0.3, w * 0.25);
       return [{ x: -x + c, y: -y }, { x: x - c, y: -y }, { x, y: -y + c }, { x, y: y - c }, { x: x - c, y }, { x: -x + c, y }, { x: -x, y: y - c }, { x: -x, y: -y + c }];
     },
   },
@@ -174,23 +181,31 @@ export const DESIGNS: Record<DesignShape, DesignSpec> = {
       }).join("");
     },
   },
-  // A scalloped medallion: an oval whose edge is a ring of shallow scallops.
+  // A scalloped medallion: an engraved rosette, an oval whose edge is a
+  // ring of fine, even scallops (each a round arc, as on a seal or a
+  // coin's rim) around a smooth inner rule.
   scallop: {
-    padX: 2.0, height: 2.3, textDy: 0, ellipseInset: 0.12,
+    padX: 2.0, height: 2.3, textDy: 0, ellipseInset: 0.3,
     points: (w, h, fs) => {
-      const amp = fs * 0.08;
+      const amp = fs * 0.07;
       const rx = w / 2 - amp, ry = h / 2 - amp;
-      const n = Math.max(16, Math.round((Math.PI * (rx + ry)) / (fs * 0.55)));
-      const steps = n * 8;
+      // (the scallops as wide as each other all round, about a third of the type size)
+      const n = Math.max(20, Math.round((Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)))) / (fs * 0.36)));
+      const steps = n * 10;
       return Array.from({ length: steps }, (_, i) => {
         const t = (i / steps) * 2 * Math.PI;
-        // each scallop a rounded bump, the valleys between them shallow (no
-        // deep notch for a line to show through)
-        const bump = amp * Math.abs(Math.sin((n * t) / 2)) ** 0.7;
+        // (a round arc per scallop; the valleys meet at the ellipse, never deeper)
+        const bump = amp * Math.sqrt(Math.abs(Math.sin((n * t) / 2)));
         const ex = rx * Math.cos(t), ey = ry * Math.sin(t);
         const nx = ry * Math.cos(t), ny = rx * Math.sin(t), nl = Math.hypot(nx, ny) || 1;
         return { x: ex + (bump * nx) / nl, y: ey + (bump * ny) / nl };
       });
+    },
+    ornament: (w, h, fs) => {
+      // the smooth inner rule, as a thin ring (drawn filled: outer ellipse minus inner)
+      const g = fs * 0.24, t = fs * 0.035;
+      const ring = (rx: number, ry: number, sweep: 0 | 1) => `M${(-rx).toFixed(1)} 0a${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 ${sweep} ${(2 * rx).toFixed(1)} 0a${rx.toFixed(1)} ${ry.toFixed(1)} 0 1 ${sweep} ${(-2 * rx).toFixed(1)} 0Z`;
+      return ring(w / 2 - g, h / 2 - g, 1) + ring(w / 2 - g - t, h / 2 - g - t, 0);
     },
   },
 };
@@ -269,10 +284,13 @@ export function outlinePoints(n: NodeShapeInput, grow = 0): Vec[] {
   }
 }
 
-/** The whole drawn extent of a node on the page: its outline grown by its outset. */
-export function drawnOutline(n: NodeShapeInput & { x: number; y: number }): Vec[] {
-  return outlinePoints(n, decorOutset(n)).map((p) => ({ x: p.x + n.x, y: p.y + n.y }));
+/** The whole drawn extent of a node on the page: its outline grown by its outset (and `extra`). */
+export function drawnOutline(n: NodeShapeInput & { x: number; y: number }, extra = 0): Vec[] {
+  return outlinePoints(n, decorOutset(n) + extra).map((p) => ({ x: p.x + n.x, y: p.y + n.y }));
 }
+
+/** What the layout keeps clear around a node's box: its drawn outset and half the clearance. */
+export const layoutPad = (n: NodeShapeInput) => decorOutset(n) + (n.fontSize * CLEARANCE) / 2;
 
 const cross = (o: Vec, a: Vec, b: Vec) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 const segmentsCross = (p: Vec, q: Vec, r: Vec, s: Vec) =>
