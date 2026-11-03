@@ -217,11 +217,11 @@ describe("how two people are related", () => {
         { id: "p", name: "سعد", gender: "MALE" as const, fatherId: null, motherId: null },
         { id: "b1", name: "أسعد", gender: "MALE" as const, fatherId: "p", motherId: null },
         { id: "b2", name: "عمر", gender: "MALE" as const, fatherId: "p", motherId: null },
-        { id: "zw", name: "ظريفة", gender: "FEMALE" as const, fatherId: null, motherId: null },
+        { id: "zw", name: "نجلاء", gender: "FEMALE" as const, fatherId: null, motherId: null },
       ];
       const m2 = [{ spouseAId: "b2", spouseBId: "zw" }];
-      expect(relationship(unknown, m2, "b1", "zw").arabic).toBe("ظريفة زوجة أخو أسعد");
-      expect(relationship(unknown, m2, "zw", "b1").arabic).toBe("أسعد أخو زوج ظريفة");
+      expect(relationship(unknown, m2, "b1", "zw").arabic).toBe("نجلاء زوجة أخو أسعد");
+      expect(relationship(unknown, m2, "zw", "b1").arabic).toBe("أسعد أخو زوج نجلاء");
       expect(relationship(unknown, [], "b1", "b2").arabic).toBe("عمر أخو أسعد");
       expect(relationship(unknown, [], "b2", "b1").arabic).toBe("أسعد أخو عمر");
     });

@@ -21,7 +21,7 @@ const family = (): TreeDTO => ({
     person("w2", "هند  العتيبي", "FEMALE", { birthYear: 1960 }), // added again, as a child's mother
     person("w3", "سارة", "FEMALE"),
     person("a", "محمد", "MALE", { fatherId: "f", motherId: "w1" }),
-    person("b", "فاتن", "FEMALE", { fatherId: "f", motherId: "w2" }),
+    person("b", "وداد", "FEMALE", { fatherId: "f", motherId: "w2" }),
     person("c", "خالد", "MALE", { fatherId: "f", motherId: "w2" }),
     person("d", "علي", "MALE", { fatherId: "f", motherId: "w3" }),
   ],
@@ -41,7 +41,7 @@ describe("a spouse recorded twice", () => {
   it("is merged: her children, marriages, photos, sources and settings all with one record", () => {
     const t = mergePeople(family(), "w1", "w2");
     expect(t.members.some((m) => m.id === "w2")).toBe(false);
-    expect(t.members.filter((m) => m.motherId === "w1").map((m) => m.name).sort()).toEqual(["خالد", "فاتن", "محمد"]);
+    expect(t.members.filter((m) => m.motherId === "w1").map((m) => m.name).sort()).toEqual(["خالد", "محمد", "وداد"]);
     expect(t.members.find((m) => m.id === "w1")!.birthYear).toBe(1960); // a detail only the copy had
     expect(t.marriages.map((x) => [x.spouseAId, x.spouseBId])).toEqual([["f", "w1"], ["f", "w3"]]);
     expect(t.media[0].memberId).toBe("w1");

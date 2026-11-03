@@ -373,7 +373,7 @@ export function relationship(members: Person[], marriages: (Pick<MarriageDTO, "s
   }
   // …and the same seen from the other side: B a close relative (parent,
   // child, brother or sister) of R, the spouse of W, A's close blood
-  // relative: "زينب والدة زوجة حفيد غمرة". (Searched only from A, a tie
+  // relative: "سلمى والدة زوجة حفيد نجلاء". (Searched only from A, a tie
   // found one way was missed the other.)
   for (const rId of near(bId)) {
     for (const wId of spousesOf(rId)) {
