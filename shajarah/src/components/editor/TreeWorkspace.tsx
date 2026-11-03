@@ -379,7 +379,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") {
         if (layoutKeysRef.current.openFind()) { e.preventDefault(); return; }
       }
-      const typing = (e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']");
+      const typing = (e.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable=''], [contenteditable='true']");
       if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (e.key === "[") { e.preventDefault(); layoutKeysRef.current.toggleSidebar(); return; }
         if (e.key === "f" || e.key === "F") { e.preventDefault(); layoutKeysRef.current.toggleFullScreen(); return; }
