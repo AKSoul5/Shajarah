@@ -1,8 +1,10 @@
 "use client";
 
-import { SOIL_STYLES, SOIL_STYLE_ORDER } from "@/lib/layout/soil";
+import { SOIL_STYLE_ORDER } from "@/lib/layout/soil";
 import { memo, useState } from "react";
 import { useDismiss } from "../useDismiss";
+import { useLanguage } from "@/lib/i18n";
+import type { SoilStyleId } from "@/lib/layout/soil";
 import { compactTheme, isInkOnly, resetDesign, THEME_PRESETS } from "@/lib/theme";
 import type { PosterLayout } from "@/lib/layout/botanical";
 import type { PosterTheme, ThemePreset } from "@/lib/types";
@@ -39,6 +41,9 @@ interface Props {
 
 /** Theme presets, colour pickers, node shape and label options. */
 export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameAvailable = true, layout, meta, frameSrc }: Props) {
+  const { t: tr } = useLanguage();
+  const designName = (p: ThemePreset) => tr(`design.${p}.name` as const);
+  const soilName = (id: SoilStyleId) => tr(`soilStyle.${id}.name` as const);
   const [open, setOpen] = useState(false);
   const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false));
   const [soilDraft, setSoilDraft] = useState(soilText ?? "");
@@ -57,12 +62,12 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
   return (
     <div className="relative" ref={menu}>
       <button type="button" className="btn-outline whitespace-nowrap" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <Icon name="palette" className="me-1.5 h-4 w-4" />Style ▾
+        <Icon name="palette" className="me-1.5 h-4 w-4" />{tr("style.button")}
       </button>
       {open && (
         <div className="absolute end-0 z-30 mt-2 max-h-[80vh] w-[36rem] max-w-[calc(100vw-2rem)] space-y-4 overflow-auto rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
           <section>
-            <h4 className="section-title">Design</h4>
+            <h4 className="section-title">{tr("style.design")}</h4>
             <div className="grid grid-cols-2 gap-2">
               {(Object.keys(THEME_PRESETS) as ThemePreset[]).map((p) => {
                 const t = THEME_PRESETS[p];
@@ -84,9 +89,9 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                     </span>
                     <span className="block px-2 py-1.5">
                       <span className="flex items-center gap-1 text-sm font-semibold text-bark-900">
-                        {on && <span aria-hidden className="text-bark-700">✓</span>}{t.label}
+                        {on && <span aria-hidden className="text-bark-700">✓</span>}{designName(p)}
                       </span>
-                      <span className="block text-[11px] leading-snug text-bark-500">{t.description}</span>
+                      <span className="block text-[11px] leading-snug text-bark-500">{tr(`design.${p}.desc` as const)}</span>
                     </span>
                   </button>
                 );
@@ -94,39 +99,39 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             </div>
             {Object.keys(compactTheme(theme)).some((k) => ["male", "female", "ancestor", "branch", "background", "metallic", "nodeRim", "inkOnly"].includes(k)) && (
               <button type="button" className="btn-outline mt-2 w-full justify-center text-sm" onClick={() => onChange(resetDesign(theme))}
-                title="Its colours, paper and finish as the design has them; your spouses, ornaments and labels stay">
-                Reset to {THEME_PRESETS[theme.preset].label}&rsquo;s design
+                title={tr("style.resetTitle")}>
+                {tr("style.reset", { design: designName(theme.preset) })}
               </button>
             )}
           </section>
 
           <section className="space-y-1.5">
-            <h4 className="section-title">Colours</h4>
-            {color("male", "Male")}
-            {color("female", "Female")}
-            {color("ancestor", "Trunk medallions")}
-            {color("branch", "Branches & trunk")}
+            <h4 className="section-title">{tr("style.colours")}</h4>
+            {color("male", tr("style.male"))}
+            {color("female", tr("style.female"))}
+            {color("ancestor", tr("style.ancestor"))}
+            {color("branch", tr("style.branch"))}
             <label className="flex items-center justify-between text-sm">
-              Colour nodes by
+              {tr("style.colourBy")}
               <select className="input w-48" value={theme.colorBy} onChange={(e) => onChange({ colorBy: e.target.value as PosterTheme["colorBy"] })}>
-                <option value="gender">Gender</option>
-                <option value="generation">Generation</option>
+                <option value="gender">{tr("style.byGender")}</option>
+                <option value="generation">{tr("style.byGeneration")}</option>
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={theme.metallic} onChange={(e) => onChange({ metallic: e.target.checked })} />
-              Metallic finish
+              {tr("style.metallic")}
             </label>
-            <label className="flex items-center gap-2 text-sm" title="Black ink on paper: no colour, metal or frame artwork">
+            <label className="flex items-center gap-2 text-sm" title={tr("style.inkOnlyTitle")}>
               <input type="checkbox" checked={isInkOnly(theme)} onChange={(e) => onChange({ inkOnly: e.target.checked })} />
-              Black ink only
+              {tr("style.inkOnly")}
             </label>
           </section>
 
           <section>
-            <h4 className="section-title">Foundation</h4>
-            <p className="mb-1.5 text-xs text-gray-500">How the ancestors older than the trunk are set below it.</p>
-            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Foundation style">
+            <h4 className="section-title">{tr("style.foundation")}</h4>
+            <p className="mb-1.5 text-xs text-gray-500">{tr("style.foundationNote")}</p>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label={tr("style.foundationStyle")}>
               {SOIL_STYLE_ORDER.map((id) => {
                 const on = theme.soilStyle === id;
                 const recommended = THEME_PRESETS[theme.preset].soilStyle === id;
@@ -136,7 +141,7 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                     type="button"
                     aria-pressed={on}
                     onClick={() => onChange({ soilStyle: id })}
-                    title={SOIL_STYLES[id].description}
+                    title={tr(`soilStyle.${id}.desc` as const)}
                     className={`overflow-hidden rounded-lg border text-start transition-shadow hover:shadow-md ${
                       on ? "border-bark-700 ring-2 ring-bark-700/40" : "border-parchment-300"
                     }`}
@@ -146,10 +151,10 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                     </span>
                     <span className="block px-1.5 py-1">
                       <span className="flex items-center gap-1 text-xs font-semibold text-bark-900">
-                        {on && <span aria-hidden className="text-bark-700">✓</span>}{SOIL_STYLES[id].label}
+                        {on && <span aria-hidden className="text-bark-700">✓</span>}{soilName(id)}
                       </span>
                       <span className="block text-[10px] leading-snug text-bark-500">
-                        {SOIL_STYLES[id].description}{recommended ? ` Suggested for ${THEME_PRESETS[theme.preset].label}.` : ""}
+                        {tr(`soilStyle.${id}.desc` as const)}{recommended ? tr("style.suggestedFor", { design: designName(theme.preset) }) : ""}
                       </span>
                     </span>
                   </button>
@@ -158,80 +163,80 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
             </div>
             {theme.soilStyle !== THEME_PRESETS[theme.preset].soilStyle && (
               <button type="button" className="btn-outline mt-2 w-full justify-center text-sm" onClick={() => onChange({ soilStyle: THEME_PRESETS[theme.preset].soilStyle })}>
-                Use {THEME_PRESETS[theme.preset].label}&rsquo;s foundation ({SOIL_STYLES[THEME_PRESETS[theme.preset].soilStyle].label})
+                {tr("style.useFoundation", { design: designName(theme.preset), foundation: soilName(THEME_PRESETS[theme.preset].soilStyle) })}
               </button>
             )}
           </section>
 
           <section className="space-y-1.5">
-            <h4 className="section-title">Nodes & labels</h4>
+            <h4 className="section-title">{tr("style.nodes")}</h4>
             <label className="flex items-center justify-between text-sm">
-              Shape
+              {tr("style.shape")}
               <select className="input w-48" value={theme.nodeShape} onChange={(e) => onChange({ nodeShape: e.target.value as PosterTheme["nodeShape"] })}>
-                <option value="auto">Auto</option>
-                <option value="leaf">Leaves</option>
-                <option value="circle">Circular badges</option>
-                <option value="oval">Oval medallions</option>
+                <option value="auto">{tr("style.shape.auto")}</option>
+                <option value="leaf">{tr("style.shape.leaf")}</option>
+                <option value="circle">{tr("style.shape.circle")}</option>
+                <option value="oval">{tr("style.shape.oval")}</option>
               </select>
             </label>
             <label className="flex items-center justify-between text-sm">
-              Label
+              {tr("style.label")}
               <select className="input w-48" value={theme.labelMode} onChange={(e) => onChange({ labelMode: e.target.value as PosterTheme["labelMode"] })}>
-                <option value="name">First name</option>
-                <option value="withFather">Name بن father</option>
+                <option value="name">{tr("style.label.name")}</option>
+                <option value="withFather">{tr("style.label.withFather")}</option>
               </select>
             </label>
             <label className="flex items-center justify-between text-sm">
-              Trunk ancestors
+              {tr("style.trunk")}
               <select className="input w-48" value={theme.trunkStyle} onChange={(e) => onChange({ trunkStyle: e.target.value as PosterTheme["trunkStyle"] })}>
-                <option value="carved">Carved in bark</option>
-                <option value="badges">Framed badges</option>
+                <option value="carved">{tr("style.trunk.carved")}</option>
+                <option value="badges">{tr("style.trunk.badges")}</option>
               </select>
             </label>
-            <label className="flex items-center justify-between text-sm" title="How a wife's (or husband's) name is set on the branch, when spouses are shown">
-              Spouses
+            <label className="flex items-center justify-between text-sm" title={tr("style.spousesTitle")}>
+              {tr("style.spouses")}
               <select className="input w-48" value={theme.spouseStyle} onChange={(e) => onChange({ spouseStyle: e.target.value as PosterTheme["spouseStyle"] })}>
-                <option value="manuscript">Manuscript cartouche</option>
-                <option value="capsule">Soft capsule</option>
-                <option value="inscribed">Inscribed, no box</option>
+                <option value="manuscript">{tr("style.spouse.manuscript")}</option>
+                <option value="capsule">{tr("style.spouse.capsule")}</option>
+                <option value="inscribed">{tr("style.spouse.inscribed")}</option>
               </select>
             </label>
-            <label className="flex items-center justify-between text-sm" title="A lineage too long for the foundation's share of the page">
-              Foundation names
+            <label className="flex items-center justify-between text-sm" title={tr("style.foundationNamesTitle")}>
+              {tr("style.foundationNames")}
               <select className="input w-48" value={theme.soilShorten ? "shorten" : "all"} onChange={(e) => onChange({ soilShorten: e.target.value === "shorten" })}>
-                <option value="all">Every name</option>
-                <option value="shorten">Shorten long lineages (…)</option>
+                <option value="all">{tr("style.foundationNames.all")}</option>
+                <option value="shorten">{tr("style.foundationNames.shorten")}</option>
               </select>
             </label>
             <label className="flex items-center justify-between text-sm">
-              Paper
+              {tr("style.paper")}
               <select className="input w-48" value={theme.background} onChange={(e) => onChange({ background: e.target.value as PosterTheme["background"], inkOnly: isInkOnly(theme) })}>
-                <option value="parchment">The design&rsquo;s own</option>
-                <option value="white">Plain white</option>
+                <option value="parchment">{tr("style.paper.own")}</option>
+                <option value="white">{tr("style.paper.white")}</option>
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={theme.showYears} onChange={(e) => onChange({ showYears: e.target.checked })} />
-              Show birth / death years
+              {tr("style.years")}
             </label>
-            <label className="flex items-center gap-2 text-sm" title="Each wife a man had children with is a name panel on his branch, and the children she bore him grow from it">
+            <label className="flex items-center gap-2 text-sm" title={tr("style.spousesOnBranchTitle")}>
               <input type="checkbox" checked={theme.motherNames} onChange={(e) => onChange({ motherNames: e.target.checked })} />
-              Show spouses on the branch
+              {tr("style.spousesOnBranch")}
             </label>
           </section>
 
           <section className="space-y-1.5">
-            <h4 className="section-title">Ornaments</h4>
+            <h4 className="section-title">{tr("style.ornaments")}</h4>
             {(
               [
-                ["frame", theme.preset === "luxe" ? "Gold-foil frame (the artwork)" : "The design's frame"],
-                ["femaleCapsule", "Daughters as gold capsules"],
-                ["branchColors", "Colour each main branch (lineage colours)"],
-                ["branchTint", "A faint wash behind each main branch"],
-                ["bismillah", "Basmala header ﷽"],
-                ["edition", "Edition year under the title (طبعة …)"],
-                ["verse", "Verse medallion (الحجرات ١٣)"],
-                ["hadith", "Hadith medallion (تعلموا من أنسابكم)"],
+                ["frame", tr(theme.preset === "luxe" ? "style.orn.frameLuxe" : "style.orn.frame")],
+                ["femaleCapsule", tr("style.orn.femaleCapsule")],
+                ["branchColors", tr("style.orn.branchColors")],
+                ["branchTint", tr("style.orn.branchTint")],
+                ["bismillah", tr("style.orn.bismillah")],
+                ["edition", tr("style.orn.edition")],
+                ["verse", tr("style.orn.verse")],
+                ["hadith", tr("style.orn.hadith")],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="flex items-center gap-2 text-sm">
@@ -240,28 +245,24 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
               </label>
             ))}
             {theme.frame && frameAvailable && theme.preset === "luxe" && (
-              <label className="flex items-center justify-between text-sm" title="Softer: the gold ornament and the paper's texture quieter, so the tree comes first">
-                Frame finish
+              <label className="flex items-center justify-between text-sm" title={tr("style.frameFinishTitle")}>
+                {tr("style.frameFinish")}
                 <select className="input w-48" value={theme.frameFinish ?? "full"} onChange={(e) => onChange({ frameFinish: e.target.value as PosterTheme["frameFinish"] })}>
-                  <option value="full">Full gold</option>
-                  <option value="soft">Softer</option>
+                  <option value="full">{tr("style.frameFinish.full")}</option>
+                  <option value="soft">{tr("style.frameFinish.soft")}</option>
                 </select>
               </label>
             )}
             {theme.frame && !frameAvailable && theme.preset === "luxe" && (
               <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                Frame artwork not found. Save the Canva frame as{" "}
-                <code>public/poster-frame.jpg</code> (or <code>.png</code>); until then a fine gold rule frames it.
+                {(() => { const [before, after] = tr("style.frameMissing").split("{file}"); return <>{before}<code>public/poster-frame.jpg</code>{after}</>; })()}
               </p>
             )}
           </section>
 
           <section className="space-y-1.5">
-            <h4 className="section-title">Soil inscription</h4>
-            <p className="text-xs text-gray-500">
-              Leave empty to inscribe the ancestors older than the trunk. Or paste the lineage exactly as
-              your source writes it.
-            </p>
+            <h4 className="section-title">{tr("style.soil")}</h4>
+            <p className="text-xs text-gray-500">{tr("style.soilNote")}</p>
             <textarea
               className="input min-h-[70px] font-naskh text-base"
               dir="auto"
