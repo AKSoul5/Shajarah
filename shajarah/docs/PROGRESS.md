@@ -43,39 +43,38 @@ Each branch contains the ones above it.
 | `privacy-fixtures` | `31f6eb2` | Real family names in tests replaced with invented ones |
 | `platform-plan` | this file | Plans, the schema proposal, this checklist |
 
-## Awaiting your decision
+## Decisions (recorded 2026-11-03)
 
-1. **Merging and releasing.** Suggested order:
-   - **First:** `a2-poster`, `spouse-legend`, `node-designs` and
-     `cousin-marriages`, as 1.0.50 (posters).
-   - **Then:** the platform branches, `translate-menus` and
-     `cousin-editing`, as 1.1.0, after you have tried them.
-2. **Rings on the original shapes.** On posters in the original designs
-   (leaves, ovals, circles), two parents' gold rings can still touch on a
-   dense poster, as before. Reserving their room fixes that, but it moved
-   three borderline test posters to smaller names or a larger paper.
-   - On the new designs it is on, and their posters are clean.
-   - *Recommended: leave the original shapes as they are for now, and
-     revisit with the "show the last layout at once" work.*
-3. **A daughter's husbands left out of the records.** On today's code
-   they can be recorded again. A family with five husbands lays out
-   cleanly, each husband with exactly his children (details in this
-   session's summary, not in the repository). Any marriage can also be
-   hidden on a poster without deleting anything.
-   - *Your call when to re-enter them.*
-4. **Your poster may change** where a daughter married her cousin and her
-   family is shown through her. Their children move from her dotted line
-   to their father's branch. This is correct genealogy, but it is a
-   visible change.
-5. **Database additions** are now also needed for adoptive, step and
-   guardian parents, disputed parentage, and marriage status, notes and
-   sources (`docs/schema-proposal.md`).
-6. Still open from before:
-   - which person is Generation 1 by default;
-   - adopted children;
-   - the database additions (`docs/schema-proposal.md`);
-   - the genogram and the relationship network;
-   - Git history clean-up.
+1. **Releases, in a controlled order.**
+   - **1.0.50 (approved):** `a2-poster`, `spouse-legend`, `node-designs`
+     and `cousin-marriages`, on top of 1.0.49.
+   - **1.1.0 (not yet):** `integration`, only after 1.0.50 has been tried
+     and the integrated build reviewed. Before it is released, the
+     production build is run again on the exact final `integration`
+     commit (the last build passed at `db12a05`; `2b983ac` and anything
+     after it still need it).
+   - Nothing else is merged into `main` or published.
+2. **Rings on the original shapes** (leaves, ovals, circles): left as they
+   are. Names' legibility is not given up to keep every pair of rings
+   apart.
+3. **A daughter's husbands left out of the records:** restored later, by
+   hand, after a backup of the data and a check of all five marriages and
+   each one's children. No real family details in this repository.
+4. **Children of a cousin marriage (confirmed):** under their father in
+   his branch, under their mother in hers, and once only in the whole
+   tree. Their recorded parents never change.
+5. **Database additions:** the proposal is written up for review
+   (`docs/schema-proposal.md`): adoptive, step and guardian parents,
+   disputed parentage, marriage status and sources. No migration until it
+   has been reviewed.
+6. **Generation 1: true lineage numbering.** The family sets its own
+   Generation 1; older generations are numbered before it (−1, −2, …),
+   descendants after it (1, 2, …). Generation 1 is never redefined by
+   whoever is the oldest on one poster. Generation colours stay as they
+   are.
+
+Still open: adopted children's numbering, the genogram and the
+relationship network, Git history clean-up.
 
 ## Remaining
 
@@ -84,7 +83,7 @@ Each branch contains the ones above it.
   relationships and events everywhere.
 - ~~Interface translation~~ (done: `translate-rest`). Still English: error
   messages sent by the server itself, and the window title.
-- ~~Poster: a generation key counted from Generation 1~~ (done: `generation-key`, for a chosen Generation 1; counting so by default waits on decision 6, which person is Generation 1, since it renumbers every generation-coloured poster's key).
+- **Poster:** the generation key counts from the family's Generation 1 on every poster (decision 6); `generation-key` did it for a chosen Generation 1 only, the default follows.
 - ~~Loading: show the last layout at once~~ (done: `instant-layout`).
 - **Known limitations:**
   - On the complex test family, the shield and octagon come out at a
