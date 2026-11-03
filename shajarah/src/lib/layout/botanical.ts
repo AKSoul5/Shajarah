@@ -415,12 +415,20 @@ function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // early, from the first attempt (see sideLean); a poster left legible
   // with a few ambiguous connections is often clean with its middle moved
   // a little the other way. The first that is clean and legible is taken.
+  // None clean: the legible one with the fewest ambiguities is kept, its
+  // names no smaller (a dense family's ambiguities mostly sit where its
+  // two halves meet, and another balance can leave a handful of twenty).
+  let best = layout;
   if (opts.sideBias === undefined && layout.overlaps === 0 && layout.legibility.ok && layout.clarity.issues.length <= BALANCE_ISSUES) {
+    // (each is a whole layout again: a large family's first one took a
+    // while, and as long again is allowed for each, within a bound)
+    const budget = Math.max(BALANCE_BUDGET_MS, Math.min(BALANCE_BUDGET_MAX_MS, (Date.now() - started) * BALANCE_BUDGET_FACTOR));
     for (const sideBias of BALANCES) {
-      // (each is a whole layout again: a slow one is not tried over and over)
-      if (Date.now() - started > BALANCE_BUDGET_MS) break;
+      if (Date.now() - started > budget) break;
       const l = keepGuarded(tree, { ...opts, sideBias });
-      if (isCleanPoster(l) && l.legibility.ok) return l;
+          if (isCleanPoster(l) && l.legibility.ok) return l;
+      if (l.overlaps === 0 && l.legibility.ok && l.clarity.issues.length < best.clarity.issues.length
+        && l.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.98) best = l;
     }
   }
   // Correct relationships first: a poster that cannot be both clean and
@@ -428,11 +436,11 @@ function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // rather than legible with a line that reads as joining the wrong people.
   // (Its names below the legible size, the editor recommends a larger
   // paper, where it is both.)
-  if (!isCleanPoster(layout)) {
+  if (!isCleanPoster(best)) {
     const c = keepGuarded(tree, { ...opts, cleanFirst: true });
     if (isCleanPoster(c)) return c;
   }
-  return layout;
+  return best;
 }
 
 const isCleanPoster = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
@@ -462,6 +470,9 @@ function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
  */
 /** Other balances are tried only while the poster has taken less than this. */
 const BALANCE_BUDGET_MS = 15_000;
+/** ...or, for a family whose first layout is slow, this many times as long, up to the bound. */
+const BALANCE_BUDGET_FACTOR = 2;
+const BALANCE_BUDGET_MAX_MS = 60_000;
 const BALANCES = [-0.04, 0.06, -0.02];
 const BALANCE_ISSUES = 15;
 
@@ -3033,6 +3044,61 @@ function layoutAttempt(
         changed = true;
       }
       if (!changed) break;
+    }
+    // A line from the rim of the base's oval still crossing a brother's (a
+    // childless son's thin line, set out towards his name, crossed by a
+    // branch rising from the base's centre and turning his way): it leaves
+    // from another point of the rim, a little round, where that leaves
+    // fewer problems.
+    for (const l of lines.values()) {
+      const sp = lineSpec.get(l.id);
+      if (!sp || !targets.has(l.id) || !rimStart(sp.node)) continue;
+      const now = costOf(l, l.pts);
+      if (!now) continue;
+      const toward = Math.atan2(sp.node.y - origin.y, sp.node.x - origin.x);
+      const saved = { P: sp.P, gP: sp.gP };
+      // (outside the base's oval, it may cross none of its brothers' and
+      // sisters' lines: the quick cost above passes over some near the base)
+      const inOval = (p: Vec) => ((p.x - origin.x) / baseOval.rx) ** 2 + ((p.y - origin.y) / baseOval.ry) ** 2 < 1.05;
+      const kin = [...lines.values()].filter((o) => o !== l && o.from === l.from);
+      const crossesKin = (pts: Vec[]) => kin.some((o) => {
+        for (let i = 1; i < pts.length; i++) {
+          if (inOval(pts[i - 1]) && inOval(pts[i])) continue;
+          for (let j = 1; j < o.pts.length; j++) {
+            if (inOval(o.pts[j - 1]) && inOval(o.pts[j])) continue;
+            if (segmentsCross(pts[i - 1], pts[i], o.pts[j - 1], o.pts[j])) return true;
+          }
+        }
+        return false;
+      });
+      let best: { c: Cubic; pts: Vec[]; cost: number; P: Vec; gP: Vec } | null = null;
+      for (const deg of [10, -10, 20, -20, 30, -30, 45, -45]) {
+        const a = toward + (deg * Math.PI) / 180;
+        const d = { x: Math.cos(a), y: Math.sin(a) };
+        const P = add(origin, scale(d, 0.8 / Math.hypot(d.x / baseOval.rx, d.y / baseOval.ry)));
+        sp.P = P;
+        sp.gP = norm(sub(sp.node, P));
+        for (const shape of SHAPES) {
+          const { c } = shapeCurve(l.id, shape);
+          const pts = sample(c, 24);
+          const cost = costOf(l, pts);
+          if (cost < (best?.cost ?? now) && !crossesKin(pts)) best = { c, pts, cost, P: sp.P, gP: sp.gP };
+          if (!cost) break;
+        }
+        if (best && !best.cost) break;
+      }
+      if (!best) {
+        sp.P = saved.P;
+        sp.gP = saved.gP;
+        continue;
+      }
+      sp.P = best.P;
+      sp.gP = best.gP;
+      dropLine(l);
+      l.pts = best.pts;
+      l.bb = bbOf(best.pts);
+      addLine(l);
+      curveOf.set(l.id, best.c);
     }
     // A family whose lines still cross one another (a son's branch bowing
     // across his brothers' and sisters' lines, theirs bowing back across
