@@ -90,6 +90,14 @@ function roundRectPoints(w: number, h: number, r: number, n = 6): Vec[] {
 
 export interface DesignSpec {
   padX: number;
+  /** More room beside the text for each unit of the box's height (pointed or cut ends deepen as the box grows). */
+  padH?: number;
+  /**
+   * An elliptical design: the box is made wide enough for the text block's
+   * corners to fall inside the ellipse shrunk by this inset (font sizes),
+   * which a fixed margin cannot promise for long names with a second line.
+   */
+  ellipseInset?: number;
   height: number;
   textDy: number;
   /** The outline, clockwise from the top left, centred on 0, 0. */
@@ -132,27 +140,29 @@ export const DESIGNS: Record<DesignShape, DesignSpec> = {
   // A heraldic shield: a flat chief, straight sides, drawn to a point below.
   shield: {
     padX: 1.3, height: 2.4, textDy: -0.22,
-    points: (w, h) => {
-      const x = w / 2, y = h / 2, shoulder = -y + h * 0.55;
+    points: (w, h, fs) => {
+      // (the point is the same height whatever the name: a second line
+      // lengthens the straight sides, never runs into the point)
+      const x = w / 2, y = h / 2, tipH = Math.min(h * 0.45, fs * 1.05), shoulder = y - tipH;
       const pts: Vec[] = [{ x: -x, y: -y }, { x, y: -y }, { x, y: shoulder }];
-      const p0 = { x, y: shoulder }, c1 = { x, y: shoulder + h * 0.28 }, c2 = { x: x * 0.42, y: y * 0.86 }, tip = { x: 0, y };
+      const p0 = { x, y: shoulder }, c1 = { x, y: shoulder + tipH * 0.62 }, c2 = { x: x * 0.42, y: y - tipH * 0.12 }, tip = { x: 0, y };
       for (let i = 1; i <= 10; i++) pts.push(cubic(p0, c1, c2, tip, i / 10));
-      const q0 = tip, d1 = { x: -x * 0.42, y: y * 0.86 }, d2 = { x: -x, y: shoulder + h * 0.28 }, q1 = { x: -x, y: shoulder };
+      const q0 = tip, d1 = { x: -x * 0.42, y: y - tipH * 0.12 }, d2 = { x: -x, y: shoulder + tipH * 0.62 }, q1 = { x: -x, y: shoulder };
       for (let i = 1; i <= 10; i++) pts.push(cubic(q0, d1, d2, q1, i / 10));
       return pts;
     },
   },
   // A hexagon, pointed at both ends.
   hexagon: {
-    padX: 1.4, height: 1.7, textDy: 0,
+    padX: 0.7, padH: 0.6, height: 1.7, textDy: 0,
     points: (w, h) => {
-      const x = w / 2, y = h / 2, p = Math.min(h * 0.42, w * 0.2);
+      const x = w / 2, y = h / 2, p = Math.min(h * 0.42, w * 0.25);
       return [{ x: -x + p, y: -y }, { x: x - p, y: -y }, { x, y: 0 }, { x: x - p, y }, { x: -x + p, y }, { x: -x, y: 0 }];
     },
   },
   // A cameo: a tall oval with an engraved inner frame of fine beads.
   cameo: {
-    padX: 1.9, height: 2.2, textDy: 0,
+    padX: 1.9, height: 2.2, textDy: 0, ellipseInset: 0.3,
     points: (w, h) => ellipsePoints(w / 2, h / 2, 48),
     ornament: (w, h, fs) => {
       const rx = w / 2 - fs * 0.24, ry = h / 2 - fs * 0.24;
@@ -166,7 +176,7 @@ export const DESIGNS: Record<DesignShape, DesignSpec> = {
   },
   // A scalloped medallion: an oval whose edge is a ring of shallow scallops.
   scallop: {
-    padX: 2.0, height: 2.3, textDy: 0,
+    padX: 2.0, height: 2.3, textDy: 0, ellipseInset: 0.12,
     points: (w, h, fs) => {
       const amp = fs * 0.08;
       const rx = w / 2 - amp, ry = h / 2 - amp;
@@ -191,8 +201,17 @@ export const isDesignShape = (s: string): s is DesignShape => s in DESIGNS;
 export function designSize(shape: DesignShape, textW: number, fs: number, subH: number): { w: number; h: number } {
   const d = DESIGNS[shape];
   const h = fs * d.height + subH;
+  if (d.ellipseInset !== undefined) {
+    // (the text block's corners on the ellipse shrunk by the inset)
+    const halfText = textW / 2 + fs * 0.15;
+    const yText = fs * 0.55 + (subH ? Math.max(fs * 0.35, subH * 0.75) : 0);
+    const ry = h / 2 - fs * d.ellipseInset;
+    const k = Math.sqrt(Math.max(0.05, 1 - (yText / ry) ** 2));
+    const w = Math.max(textW + fs * d.padX, 2 * (halfText / k + fs * d.ellipseInset), h * 1.05);
+    return { w, h };
+  }
   // (never narrower than tall: a short name in a round-ended design keeps its shape)
-  return { w: Math.max(textW + fs * d.padX, h * (shape === "cameo" || shape === "scallop" ? 1.05 : 0.95)), h };
+  return { w: Math.max(textW + fs * d.padX + h * (d.padH ?? 0), h * (shape === "cameo" || shape === "scallop" ? 1.05 : 0.95)), h };
 }
 
 /** A design's outline as an SVG path, centred on 0, 0. */

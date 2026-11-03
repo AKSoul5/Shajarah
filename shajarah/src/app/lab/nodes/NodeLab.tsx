@@ -4,7 +4,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TreePoster } from "@/components/poster/TreePoster";
 import { PAPER_SIZES } from "@/lib/paper";
 import type { LabCase } from "@/lib/samples/nodeLab";
-import type { LabLanguage, LabPoster } from "./page";
+import type { ThemePreset } from "@/lib/types";
+import type { LabChoice, LabLanguage, LabPoster } from "./page";
 
 interface Tile {
   id: string;
@@ -86,15 +87,17 @@ function DesignRow({ poster, language, scale }: { poster: LabPoster; language: L
   const meta = { name: language.tree.name, title: language.tree.title, subtitle: language.tree.subtitle };
   return (
     <section className="rounded-lg border border-black/10 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-baseline gap-3">
-        <h2 className="text-lg font-semibold text-bark-900">{poster.label}</h2>
+      <div className="mb-3 flex flex-wrap items-baseline gap-3">
+        <h2 className="text-lg font-semibold text-bark-900" data-design={poster.design}>{poster.label}</h2>
+        {poster.current && <span className="rounded-full bg-bark-700 px-2 py-0.5 text-xs text-white">This design&apos;s own</span>}
+        {poster.suggested && <span className="rounded-full border border-gilt-500 px-2 py-0.5 text-xs text-gilt-600">Suggested for this design</span>}
         <button type="button" className="text-sm text-bark-500 underline" onClick={() => setOpen((v) => !v)}>
           {open ? "Hide the poster" : "Show the whole poster"}
         </button>
       </div>
       {/* the poster itself (the boxes are lifted from it) */}
       <div className={open ? "mb-4 max-w-3xl" : "pointer-events-none fixed -left-[10000px] top-0 w-[1200px]"} aria-hidden={!open}>
-        <TreePoster ref={setSvg} layout={poster.layout} meta={meta} theme={poster.theme} idPrefix={`lab-${language.lang}-${poster.preset}`} onSelect={() => {}} className="h-auto w-full" />
+        <TreePoster ref={setSvg} layout={poster.layout} meta={meta} theme={poster.theme} idPrefix={`lab-${language.lang}-${poster.design}`} onSelect={() => {}} className="h-auto w-full" />
       </div>
       <div className="space-y-4">
         {GROUPS.map((g) => {
@@ -125,36 +128,51 @@ function DesignRow({ poster, language, scale }: { poster: LabPoster; language: L
   );
 }
 
-export function NodeLab({ languages }: { languages: LabLanguage[] }) {
-  const [lang, setLang] = useState<"ar" | "en">("ar");
+export function NodeLab({ language, choice, presets }: { language: LabLanguage; choice: LabChoice; presets: { preset: ThemePreset; label: string }[] }) {
   const [scale, setScale] = useState(1);
-  const language = languages.find((l) => l.lang === lang)!;
+  const href = (patch: Partial<LabChoice>) => {
+    const c = { ...choice, ...patch };
+    return `?theme=${c.preset}&lang=${c.lang}${c.years ? "&years=1" : ""}`;
+  };
   return (
     <main className="min-h-screen bg-parchment-50 p-6">
       <header className="mb-6 max-w-4xl">
-        <h1 className="text-2xl font-semibold text-bark-900">Name boxes in every design</h1>
+        <h1 className="text-2xl font-semibold text-bark-900">Node Design Lab</h1>
         <p className="mt-1 text-sm text-bark-700">
-          The same family in all seven designs, laid out by the poster&apos;s layout engine and drawn by the poster&apos;s own
-          renderer (A3). Each box is lifted from that poster as drawn. Under each box: its shape, and the name&apos;s type
-          size on the printed A3 poster. This page only shows the designs; it changes nothing.
+          The same family in every node design, within the poster design chosen here, laid out by the poster&apos;s layout
+          engine and drawn by the poster&apos;s own renderer (A3). Each name is lifted from that poster as drawn: ordinary and
+          long names, with descendants (the gold ring) and without. Under each: its design, and the name&apos;s type size on
+          the printed A3 poster. A node design is decoration only: it says nothing of a person&apos;s place, status or
+          gender. This page changes nothing.
         </p>
-        <div className="mt-4 flex flex-wrap items-center gap-4">
-          <div role="tablist" className="inline-flex overflow-hidden rounded border border-black/15">
-            {languages.map((l) => (
-              <button key={l.lang} role="tab" aria-selected={lang === l.lang} type="button" onClick={() => setLang(l.lang)}
-                className={`px-3 py-1.5 text-sm ${lang === l.lang ? "bg-bark-700 text-white" : "bg-white text-bark-700"}`}>
-                {l.lang === "ar" ? "Arabic" : "English"}
-              </button>
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
+          <nav aria-label="Poster design" className="flex flex-wrap gap-1">
+            {presets.map((p) => (
+              <a key={p.preset} href={href({ preset: p.preset })} aria-current={p.preset === choice.preset ? "page" : undefined}
+                className={`rounded border px-2.5 py-1 ${p.preset === choice.preset ? "border-bark-700 bg-bark-700 text-white" : "border-black/15 bg-white text-bark-700"}`}>
+                {p.label}
+              </a>
             ))}
-          </div>
-          <label className="flex items-center gap-2 text-sm text-bark-700">
+          </nav>
+          <nav aria-label="Language" className="inline-flex overflow-hidden rounded border border-black/15">
+            {(["ar", "en"] as const).map((l) => (
+              <a key={l} href={href({ lang: l })} aria-current={choice.lang === l ? "page" : undefined}
+                className={`px-3 py-1 ${choice.lang === l ? "bg-bark-700 text-white" : "bg-white text-bark-700"}`}>
+                {l === "ar" ? "Arabic" : "English"}
+              </a>
+            ))}
+          </nav>
+          <a href={href({ years: !choice.years })} className="rounded border border-black/15 bg-white px-2.5 py-1 text-bark-700" aria-current={choice.years ? "true" : undefined}>
+            {choice.years ? "✓ " : ""}Second line (years)
+          </a>
+          <label className="flex items-center gap-2 text-bark-700">
             Box size
             <input type="range" min={0.6} max={2} step={0.1} value={scale} onChange={(e) => setScale(Number(e.target.value))} />
           </label>
         </div>
       </header>
       <div className="space-y-6">
-        {language.posters.map((p) => <DesignRow key={`${lang}-${p.preset}`} poster={p} language={language} scale={scale} />)}
+        {language.posters.map((p) => <DesignRow key={`${choice.lang}-${choice.preset}-${p.design}-${choice.years}`} poster={p} language={language} scale={scale} />)}
       </div>
     </main>
   );

@@ -65,7 +65,8 @@ export function nodeLabFamily(lang: "ar" | "en"): { tree: TreeDTO; cases: Record
   let n = 0;
   const add = (name: string, gender: Gender, father: MemberDTO | null, mother: MemberDTO | null, laqab: string | null = null) => {
     const m: MemberDTO = {
-      id: `lab-${lang}-${n}`, name, laqab, gender, birthYear: null, deathYear: null, isDeceased: false,
+      // (sample years, shown when a poster shows years: a second line under the name)
+      id: `lab-${lang}-${n}`, name, laqab, gender, birthYear: 1880 + n * 6, deathYear: n < 9 ? 1945 + n * 5 : null, isDeceased: n < 9,
       birthOrder: n, generation: 0, notes: null, fatherId: father?.id ?? null, motherId: mother?.id ?? null,
     };
     n++;

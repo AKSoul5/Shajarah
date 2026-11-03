@@ -428,3 +428,44 @@ export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
       + (theme.edition ? 0.012 : 0),
   };
 }
+
+/** Every node design a poster may use, in the order the Style menu lists them. */
+export const NODE_DESIGNS = ["leaf", "oval", "circle", "rect", "cartouche", "octagon", "shield", "hexagon", "cameo", "scallop"] as const satisfies readonly PosterTheme["nodeShape"][];
+export type NodeDesign = (typeof NODE_DESIGNS)[number];
+
+/** Each node design's name, in English and Arabic. */
+export const NODE_DESIGN_LABELS: Record<NodeDesign | "auto", { en: string; ar: string }> = {
+  auto: { en: "Auto (leaves, or ovals when crowded)", ar: "تلقائي (أوراق، أو بيضاوية عند الازدحام)" },
+  leaf: { en: "Leaves", ar: "أوراق" },
+  oval: { en: "Oval medallions", ar: "أوسمة بيضاوية" },
+  circle: { en: "Circular badges", ar: "شارات دائرية" },
+  rect: { en: "Soft rectangle", ar: "مستطيل ناعم" },
+  cartouche: { en: "Classic cartouche", ar: "خرطوش كلاسيكي" },
+  octagon: { en: "Octagonal seal", ar: "ختم مثمّن" },
+  shield: { en: "Heraldic shield", ar: "درع شعاري" },
+  hexagon: { en: "Hexagon", ar: "مسدّس" },
+  cameo: { en: "Cameo", ar: "كاميو" },
+  scallop: { en: "Scalloped medallion", ar: "وسام مسنّن" },
+};
+
+/**
+ * The node designs that suit each poster design, best first: suggestions
+ * only (any design may use any node design), and decoration only (a node
+ * design says nothing of a person's place, status or gender).
+ */
+export const SUGGESTED_NODE_DESIGNS: Record<ThemePreset, NodeDesign[]> = {
+  // satin plaques, restrained borders
+  refined: ["rect", "cameo", "oval", "cartouche"],
+  // engraved medallions, shields, seals
+  luxe: ["shield", "octagon", "scallop", "cameo"],
+  // cartouches and engraved ovals
+  heritage: ["cartouche", "oval", "cameo"],
+  // clean geometry
+  "silver-gold": ["rect", "hexagon", "octagon", "circle"],
+  // organic leaves and soft ovals
+  classic: ["leaf", "oval", "scallop"],
+  // restrained regal plaques
+  emerald: ["cartouche", "octagon", "shield", "oval"],
+  // editorial rectangles, clean geometry
+  mono: ["rect", "hexagon", "octagon", "oval"],
+};

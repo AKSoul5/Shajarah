@@ -3,7 +3,7 @@
 import { SOIL_STYLES, SOIL_STYLE_ORDER } from "@/lib/layout/soil";
 import { memo, useState } from "react";
 import { useDismiss } from "../useDismiss";
-import { compactTheme, isInkOnly, resetDesign, THEME_PRESETS } from "@/lib/theme";
+import { compactTheme, isInkOnly, NODE_DESIGN_LABELS, NODE_DESIGNS, resetDesign, SUGGESTED_NODE_DESIGNS, THEME_PRESETS } from "@/lib/theme";
 import type { PosterLayout } from "@/lib/layout/botanical";
 import type { PosterTheme, ThemePreset } from "@/lib/types";
 import { Icon } from "@/components/Icon";
@@ -166,12 +166,16 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
           <section className="space-y-1.5">
             <h4 className="section-title">Nodes & labels</h4>
             <label className="flex items-center justify-between text-sm">
-              Shape
+              <span>Shape <a href={`/lab/nodes?theme=${theme.preset}`} target="_blank" rel="noreferrer" className="ms-1 text-xs text-gilt-600 underline">compare</a></span>
               <select className="input w-48" value={theme.nodeShape} onChange={(e) => onChange({ nodeShape: e.target.value as PosterTheme["nodeShape"] })}>
-                <option value="auto">Auto</option>
-                <option value="leaf">Leaves</option>
-                <option value="circle">Circular badges</option>
-                <option value="oval">Oval medallions</option>
+                <option value="auto">{NODE_DESIGN_LABELS.auto.en}</option>
+                {/* (the designs that suit this poster design first; any may be chosen) */}
+                <optgroup label={`Suggested for ${THEME_PRESETS[theme.preset].label}`}>
+                  {SUGGESTED_NODE_DESIGNS[theme.preset].map((d) => <option key={d} value={d}>{NODE_DESIGN_LABELS[d].en}</option>)}
+                </optgroup>
+                <optgroup label="Other designs">
+                  {NODE_DESIGNS.filter((d) => !SUGGESTED_NODE_DESIGNS[theme.preset].includes(d)).map((d) => <option key={d} value={d}>{NODE_DESIGN_LABELS[d].en}</option>)}
+                </optgroup>
               </select>
             </label>
             <label className="flex items-center justify-between text-sm">
