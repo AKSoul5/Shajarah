@@ -80,6 +80,11 @@ export interface LayoutOptions {
    * and their descendants (the canopy). Defaults to settings.focusId.
    */
   focusId?: string | null;
+  /**
+   * The least room between names' drawn shapes, in font sizes (nodeGeometry's
+   * CLEARANCE by default; 0 when legibility needs it, see computePosterLayout).
+   */
+  clearance?: number;
   /** People whose families are drawn through them, on dotted lines. Defaults to settings.familiesThrough. */
   familiesThrough?: string[];
   /** People left off the poster with their descendants. Defaults to settings.hiddenIds. */
@@ -385,6 +390,20 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const layout = withBoxRoom(tree, opts);
+  // The clearance between names gives way to legibility: a poster whose
+  // names fall just short of the legible size with it is laid out again
+  // without it (what each name draws past its box is still kept clear), and
+  // that one is kept when it is legible and as clean. (Only when just short:
+  // a poster far too dense for its paper is not laid out twice.)
+  if (opts.clearance === undefined && !layout.legibility.ok && layout.legibility.smallestTextMm >= layout.legibility.minTextMm * 0.9) {
+    const tight = withBoxRoom(tree, { ...opts, clearance: 0 });
+    if (tight.legibility.ok && (!isCleanPoster(layout) || isCleanPoster(tight))) return tight;
+  }
+  return layout;
+}
+
+function withBoxRoom(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = posterLayout(tree, opts);
   // A child set back behind his father's box (the line to him turning back
   // into the tree): laid out again with room for the boxes between the
@@ -2037,7 +2056,7 @@ function layoutAttempt(
     };
     // (the name's drawing past its box, its stroke or a parent's gold ring,
     // and half the clearance kept between names)
-    node.pad = layoutPad(node);
+    node.pad = layoutPad(node, opts.clearance);
     nodes.push(node);
     byId.set(node.id, node);
     return node;
