@@ -449,6 +449,25 @@ export const MESSAGES = {
   "soilStyle.paragraph.name": { en: "Heritage Chronicle", ar: "سجلّ التراث" },
   "soilStyle.paragraph.desc": { en: "The lineage as a refined written record, between a headpiece and a tailpiece.", ar: "النسب سجلًّا مكتوبًا أنيقًا بين ترويسة وخاتمة." },
 
+  // ── Export menu ───────────────────────────────────────────────────────
+  "export.button": { en: "Export for print ▾", ar: "التصدير للطباعة ▾" },
+  "export.paper": { en: "Paper", ar: "الورق" },
+  "export.resolution": { en: "Resolution", ar: "الدقة" },
+  "export.raster": { en: "Raster output: {w} × {h} px", ar: "الصورة النقطية: {w} × {h} بكسل" },
+  "export.rasterCapped": { en: " ({dpi} DPI: the most one image can hold at {paper}; a Tiled PDF keeps {want} DPI)", ar: " ({dpi} DPI: أقصى ما تحمله صورة واحدة بمقاس {paper}؛ وملف PDF المجزّأ يحتفظ بـ {want} DPI)" },
+  "export.otherPaper": { en: " · the layout was designed for {paper}; text scales with the paper", ar: " · صُمّم التخطيط لمقاس {paper}؛ ويتغيّر حجم النص مع الورق" },
+  "export.smallText": { en: "On {paper} the smallest names print at {mm} mm, below the {min} mm that reads comfortably. A larger paper, or a poster of one branch, keeps every name readable.", ar: "بمقاس {paper} تُطبع أصغر الأسماء بحجم {mm} مم، أقل من {min} مم المريح للقراءة. ورق أكبر، أو ملصق لفرع واحد، يُبقي كل اسم مقروءًا." },
+  "export.svg": { en: "Vector SVG", ar: "SVG متّجه" },
+  "export.svgNote": { en: "infinite resolution", ar: "دقة غير محدودة" },
+  "export.pdf": { en: "Print PDF", ar: "PDF للطباعة" },
+  "export.png": { en: "PNG image", ar: "صورة PNG" },
+  "export.tiles": { en: "Tiled PDF", ar: "PDF مجزّأ" },
+  "export.tilesNote": { en: "{paper} on {n} {sheet} sheets", ar: "{paper} على {n} ورقة {sheet}" },
+  "export.sheet": { en: "Sheet {i} of {n}…", ar: "الورقة {i} من {n}…" },
+  "export.sheetSize": { en: "Sheet size", ar: "مقاس الورقة" },
+  "export.working": { en: "Working…", ar: "جارٍ العمل…" },
+  "export.rendering": { en: "Rendering…", ar: "جارٍ الرسم…" },
+
   // ── Language ──────────────────────────────────────────────────────────
   "language.switch": { en: "العربية", ar: "English" },
 } as const satisfies Record<string, { en: string; ar: string }>;

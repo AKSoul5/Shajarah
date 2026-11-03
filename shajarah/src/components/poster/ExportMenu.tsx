@@ -6,6 +6,7 @@ import {
   PAPER_SIZES, exportPdf, exportPng, exportSvg, exportTiledPdf, maxDpi, pixelSize, tileGrid, type PaperSize,
 } from "@/lib/export/exportPoster";
 import { SHEET_SIZES, type SheetSize } from "@/lib/paper";
+import { useLanguage } from "@/lib/i18n";
 
 interface Props {
   svgRef: RefObject<SVGSVGElement>;
@@ -36,6 +37,7 @@ export async function exportPoster(
 }
 
 export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText }: Props) {
+  const { t, n } = useLanguage();
   const [open, setOpen] = useState(false);
   const [paper, setPaper] = useState<PaperSize>(defaultPaper);
   // (very large papers default to a lower resolution: they are seen from further away)
@@ -70,13 +72,13 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText }:
   return (
     <div className="relative" ref={menu}>
       <button type="button" className="btn-primary whitespace-nowrap" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        Export for print ▾
+        {t("export.button")}
       </button>
       {open && (
         <div className="absolute end-0 z-30 mt-2 w-96 space-y-3 rounded-lg border border-parchment-300 bg-white p-4 shadow-xl">
           <div className="grid grid-cols-[1fr_7rem] gap-2">
             <label className="text-xs font-medium text-bark-700">
-              Paper
+              {t("export.paper")}
               <select className="input mt-1" value={paper} onChange={(e) => setPaper(e.target.value as PaperSize)}>
                 {Object.entries(PAPER_SIZES).map(([k, v]) => (
                   <option key={k} value={k}>{k} — {v.w}×{v.h} mm</option>
@@ -84,39 +86,38 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText }:
               </select>
             </label>
             <label className="text-xs font-medium text-bark-700">
-              Resolution
+              {t("export.resolution")}
               <select className="input mt-1" value={dpi} onChange={(e) => setDpi(Number(e.target.value))}>
                 {[150, 200, 300].map((d) => <option key={d} value={d}>{d} DPI</option>)}
               </select>
             </label>
           </div>
           <p className="text-xs text-gray-500">
-            Raster output: {px.width.toLocaleString()} × {px.height.toLocaleString()} px
-            {rasterDpi < dpi && ` (${rasterDpi} DPI: the most one image can hold at ${paper}; a Tiled PDF keeps ${dpi} DPI)`}
-            {paper !== defaultPaper && ` · the layout was designed for ${defaultPaper}; text scales with the paper`}
+            {t("export.raster", { w: n(px.width), h: n(px.height) })}
+            {rasterDpi < dpi && t("export.rasterCapped", { dpi: rasterDpi, paper, want: dpi })}
+            {paper !== defaultPaper && t("export.otherPaper", { paper: defaultPaper })}
           </p>
           {printedMm !== null && smallText && printedMm < smallText.minMm && (
             <p role="note" className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
-              On {paper} the smallest names print at {printedMm.toFixed(1)} mm, below the {smallText.minMm.toFixed(1)} mm that reads
-              comfortably. A larger paper, or a poster of one branch, keeps every name readable.
+              {t("export.smallText", { paper, mm: printedMm.toFixed(1), min: smallText.minMm.toFixed(1) })}
             </p>
           )}
           <div className="grid gap-2">
             <button type="button" className="btn-outline justify-between" disabled={!!busy} onClick={() => run("svg")}>
-              <span>Vector SVG</span><span className="text-xs text-gray-500">{busy === "svg" ? "Working…" : "infinite resolution"}</span>
+              <span>{t("export.svg")}</span><span className="text-xs text-gray-500">{busy === "svg" ? t("export.working") : t("export.svgNote")}</span>
             </button>
             <button type="button" className="btn-outline justify-between" disabled={!!busy} onClick={() => run("pdf")}>
-              <span>Print PDF</span><span className="text-xs text-gray-500">{busy === "pdf" ? "Rendering…" : `${paper} @ ${rasterDpi} DPI`}</span>
+              <span>{t("export.pdf")}</span><span className="text-xs text-gray-500">{busy === "pdf" ? t("export.rendering") : `${paper} @ ${rasterDpi} DPI`}</span>
             </button>
             <button type="button" className="btn-outline justify-between" disabled={!!busy} onClick={() => run("png")}>
-              <span>PNG image</span><span className="text-xs text-gray-500">{busy === "png" ? "Rendering…" : `${paper} @ ${rasterDpi} DPI`}</span>
+              <span>{t("export.png")}</span><span className="text-xs text-gray-500">{busy === "png" ? t("export.rendering") : `${paper} @ ${rasterDpi} DPI`}</span>
             </button>
           </div>
           <div className="flex items-center gap-2 border-t border-parchment-200 pt-3">
             <button type="button" className="btn-outline flex-1 justify-between" disabled={!!busy} onClick={() => run("tiles")}>
-              <span className="whitespace-nowrap">Tiled PDF</span><span className="text-xs text-gray-500">{busy === "tiles" ? (progress ? `Sheet ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : "Rendering…") : `${paper} on ${(tiles.rows * tiles.cols).toLocaleString()} ${sheet} sheets`}</span>
+              <span className="whitespace-nowrap">{t("export.tiles")}</span><span className="text-xs text-gray-500">{busy === "tiles" ? (progress ? t("export.sheet", { i: n(Math.min(progress.done + 1, progress.total)), n: n(progress.total) }) : t("export.rendering")) : t("export.tilesNote", { paper, n: n(tiles.rows * tiles.cols), sheet })}</span>
             </button>
-            <select className="input w-20" value={sheet} onChange={(e) => setSheet(e.target.value as SheetSize)} aria-label="Sheet size">
+            <select className="input w-20" value={sheet} onChange={(e) => setSheet(e.target.value as SheetSize)} aria-label={t("export.sheetSize")}>
               {Object.keys(SHEET_SIZES).map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
           </div>
