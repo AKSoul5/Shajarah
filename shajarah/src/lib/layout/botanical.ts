@@ -43,7 +43,7 @@
  * ISO-216 aspect ratio), so the same layout scales to any A-size paper.
  */
 import { hierarchy, type HierarchyNode } from "d3-hierarchy";
-import { childrenIndex, hiddenFromPoster, lineagePath, withAncestors } from "../genealogy";
+import { childrenIndex, hiddenFromPoster, lineagePath, lineIds, lineRootOf, withAncestors } from "../genealogy";
 import { givenAndFamilyName, nameLines } from "../nasab";
 import type { MemberDTO, TreeDTO } from "../types";
 import {
@@ -55,7 +55,7 @@ import { soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from
 import { namesOf, shortenSoil, wordsOf } from "./soil/common";
 import { mulberry32 } from "./random";
 
-export type NodeShape = "leaf" | "circle" | "oval";
+export type NodeShape = "leaf" | "circle" | "oval" | DesignShape;
 
 /**
  * With nodeShape "auto": leaves for a canopy of at most this many names,
@@ -80,10 +80,17 @@ export interface LayoutOptions {
    * and their descendants (the canopy). Defaults to settings.focusId.
    */
   focusId?: string | null;
+  /**
+   * The least room between names' drawn shapes, in font sizes (nodeGeometry's
+   * CLEARANCE by default; 0 when legibility needs it, see computePosterLayout).
+   */
+  clearance?: number;
   /** People whose families are drawn through them, on dotted lines. Defaults to settings.familiesThrough. */
   familiesThrough?: string[];
   /** People left off the poster with their descendants. Defaults to settings.hiddenIds. */
   hiddenIds?: string[];
+  /** Marriages not drawn ("partner id:spouse id"; their children still are). Defaults to settings.hiddenSpouses. */
+  hiddenSpouses?: string[];
   /** Primary lineage: the branch to centre in the canopy. Defaults to settings.centerBranchId. */
   centerBranchId?: string | null;
   /** With no branch chosen, centre the son whose branch holds the most people. Default true. */
@@ -149,7 +156,8 @@ export interface LayoutOptions {
   minTextMm?: number;
 }
 
-export type PosterShape = "medallion" | "pill" | "leaf" | "circle" | "oval";
+import { layoutPad, designSize, isDesignShape, type DesignShape, type PosterShape } from "./nodeGeometry";
+export type { PosterShape } from "./nodeGeometry";
 
 export interface PosterNode {
   id: string;
@@ -248,6 +256,19 @@ export interface SpouseHolder {
    * would be), instead of all running out of her side by side.
    */
   knot?: boolean;
+  /**
+   * The spouse is also drawn as a name in their own right elsewhere on the
+   * poster (a cousin married within the family): the same person, shown
+   * here again only as this one's spouse. Marked as such on the poster and
+   * in its key.
+   */
+  elsewhere?: boolean;
+  /**
+   * A knot where the children of a marriage hidden on this poster part
+   * (settings.hiddenSpouses): the spouse is recorded but not drawn. Drawn
+   * as an open bead, unlike a knot for a father not recorded (filled).
+   */
+  collapsed?: boolean;
 }
 
 export interface TrunkLabel {
@@ -323,6 +344,12 @@ export interface PosterLayout {
   focus: { id: string; label: string } | null;
   /** People whose children are drawn from them on dotted lines (see LayoutOptions.familiesThrough). */
   familiesThrough: string[];
+  /**
+   * The people of the line drawn (genealogy's lineIds, from the poster's
+   * root): a child whose parent of the line is among them is drawn from that
+   * parent even when the other parent's family is shown through her.
+   */
+  lineIds?: string[];
   /** Oldest generation drawn on the canopy and its side branches; legend numbering and colours start here. */
   generationOffset: number;
   /** Generations present on crown / side-branch tags (for the legend). */
@@ -351,6 +378,8 @@ type HNode = HierarchyNode<TNode> & { u?: number; u0?: number; u1?: number };
 type Region = "crown" | "side" | "fixed";
 type LiveNode = PosterNode & {
   tx: number; ty: number; mass: number; region: Region; side: number;
+  /** Kept clear around the box: what is drawn past it and half the clearance (nodeGeometry's layoutPad). */
+  pad?: number;
   /** Crown nodes: the angular sector (around the crown base) of their sub-branch. */
   sector?: [number, number];
   /** Crown nodes: the ray (angle from the crown base) the name sits on. */
@@ -369,6 +398,20 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const layout = withBoxRoom(tree, opts);
+  // The clearance between names gives way to legibility: a poster whose
+  // names fall short of the legible size with it (by at most a fifth) is
+  // laid out again without it (what each name draws past its box is still
+  // kept clear), and that one is kept when it is legible and as clean. A
+  // poster far too dense for its paper is not laid out twice.
+  if (opts.clearance === undefined && !layout.legibility.ok && layout.legibility.smallestTextMm >= layout.legibility.minTextMm * 0.8) {
+    const tight = withBoxRoom(tree, { ...opts, clearance: 0 });
+    if (tight.legibility.ok && (!isCleanPoster(layout) || isCleanPoster(tight))) return tight;
+  }
+  return layout;
+}
+
+function withBoxRoom(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = posterLayout(tree, opts);
   // A child set back behind his father's box (the line to him turning back
   // into the tree): laid out again with room for the boxes between the
@@ -1047,7 +1090,17 @@ function layoutAttempt(
   }
   let counted = hidden.size ? tree.members.filter((m) => !hidden.has(m.id)) : tree.members;
   if (focusMember) {
-    const { ancestors, descendants } = lineagePath(tree.members, tree.lineage, focusMember.id, through);
+    // The branch decides which parent a child is drawn under: the line here
+    // is the branch's own (the person, their descendants through the
+    // lineage parent, and their ancestors). A child of a cousin marriage
+    // stays in their father's branch when it is his branch that is shown,
+    // and is drawn under their mother (her family shown through her) when it
+    // is hers: once either way, the records unchanged.
+    const branchLine = new Set([
+      ...lineIds(tree.members, tree.lineage, focusMember.id),
+      ...lineagePath(tree.members, tree.lineage, focusMember.id).ancestors,
+    ]);
+    const { ancestors, descendants } = lineagePath(tree.members, tree.lineage, focusMember.id, through, branchLine);
     const keep = new Set([focusMember.id, ...ancestors, ...descendants]);
     // the focused person is drawn even when daughters are otherwise hidden
     const shown = new Set(visible);
@@ -1101,7 +1154,11 @@ function layoutAttempt(
   if (visible.length === 0) return empty;
 
   // ── 1. Lineage hierarchy ──────────────────────────────────────────────
-  const index = childrenIndex(visible, tree.lineage, through);
+  // The line first (the root and their descendants through the lineage
+  // parent), so a child of a cousin marriage stays with their parent of
+  // the line, never drawn as an outsider through their mother.
+  const line = lineIds(visible, tree.lineage, lineRootOf(visible, tree.lineage, tree.rootMemberId));
+  const index = childrenIndex(visible, tree.lineage, through, line);
   const seen = new Set<string>();
   const build = (m: MemberDTO): TNode => {
     seen.add(m.id); // guards against cycles
@@ -1247,6 +1304,10 @@ function layoutAttempt(
     }
     if (nodeShape === "circle") return (fs * 2.55) * Math.max(fs * 2.55, textWidth(label, fs) + fs * 1.1);
     if (nodeShape === "oval") return (textWidth(label, fs) + fs * OVAL_PAD) * fs * OVAL_H;
+    if (isDesignShape(nodeShape)) {
+      const { w, h } = designSize(nodeShape, textWidth(label, fs), fs, 0);
+      return w * h;
+    }
     return (textWidth(label, fs) + fs * 0.9) * fs * 1.45;
   };
 
@@ -1979,6 +2040,10 @@ function layoutAttempt(
         shape = "oval";
         w = tw + fs * OVAL_PAD;
         h = fs * OVAL_H + subH;
+      } else if (isDesignShape(nodeShape)) {
+        // (sized by the design's own geometry: see nodeGeometry's DESIGNS)
+        shape = nodeShape;
+        ({ w, h } = designSize(nodeShape, Math.max(textWidth(label, fs), subW), fs, subH));
       } else {
         shape = "pill";
         w = tw + fs * 0.9;
@@ -1993,6 +2058,9 @@ function layoutAttempt(
       parentId: n.parent?.data.member?.id ?? null,
       mass: medallion ? 4 : 1, region, side,
     };
+    // (the name's drawing past its box, its stroke or a parent's gold ring,
+    // and half the clearance kept between names)
+    node.pad = layoutPad(node, opts.clearance);
     nodes.push(node);
     byId.set(node.id, node);
     return node;
@@ -2432,6 +2500,13 @@ function layoutAttempt(
       const pid = parentIdOf(n);
       if (n.parentId && pid) kidsOf.set(pid, [...(kidsOf.get(pid) ?? []), n]);
     }
+    // marriages not drawn on this poster (their children are)
+    const hiddenSpouses = new Set(opts.hiddenSpouses ?? tree.settings?.hiddenSpouses ?? []);
+    // (either way round: hidden from either spouse's side)
+    const isHiddenCouple = (a: string, b: string) => hiddenSpouses.has(`${a}:${b}`) || hiddenSpouses.has(`${b}:${a}`);
+    // everyone drawn as a name in their own right: a spouse among them is
+    // shown again beside the partner only as a marked reference
+    const onPoster = new Set([...nodes.map((n) => n.id), ...(base.data.member ? [base.data.member.id] : [])]);
     // everyone whose children (in the line) have a recorded other parent
     const partners = new Map<string, Set<string>>();
     for (const c of tree.members) {
@@ -2443,12 +2518,30 @@ function layoutAttempt(
       if (!throughHer && !(opts.motherNames && partners.has(pid))) continue;
       const groups = new Map<string, LiveNode[]>();
       const unknown: LiveNode[] = [];
+      // (marriages hidden on this poster: their children part from an open bead)
+      const hiddenGroups = new Map<string, LiveNode[]>();
       for (const k of kids) {
         // through a daughter: her children's fathers; otherwise a father's wives
         if (throughHer !== dotted.has(k.member.id)) continue;
         const other = throughHer ? (matri ? k.member.motherId : k.member.fatherId) : (matri ? k.member.fatherId : k.member.motherId);
-        if (other && byMemberId.has(other)) groups.set(other, [...(groups.get(other) ?? []), k]);
+        if (other && byMemberId.has(other) && isHiddenCouple(pid, other)) {
+          // (a father's hidden wife: her children grow from him, as before spouses are shown)
+          if (throughHer) hiddenGroups.set(other, [...(hiddenGroups.get(other) ?? []), k]);
+        } else if (other && byMemberId.has(other)) groups.set(other, [...(groups.get(other) ?? []), k]);
         else if (throughHer) unknown.push(k);
+      }
+      for (const [sid, group] of hiddenGroups) {
+        const partner = byMemberId.get(pid)!;
+        const fs = Math.max(floorFor(fl), Math.min(...group.map((k) => k.fontSize)) * 0.9);
+        const lineages = new Set(group.map((k) => k.lineage ?? null));
+        const h: Holder = {
+          id: `spouse:${pid}:hidden:${sid}`, member: partner, partnerId: pid, childIds: group.map((k) => k.id),
+          label: "", lines: [], fontSize: fs, w: fs * 0.9, h: fs * 0.9, x: 0, y: 0, dotted: true, knot: true, collapsed: true,
+          lineage: lineages.size === 1 ? [...lineages][0] : null,
+          anchorOf: group[0], kids: group, dir: UP, clear: true,
+        };
+        holders.push(h);
+        for (const k of group) holderOf.set(k.id, h);
       }
       const names = [...groups.keys()].map((id) => givenAndFamilyName(byMemberId.get(id)!.name));
       for (const [sid, group] of groups) {
@@ -2464,8 +2557,10 @@ function layoutAttempt(
           dotted: throughHer || group.every((k) => dotted.has(k.member.id)),
           lineage: lineages.size === 1 ? [...lineages][0] : null,
           anchorOf: group[0], kids: group, dir: UP, clear: true,
+          elsewhere: onPoster.has(sid),
         };
-        h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * 2;
+        // (room for the mark of a spouse drawn elsewhere too)
+        h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * (h.elsewhere ? 2.7 : 2);
         h.h = fs * (1.6 + 1.05 * (h.lines.length - 1));
         holders.push(h);
         for (const k of group) holderOf.set(k.id, h);
@@ -2488,16 +2583,18 @@ function layoutAttempt(
     }
     // Every other recorded spouse of someone on the poster (a wife with no
     // children yet, a daughter's husband) on a short line from them, when
-    // spouses are shown. (Not one who is on the poster in her own right.)
+    // spouses are shown. A spouse who is on the poster in her own right (a
+    // cousin) is shown once more, marked, beside the partner of the line
+    // only (never from both sides).
     if (opts.motherNames) {
-      const onPoster = new Set([...nodes.map((n) => n.id), ...(base.data.member ? [base.data.member.id] : [])]);
       for (const p of growingNodes) {
         const married = tree.marriages
           .filter((x) => x.spouseAId === p.id || x.spouseBId === p.id)
           .map((x) => (x.spouseAId === p.id ? x.spouseBId : x.spouseAId));
         for (const sid of new Set(married)) {
           const spouse = byMemberId.get(sid);
-          if (!spouse || onPoster.has(sid) || holders.some((h) => h.partnerId === p.id && h.member.id === sid)) continue;
+          if (!spouse || holders.some((h) => h.partnerId === p.id && h.member.id === sid) || isHiddenCouple(p.id, sid)) continue;
+          if (onPoster.has(sid) && p.member.gender !== (matri ? "FEMALE" : "MALE")) continue;
           const label = givenAndFamilyName(spouse.name);
           const fs = Math.max(floorFor(fl), p.fontSize * 0.85);
           // (a daughter's husband is of another family: a dotted line)
@@ -2506,9 +2603,11 @@ function layoutAttempt(
             id: `spouse:${p.id}:${sid}`, member: spouse, partnerId: p.id, childIds: [],
             label, lines: nameLines(label), fontSize: fs, w: 0, h: 0, x: 0, y: 0,
             dotted: outside, lineage: p.lineage ?? null,
-            anchorOf: p, kids: [], dir: UP, clear: true, lone: true,
+            anchorOf: p, kids: [], dir: UP, clear: true, lone: true, elsewhere: onPoster.has(sid),
           };
-          h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * 2;
+          // (a lone spouse is dotted when of another family, never when of the line)
+          if (onPoster.has(sid)) h.dotted = false;
+          h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * (h.elsewhere ? 2.7 : 2);
           h.h = fs * (1.6 + 1.05 * (h.lines.length - 1));
           holders.push(h);
         }
@@ -3239,7 +3338,7 @@ function layoutAttempt(
       ];
       const provisional = {
         nodes: growingNodes, stubs, base: baseBox, trunkLabels, edges: drawnEdges, origin, trunkWidth, spouses: holders,
-        familiesThrough: [...through],
+        familiesThrough: [...through], lineIds: [...line],
       } as unknown as PosterLayout;
       lastReport = validateRelationships(provisional, tree);
       return lastReport.issues;
@@ -3484,7 +3583,8 @@ function layoutAttempt(
     for (let j = i + 1; j < nodes.length; j++) {
       const b = nodes[j];
       if (a.region === "fixed" && b.region === "fixed") continue;
-      if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 - 0.5 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 - 0.5) overlaps++;
+      const pads = (a.pad ?? 0) + (b.pad ?? 0);
+      if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pads - 0.5 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pads - 0.5) overlaps++;
     }
   }
 
@@ -3691,6 +3791,10 @@ function layoutAttempt(
   };
 
   const strip = ({ tx: _tx, ty: _ty, mass: _m, region: _r, side: _s, ...rest }: LiveNode): PosterNode => rest;
+  // (everyone drawn as a name in their own right)
+  const drawnIds = new Set<string>([
+    ...growing.map((n) => n.id), ...stubs.map((n) => n.id), ...trunkLabels.map((t) => t.member.id), ...(baseNode ? [baseNode.id] : []),
+  ]);
   return {
     ...empty,
     // geometry may have switched to the tall-base variant
@@ -3711,7 +3815,10 @@ function layoutAttempt(
     base: baseNode,
     stubs: stubs.map((s) => strip(s as LiveNode)),
     nodes: growing.map(strip),
-    spouses: holders.map(({ anchorOf: _a, kids: _k, dir: _d, clear: _c, lone: _l, ...h }) => h),
+    spouses: holders.map(({ anchorOf: _a, kids: _k, dir: _d, clear: _c, lone: _l, ...h }) => (
+      // (marked when the spouse is also drawn as a name in their own right)
+      !h.knot && drawnIds.has(h.member.id) ? { ...h, elsewhere: true } : h
+    )),
     branches,
     edges,
     canopy,
@@ -3731,6 +3838,7 @@ function layoutAttempt(
     clarity: { ok: true, expected: 0, drawn: 0, clearCrossings: 0, issues: [] },
     ringLoad,
     familiesThrough: [...through],
+    lineIds: [...line],
     focus: focusMember
       ? {
         id: focusMember.id,
@@ -3929,7 +4037,7 @@ export function textWidth(text: string, fontSize: number): number {
   return Math.max(w, 1.2) * fontSize;
 }
 
-type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number; mass: number };
+type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number; mass: number; /** Drawn past the box on every side (see nodeGeometry's decorOutset). */ pad?: number };
 
 /**
  * Pushes overlapping label boxes apart. Uses a uniform grid for neighbour
@@ -3943,17 +4051,19 @@ export function relax<T extends Body>(nodes: T[], constrain: (n: T) => void, ite
   // The grid's cells fit ordinary names; the few large bodies (the canopy
   // base, frame medallions, trunk badges) are checked against every name
   // instead, so they do not make every cell large and every pass quadratic.
-  const sizes = nodes.map((n) => Math.max(n.w, n.h)).sort((a, b) => a - b);
+  const sizes = nodes.map((n) => Math.max(n.w, n.h) + 2 * (n.pad ?? 0)).sort((a, b) => a - b);
   const cell = sizes[Math.min(sizes.length - 1, Math.floor(sizes.length * 0.9))] + gap;
-  const big = nodes.map((n, i) => (Math.max(n.w, n.h) + gap > cell ? i : -1)).filter((i) => i >= 0);
+  const big = nodes.map((n, i) => (Math.max(n.w, n.h) + 2 * (n.pad ?? 0) + gap > cell ? i : -1)).filter((i) => i >= 0);
   const isBig = new Set(big);
   const keyOf = (gx: number, gy: number) => (gx + 4096) * 8192 + (gy + 4096);
   const push = (i: number, j: number) => {
     const a = nodes[i], b = nodes[j];
     if (a.mass >= 1e6 && b.mass >= 1e6) return 0;
     const dx = b.x - a.x, dy = b.y - a.y;
-    const px = (a.w + b.w) / 2 + gap - Math.abs(dx);
-    const py = (a.h + b.h) / 2 + gap - Math.abs(dy);
+    // (what is drawn past each box, a parent's ring, is kept apart too)
+    const pads = (a.pad ?? 0) + (b.pad ?? 0);
+    const px = (a.w + b.w) / 2 + pads + gap - Math.abs(dx);
+    const py = (a.h + b.h) / 2 + pads + gap - Math.abs(dy);
     if (px <= 0 || py <= 0) return 0;
     const ma = b.mass / (a.mass + b.mass);
     const mb = a.mass / (a.mass + b.mass);

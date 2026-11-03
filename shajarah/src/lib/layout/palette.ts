@@ -39,7 +39,8 @@ const ORDINALS = [
 ];
 
 export function generationLabel(generation: number, arabic: boolean): string {
-  if (arabic) return `الجيل ${ORDINALS[generation] ?? generation + 1}`;
+  // (past the twentieth, the number in Arabic-Indic digits: "الجيل ٢١")
+  if (arabic) return `الجيل ${ORDINALS[generation] ?? (generation + 1).toLocaleString("ar-EG", { useGrouping: false })}`;
   return `Generation ${generation + 1}`;
 }
 
