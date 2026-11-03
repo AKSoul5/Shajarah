@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import type { CitationDTO, MediaDTO, MemberDTO, TreeDTO } from "@/lib/types";
 import type { CreateCitationInput, CreateSourceInput } from "@/lib/validation";
 import { Icon } from "@/components/Icon";
+import { useLanguage } from "@/lib/i18n";
+import { MESSAGES, type MessageKey } from "@/lib/messages";
 
 interface Props {
   tree: TreeDTO;
@@ -61,6 +63,7 @@ export interface MediaListProps {
 /** Photos and documents of a person or a source: thumbnails, captions, upload, remove. */
 export function MediaList({ files: media, ownerName, busy, onUpload, onAddMedia, onUpdateMedia, onRemoveMedia }: MediaListProps) {
   const uid = useId();
+  const { t } = useLanguage();
   const [uploading, setUploading] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -81,15 +84,15 @@ export function MediaList({ files: media, ownerName, busy, onUpload, onAddMedia,
 
   return (
     <section aria-labelledby={`${uid}-media`} className="space-y-2">
-      <h4 id={`${uid}-media`} className="section-title">Photos and documents</h4>
-      {media.length === 0 && <p className="text-xs text-gray-500">None yet.</p>}
+      <h4 id={`${uid}-media`} className="section-title">{t("att.photos")}</h4>
+      {media.length === 0 && <p className="text-xs text-gray-500">{t("att.noneYet")}</p>}
       <ul className="space-y-2">
         {media.map((m) => (
           <li key={m.id} className="flex items-start gap-2 rounded-md border border-parchment-200 p-2" data-testid="media-item">
             {isImage(m) ? (
               <a href={m.url} target="_blank" rel="noreferrer" className="shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element -- user files, any origin, any size */}
-                <img src={m.url} alt={m.caption ?? `Photo of ${ownerName}`} className="h-16 w-16 rounded object-cover" loading="lazy" />
+                <img src={m.url} alt={m.caption ?? t("att.photoOf", { name: ownerName })} className="h-16 w-16 rounded object-cover" loading="lazy" />
               </a>
             ) : (
               <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded bg-parchment-100 text-bark-500" aria-hidden>
@@ -101,28 +104,28 @@ export function MediaList({ files: media, ownerName, busy, onUpload, onAddMedia,
               {reachable(m.url) ? (
                 !isImage(m) && (
                   <a href={m.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-bark-700 underline" download={m.url.startsWith("data:") ? "document" : undefined}>
-                    Open {m.fileType === "application/pdf" ? "PDF" : "file"}
+                    {t(m.fileType === "application/pdf" ? "att.openPdf" : "att.openFile")}
                   </a>
                 )
               ) : (
                 // a GEDCOM file names the file on the other program's computer, without its contents
                 <p className="text-xs text-amber-800">
-                  <span className="font-mono">{fileName(m.url)}</span>: only the name came with the imported file.{" "}
+                  {(() => { const [before, after] = t("att.onlyName").split("{file}"); return <>{before}<span className="font-mono">{fileName(m.url)}</span>{after}</>; })()}{" "}
                   <label className="cursor-pointer underline">
-                    Upload it
+                    {t("att.uploadIt")}
                     <input type="file" accept="image/*,application/pdf" className="sr-only" disabled={busy || !!uploading} onChange={(e) => void upload(e.target.files?.[0], m)} />
                   </label>
                 </p>
               )}
             </div>
-            <button type="button" className="btn-ghost px-2 text-sm" disabled={busy} aria-label={`Remove ${m.caption ?? fileName(m.url)}`} onClick={() => onRemoveMedia(m.id)}>
+            <button type="button" className="btn-ghost px-2 text-sm" disabled={busy} aria-label={t("att.remove", { name: m.caption ?? fileName(m.url) })} onClick={() => onRemoveMedia(m.id)}>
               ✕
             </button>
           </li>
         ))}
       </ul>
       <label className={`btn-outline inline-flex cursor-pointer py-1 text-sm ${busy || uploading ? "pointer-events-none opacity-60" : ""}`}>
-        {uploading ? `Uploading ${uploading}…` : "＋ Add photo or document"}
+        {uploading ? t("att.uploading", { name: uploading }) : t("att.add")}
         <input
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
@@ -134,13 +137,14 @@ export function MediaList({ files: media, ownerName, busy, onUpload, onAddMedia,
           }}
         />
       </label>
-      <p className="text-xs text-gray-500">JPEG, PNG, GIF, WebP or PDF, up to 5 MB.</p>
+      <p className="text-xs text-gray-500">{t("att.formats")}</p>
       {problem && <p className="text-xs text-red-700" role="alert">{problem}</p>}
     </section>
   );
 }
 
 function CaptionField({ media, busy, onSave }: { media: MediaDTO; busy: boolean; onSave: (caption: string | null) => unknown }) {
+  const { t } = useLanguage();
   const [value, setValue] = useState(media.caption ?? "");
   useEffect(() => setValue(media.caption ?? ""), [media.caption]);
   const save = () => {
@@ -151,8 +155,8 @@ function CaptionField({ media, busy, onSave }: { media: MediaDTO; busy: boolean;
     <input
       className="input py-1 text-sm"
       dir="auto"
-      aria-label="Caption"
-      placeholder="Caption"
+      aria-label={t("att.caption")}
+      placeholder={t("att.caption")}
       value={value}
       disabled={busy}
       onChange={(e) => setValue(e.target.value)}
@@ -167,6 +171,13 @@ function CaptionField({ media, busy, onSave }: { media: MediaDTO; busy: boolean;
 
 function SourcesSection({ tree, member, busy, onCite, onRemoveCitation, onCreateSource }: Props) {
   const uid = useId();
+  const { t } = useLanguage();
+  // (a tag this version does not name, from an imported file: shown as it came)
+  const eventName = (tag: string | null) => {
+    if (tag === null) return null;
+    const key = `event.${tag || "GEN"}`;
+    return key in MESSAGES ? t(key as MessageKey) : eventLabel(tag);
+  };
   const id = (f: string) => `${uid}-${f}`;
   const citations = tree.citations.filter((c) => c.memberId === member.id);
   const [sourceId, setSourceId] = useState("");
@@ -186,8 +197,8 @@ function SourcesSection({ tree, member, busy, onCite, onRemoveCitation, onCreate
 
   return (
     <section aria-labelledby={id("sources")} className="space-y-2">
-      <h4 id={id("sources")} className="section-title">Sources</h4>
-      {citations.length === 0 && <p className="text-xs text-gray-500">No sources cited yet.</p>}
+      <h4 id={id("sources")} className="section-title">{t("att.sources")}</h4>
+      {citations.length === 0 && <p className="text-xs text-gray-500">{t("att.noSources")}</p>}
       <ul className="space-y-1">
         {citations.map((c) => (
           <li key={c.id} className="flex items-start gap-2 rounded-md bg-parchment-50 px-2 py-1 text-sm" data-testid="citation">
@@ -195,9 +206,9 @@ function SourcesSection({ tree, member, busy, onCite, onRemoveCitation, onCreate
               {/* bdi: an Arabic title next to a Latin page number keeps each in its own direction */}
               <bdi className="font-medium">{titleOf(c)}</bdi>
               {c.page && <> · <bdi>{c.page}</bdi></>}
-              {c.eventType && <span className="ms-1 rounded bg-parchment-200 px-1 text-xs">{eventLabel(c.eventType)}</span>}
+              {c.eventType && <span className="ms-1 rounded bg-parchment-200 px-1 text-xs">{eventName(c.eventType)}</span>}
             </span>
-            <button type="button" className="btn-ghost px-1 text-xs" disabled={busy} aria-label={`Remove citation of ${titleOf(c)}`} onClick={() => onRemoveCitation(c.id)}>
+            <button type="button" className="btn-ghost px-1 text-xs" disabled={busy} aria-label={t("att.removeCitation", { title: titleOf(c) })} onClick={() => onRemoveCitation(c.id)}>
               ✕
             </button>
           </li>
@@ -206,30 +217,30 @@ function SourcesSection({ tree, member, busy, onCite, onRemoveCitation, onCreate
 
       <div className="space-y-2 rounded-md border border-parchment-200 p-2">
         <div>
-          <label htmlFor={id("source")} className="mb-1 block text-xs font-medium text-bark-700">Source</label>
+          <label htmlFor={id("source")} className="mb-1 block text-xs font-medium text-bark-700">{t("att.source")}</label>
           <div className="flex gap-1">
             <select id={id("source")} className="input min-w-0 flex-1 py-1 text-sm" dir="auto" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
-              <option value="">{tree.sources.length ? "Choose a source…" : "No sources yet: create one"}</option>
+              <option value="">{tree.sources.length ? t("att.chooseSource") : t("att.noSourcesYet")}</option>
               {tree.sources.map((x) => (
                 <option key={x.id} value={x.id}>{x.title}{x.author ? ` — ${x.author}` : ""}</option>
               ))}
             </select>
             <button type="button" className="btn-outline whitespace-nowrap px-2 py-1 text-xs" onClick={() => setCreating(true)}>
-              ＋ New source
+              {t("att.newSource")}
             </button>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label htmlFor={id("event")} className="mb-1 block text-xs font-medium text-bark-700">For</label>
+            <label htmlFor={id("event")} className="mb-1 block text-xs font-medium text-bark-700">{t("att.for")}</label>
             <select id={id("event")} className="input py-1 text-sm" value={eventType} onChange={(e) => setEventType(e.target.value)}>
-              {EVENTS.map(([tag, label]) => <option key={tag} value={tag}>{label}</option>)}
+              {EVENTS.map(([tag]) => <option key={tag} value={tag}>{eventName(tag)}</option>)}
             </select>
           </div>
           <div>
-            <label htmlFor={id("page")} className="mb-1 block text-xs font-medium text-bark-700">Page / detail</label>
+            <label htmlFor={id("page")} className="mb-1 block text-xs font-medium text-bark-700">{t("att.page")}</label>
             <input
-              id={id("page")} className="input py-1 text-sm" dir="auto" placeholder="e.g. p. 42, roll 3"
+              id={id("page")} className="input py-1 text-sm" dir="auto" placeholder={t("att.pagePlaceholder")}
               value={page} onChange={(e) => setPage(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -241,7 +252,7 @@ function SourcesSection({ tree, member, busy, onCite, onRemoveCitation, onCreate
           </div>
         </div>
         <button type="button" className="btn-outline py-1 text-sm" disabled={busy || !sourceId} onClick={() => void cite()}>
-          Cite this source
+          {t("att.cite")}
         </button>
       </div>
 
@@ -266,6 +277,7 @@ function SourcesSection({ tree, member, busy, onCite, onRemoveCitation, onCreate
 
 /** A small modal: title (required), author, publication, notes. */
 export function NewSourceDialog({ busy, onCreate, onCancel }: { busy: boolean; onCreate: (input: CreateSourceInput) => void; onCancel: () => void }) {
+  const { t } = useLanguage();
   const uid = useId();
   const id = (f: string) => `${uid}-${f}`;
   const [d, setD] = useState({ title: "", author: "", publication: "", notes: "" });
@@ -309,14 +321,14 @@ export function NewSourceDialog({ busy, onCreate, onCancel }: { busy: boolean; o
           if (d.title.trim()) onCreate({ title: d.title.trim(), author: text(d.author), publication: text(d.publication), notes: text(d.notes) });
         }}
       >
-        <h3 id={id("title-h")} className="font-semibold text-bark-700">New source</h3>
-        {field("title", "Title *")}
-        {field("author", "Author")}
-        {field("publication", "Publication (publisher, place, year)")}
-        {field("notes", "Notes", true)}
+        <h3 id={id("title-h")} className="font-semibold text-bark-700">{t("att.newSourceTitle")}</h3>
+        {field("title", t("att.title"))}
+        {field("author", t("att.author"))}
+        {field("publication", t("att.publication"))}
+        {field("notes", t("att.notes"), true)}
         <div className="flex gap-2">
-          <button type="submit" className="btn-primary" disabled={busy || !d.title.trim()}>Create source</button>
-          <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="btn-primary" disabled={busy || !d.title.trim()}>{t("att.create")}</button>
+          <button type="button" className="btn-ghost" onClick={onCancel}>{t("att.cancel")}</button>
         </div>
       </form>
     </div>,

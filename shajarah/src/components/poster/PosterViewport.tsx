@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, zoomTransform, type ZoomBehavior } from "d3-zoom";
+import { useLanguage } from "@/lib/i18n";
 
 interface Props {
   /** Poster size in layout units, used to fit the poster on screen. */
@@ -30,6 +31,7 @@ interface Props {
  * size of the view, so it cannot be scrolled out of sight.
  */
 export function PosterViewport({ width, height, reserveBottom = 0, focusOn = null, zoomCommand = null, children }: Props) {
+  const { t } = useLanguage();
   const outer = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const behavior = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
@@ -121,9 +123,9 @@ export function PosterViewport({ width, height, reserveBottom = 0, focusOn = nul
         {children}
       </div>
       <div className="absolute bottom-4 end-4 flex flex-col overflow-hidden rounded-md border border-parchment-300 bg-white/90 shadow">
-        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1.4)} title="Zoom in (or Ctrl + scroll)" aria-label="Zoom in">+</button>
-        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1 / 1.4)} title="Zoom out (or Ctrl + scroll)" aria-label="Zoom out">−</button>
-        <button type="button" className="px-3 py-1.5 text-xs hover:bg-parchment-100" onClick={fit} title="Fit to screen">Fit</button>
+        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1.4)} title={t("zoom.inTitle")} aria-label={t("zoom.in")}>+</button>
+        <button type="button" className="px-3 py-1.5 hover:bg-parchment-100" onClick={() => zoomBy(1 / 1.4)} title={t("zoom.outTitle")} aria-label={t("zoom.out")}>−</button>
+        <button type="button" className="px-3 py-1.5 text-xs hover:bg-parchment-100" onClick={fit} title={t("zoom.fitTitle")}>{t("zoom.fit")}</button>
       </div>
     </div>
   );

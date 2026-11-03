@@ -863,26 +863,26 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             const spouses = notDrawn.filter((x) => x.kind === "spouse");
             const unlinked = notDrawn.filter((x) => x.kind === "unlinked");
             const other = notDrawn.filter((x) => x.kind === "other");
-            const her = (id: string) => tree.members.find((x) => x.id === id)?.gender === "MALE" ? "his wife and children" : "her husband and children";
+            const her = (id: string) => t(tree.members.find((x) => x.id === id)?.gender === "MALE" ? "notDrawn.showHis" : "notDrawn.showHer");
             return (
               <div className="space-y-4 p-3">
                 <div className="flex items-center gap-2">
-                  <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>← All</button>
-                  <h3 className="text-sm font-semibold text-bark-900">Not on the poster ({notDrawn.length})</h3>
+                  <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>{t("nav.all")}</button>
+                  <h3 className="text-sm font-semibold text-bark-900">{t("notDrawn.title", { n: n(notDrawn.length) })}</h3>
                 </div>
-                <p className="text-xs text-bark-500">Recorded in the family but not drawn. Choose someone to open them; each group says what would bring it onto the poster.</p>
+                <p className="text-xs text-bark-500">{t("notDrawn.intro")}</p>
                 {daughters.length > 0 && (
                   <section className="space-y-2">
-                    <h4 className="section-title">Daughters&rsquo; families ({notDrawnCount("daughter")})</h4>
-                    <p className="text-xs text-bark-500">They belong to their fathers&rsquo; families, so the poster leaves them out unless you show them through her, on dotted lines.</p>
+                    <h4 className="section-title">{t("notDrawn.daughtersTitle", { n: n(notDrawnCount("daughter")) })}</h4>
+                    <p className="text-xs text-bark-500">{t("notDrawn.daughtersNote")}</p>
                     {daughters.map((d) => (
                       <div key={d} className="space-y-1 rounded-md border border-parchment-200 p-2">
                         <div className="flex items-center gap-2">
                           <button type="button" className="font-naskh text-base font-bold text-bark-900" dir="auto" onClick={() => select(d)}>{nasab(tree.members, d, 2)}</button>
                           <button type="button" className="btn-outline ms-auto px-2 py-0.5 text-xs" disabled={!showFemales && tree.lineage !== "MATRILINEAL"}
-                            title={!showFemales && tree.lineage !== "MATRILINEAL" ? "Daughters are hidden: tick Show daughters first" : undefined}
+                            title={!showFemales && tree.lineage !== "MATRILINEAL" ? t("notDrawn.daughtersHiddenFirst") : undefined}
                             onClick={() => updateSettings({ familiesThrough: [...familiesThrough, d] })}>
-                            <Icon name="dotted" className="me-1 h-3.5 w-3.5" />Show {her(d)}
+                            <Icon name="dotted" className="me-1 h-3.5 w-3.5" />{her(d)}
                           </button>
                         </div>
                         <ul className="space-y-1">{notDrawn.filter((x) => x.throughId === d).map((x) => person(x))}</ul>
@@ -893,28 +893,28 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 {spouses.length > 0 && (
                   <section className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <h4 className="section-title">Spouses ({spouses.length})</h4>
+                      <h4 className="section-title">{t("notDrawn.spousesTitle", { n: n(spouses.length) })}</h4>
                       {!theme.motherNames && (
-                        <button type="button" className="btn-outline ms-auto px-2 py-0.5 text-xs" onClick={() => updateSettings({ theme: { ...theme, motherNames: true } })}>Show spouses</button>
+                        <button type="button" className="btn-outline ms-auto px-2 py-0.5 text-xs" onClick={() => updateSettings({ theme: { ...theme, motherNames: true } })}>{t("viewMenu.spouses")}</button>
                       )}
                     </div>
                     <p className="text-xs text-bark-500">
-                      {theme.motherNames ? "Married into the family, with no children by them on the poster." : "Shown on their husbands' (or wives') branches when Show spouses is on."}
+                      {t(theme.motherNames ? "notDrawn.spousesShown" : "notDrawn.spousesHidden")}
                     </p>
-                    <ul className="space-y-1">{spouses.map((x) => person(x, `married to ${x.partnerIds.map(name).join(" / ")}`))}</ul>
+                    <ul className="space-y-1">{spouses.map((x) => person(x, t("notDrawn.marriedTo", { names: x.partnerIds.map(name).join(" / ") })))}</ul>
                   </section>
                 )}
                 {unlinked.length > 0 && (
                   <section className="space-y-2">
-                    <h4 className="section-title">Linked to no one ({unlinked.length})</h4>
-                    <p className="text-xs text-bark-500">No parents, spouse or children recorded: often a leftover. Open one to link or delete it.</p>
+                    <h4 className="section-title">{t("notDrawn.unlinkedTitle", { n: n(unlinked.length) })}</h4>
+                    <p className="text-xs text-bark-500">{t("notDrawn.unlinkedNote")}</p>
                     <ul className="space-y-1">{unlinked.map((x) => person(x))}</ul>
                   </section>
                 )}
                 {other.length > 0 && (
                   <section className="space-y-2">
-                    <h4 className="section-title">Not connected to the line ({other.length})</h4>
-                    <p className="text-xs text-bark-500">Their parents are not recorded, or not on the poster. Open one to add the missing link.</p>
+                    <h4 className="section-title">{t("notDrawn.otherTitle", { n: n(other.length) })}</h4>
+                    <p className="text-xs text-bark-500">{t("notDrawn.otherNote")}</p>
                     <ul className="space-y-1">{other.map((x) => person(x))}</ul>
                   </section>
                 )}
@@ -947,8 +947,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           {panel.kind === "new" && (
             <div className="min-h-0 flex-1 overflow-auto p-4">
               <div className="mb-3 flex items-center gap-2">
-                <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>← All</button>
-                <h2 className="text-base font-semibold text-bark-900">New member</h2>
+                <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>{t("nav.all")}</button>
+                <h2 className="text-base font-semibold text-bark-900">{t("panel.newMember")}</h2>
               </div>
               <MemberForm tree={tree} member={null} initialDraft={panel.draft} busy={busy} onSave={saveNew} onCancel={() => setPanel({ kind: "list" })} />
             </div>
@@ -957,7 +957,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           {panel.kind === "edit" && selected && (
             <div className="min-h-0 flex-1 space-y-5 overflow-auto p-4">
               <div className="flex items-center gap-2">
-                <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>← All</button>
+                <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>{t("nav.all")}</button>
                 <h2 className="truncate font-naskh text-xl font-bold" dir="auto">{selected.name}</h2>
                 {(() => {
                   const g = generations.get(selected.id);
@@ -1042,15 +1042,15 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   updateSettings({ hiddenSpouses: list.some(isThis) ? list.filter((k) => !isThis(k)) : [...list, `${selected.id}:${sid}`] });
                 }}
               />
-              <section className="space-y-2 rounded-md border border-parchment-200 p-3 text-sm" aria-label="Relationship">
-                <h4 className="section-title">Relationship</h4>
+              <section className="space-y-2 rounded-md border border-parchment-200 p-3 text-sm" aria-label={t("panel.relationship")} data-relationship>
+                <h4 className="section-title">{t("panel.relationship")}</h4>
                 <MemberPicker
-                  label={`How is ${selected.name} related to…`}
+                  label={t("panel.howRelated", { name: selected.name })}
                   members={tree.members}
                   value={relativeId}
                   onChange={setRelativeId}
                   excludeIds={new Set([selected.id])}
-                  placeholder="Search anyone in the family…"
+                  placeholder={t("panel.searchAnyone")}
                 />
                 {kinship && relativeId && (
                   <div className="space-y-2 rounded-md bg-parchment-50 p-2">
@@ -1059,22 +1059,22 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     {kinship.also && (
                       <div className="border-t border-parchment-200 pt-1.5">
                         <p className="font-naskh text-base leading-snug text-bark-800" dir="rtl">{kinship.also.arabic}</p>
-                        <p className="text-xs text-bark-500">Also: {kinship.also.english}</p>
+                        <p className="text-xs text-bark-500">{t("panel.also", { text: kinship.also.english })}</p>
                       </div>
                     )}
                     {kinship.path.length > 1 && (
-                      <ol className="flex flex-wrap items-center gap-1 text-xs" dir="rtl" aria-label="The path between them">
+                      <ol className="flex flex-wrap items-center gap-1 text-xs" dir="rtl" aria-label={t("panel.path")}>
                         {kinship.path.map((id, i) => {
                           const m = tree.members.find((x) => x.id === id);
                           const shared = kinship.common.includes(id);
                           return (
                             <li key={id} className="flex items-center gap-1">
                               {i > 0 && (kinship.steps[i - 1] === "spouse"
-                                ? <span className="font-semibold text-gilt-600" title="married">=</span>
+                                ? <span className="font-semibold text-gilt-600" title={t("panel.married")}>=</span>
                                 : <span className="text-bark-400">{kinship.steps[i - 1] === "up" ? "↑" : "↓"}</span>)}
                               <button type="button" onClick={() => selectAndShow(id)}
                                 className={`rounded-full border px-2 py-0.5 font-naskh text-sm ${shared ? "border-gilt-500 bg-parchment-100 font-bold" : "border-parchment-300 bg-white"}`}
-                                title={shared ? "Their nearest shared ancestor" : undefined}>
+                                title={shared ? t("panel.sharedAncestor") : undefined}>
                                 {m?.name}
                               </button>
                             </li>
@@ -1083,14 +1083,14 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                       </ol>
                     )}
                     <div className="flex items-center gap-2">
-                      {kinship.path.length > 1 && <span className="text-xs text-bark-500">The path is lit on the poster.</span>}
-                      <button type="button" className="btn-ghost ms-auto px-2 py-0.5 text-xs" onClick={() => setRelativeId(null)}>Clear</button>
+                      {kinship.path.length > 1 && <span className="text-xs text-bark-500">{t("panel.pathLit")}</span>}
+                      <button type="button" className="btn-ghost ms-auto px-2 py-0.5 text-xs" onClick={() => setRelativeId(null)}>{t("panel.clear")}</button>
                     </div>
                   </div>
                 )}
               </section>
               <details className="rounded-md border border-parchment-200 p-3" open>
-                <summary className="cursor-pointer text-sm font-semibold text-bark-700">Details</summary>
+                <summary className="cursor-pointer text-sm font-semibold text-bark-700">{t("panel.details")}</summary>
                 <div className="mt-3">
                   <MemberForm
                     tree={tree}
@@ -1120,99 +1120,97 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 </div>
               </details>
               <div className="space-y-2 rounded-md border border-parchment-200 p-3 text-sm">
-                <h4 className="section-title">Poster tiers</h4>
-                <p className="text-gray-600">
-                  Soil (ancient lineage) → trunk (medallions) → canopy (branches).
-                </p>
+                <h4 className="section-title">{t("panel.tiers")}</h4>
+                <p className="text-gray-600">{t("panel.tiersNote")}</p>
                 {tree.crownBaseId === selected.id ? (
                   <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ crownBaseId: null }), { label: "Reset the canopy start" })}>
-                    ✓ Canopy starts here — reset to automatic
+                    {t("panel.canopyHereReset")}
                   </button>
                 ) : (
                   <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ crownBaseId: selected.id }), { label: "Set the canopy start" })}>
-                    <Icon name="tree" />Start the canopy here
+                    <Icon name="tree" />{t("panel.startCanopy")}
                   </button>
                 )}
                 {tree.trunkStartId === selected.id ? (
                   <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ trunkStartId: null }), { label: "Reset the trunk start" })}>
-                    ✓ Trunk starts here — reset to automatic
+                    {t("panel.trunkHereReset")}
                   </button>
                 ) : (
                   <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ trunkStartId: selected.id }), { label: "Set the trunk start" })}>
-                    <Icon name="trunk" />Start the trunk here (older ancestors go in the soil)
+                    <Icon name="trunk" />{t("panel.startTrunk")}
                   </button>
                 )}
                 {tree.settings?.centerBranchId === selected.id ? (
                   <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ centerBranchId: null })}>
-                    ✓ Centered in canopy — reset
+                    {t("panel.centredReset")}
                   </button>
                 ) : (
                   <button
                     type="button"
                     className="btn-outline w-full justify-start gap-2 text-start disabled:opacity-50"
                     disabled={!selectedInCanopy}
-                    title={selectedInCanopy ? "Place this branch straight above the trunk, its brothers to either side" : "Only a branch in the canopy can be centred"}
+                    title={selectedInCanopy ? t("panel.centreTitle") : t("panel.centreOnlyCanopy")}
                     onClick={() => updateSettings({ centerBranchId: selected.id })}
                   >
-                    <Icon name="target" />Center this branch in the tree
+                    <Icon name="target" />{t("panel.centre")}
                   </button>
                 )}
                 {selectedHasOwnFamily && (
                   familiesThrough.includes(selected.id) ? (
                     <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ familiesThrough: familiesThrough.filter((id) => id !== selected.id) })}>
-                      ✓ {selected.gender === "FEMALE" ? "Her husband and children are" : "His wife and children are"} shown (dotted) — hide
+                      {t(selected.gender === "FEMALE" ? "panel.herFamilyShown" : "panel.hisFamilyShown")}
                     </button>
                   ) : (
                     <button
                       type="button"
                       className="btn-outline w-full justify-start gap-2 text-start"
-                      title="Relatives outside the lineage: drawn from this person on dotted lines"
+                      title={t("panel.familyTitle")}
                       onClick={() => updateSettings({ familiesThrough: [...familiesThrough, selected.id] })}
                     >
-                      <Icon name="dotted" />Show {selected.gender === "FEMALE" ? "her husband and children" : "his wife and children"} (dotted lines)
+                      <Icon name="dotted" />{t(selected.gender === "FEMALE" ? "panel.showHerFamily" : "panel.showHisFamily")}
                     </button>
                   )
                 )}
                 {selectedHasOwnFamily && !showFemales && tree.lineage !== "MATRILINEAL" && selected.gender === "FEMALE" && (
-                  <p className="text-xs text-bark-500">Daughters are hidden, and their families with them: tick <b>Show daughters</b> to see hers.</p>
+                  <p className="text-xs text-bark-500">{t("panel.daughtersHidden")}</p>
                 )}
                 {hiddenIds.includes(selected.id) ? (
                   <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ hiddenIds: hiddenIds.filter((id) => id !== selected.id) })}>
-                    ✓ Hidden from the poster — show again
+                    {t("panel.hiddenShowAgain")}
                   </button>
                 ) : !standsOn.has(selected.id) && (
                   <button
                     type="button"
                     className="btn-outline w-full justify-start gap-2 text-start"
-                    title="Leave this person off the poster, with all their children and descendants (by every marriage). Nothing is deleted."
+                    title={t("panel.hideTitle")}
                     onClick={() => updateSettings({ hiddenIds: [...hiddenIds, selected.id] })}
                   >
-                    <Icon name="eyeOff" />Hide from the poster{hiddenWith(selected.id) > 0 && ` (and ${hiddenWith(selected.id)} ${selected.gender === "FEMALE" ? "of her" : "of his"} descendants)`}
+                    <Icon name="eyeOff" />{hiddenWith(selected.id) > 0 ? t("panel.hideWith", { n: n(hiddenWith(selected.id)) }) : t("panel.hide")}
                   </button>
                 )}
                 {tree.settings?.focusId === selected.id ? (
                   <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => updateSettings({ focusId: null })}>
-                    ✓ Poster shows only this branch — show the whole family
+                    {t("panel.branchOnlyOn")}
                   </button>
                 ) : (
                   <button
                     type="button"
                     className="btn-outline w-full justify-start gap-2 text-start disabled:opacity-50"
                     disabled={!selectedHasDescendants}
-                    title={selectedHasDescendants ? undefined : "No descendants recorded yet: there is no branch to show"}
+                    title={selectedHasDescendants ? undefined : t("panel.noBranch")}
                     onClick={() => updateSettings({ focusId: selected.id })}
                   >
                     <Icon name="branch" />
                     <span>
-                      Poster of this branch only (their ancestors and descendants)
-                      {!selectedHasDescendants && <span className="block text-xs text-gray-500">No descendants recorded yet</span>}
+                      {t("panel.branchOnly")}
+                      {!selectedHasDescendants && <span className="block text-xs text-gray-500">{t("panel.noDescendants")}</span>}
                     </span>
                   </button>
                 )}
               </div>
               {tree.rootMemberId !== selected.id && !selected.fatherId && !selected.motherId && (
                 <button type="button" className="btn-outline w-full justify-start gap-2 text-start" onClick={() => void mutate(() => repo.updateTree({ rootMemberId: selected.id }), { label: "Set the root" })}>
-                  Make this the root of the trunk
+                  {t("panel.makeRoot")}
                 </button>
               )}
               </>)}
@@ -1275,7 +1273,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             const items: PersonMenuItem[] = [
               { label: t("personMenu.open"), onClick: () => select(id) },
               { label: t("personMenu.trace"), onClick: () => { setTrace(true); select(id); } },
-              { label: t("personMenu.relation"), onClick: () => { select(id); setPersonTab("edit"); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("section[aria-label=Relationship] input")?.focus()); } },
+              { label: t("personMenu.relation"), onClick: () => { select(id); setPersonTab("edit"); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("section[data-relationship] input")?.focus()); } },
               { label: t("personMenu.addChild"), onClick: () => { select(id); setPersonTab("edit"); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("aside input[data-add-child]")?.focus()); }, divider: true },
               tree.settings?.centerBranchId === id
                 ? { label: t("personMenu.centred"), onClick: () => updateSettings({ centerBranchId: null }), divider: true }
@@ -1363,7 +1361,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             {hiddenIds.length > 0 && (
               // (hidden people cannot be clicked on the poster: brought back from here)
               <div className="absolute bottom-4 start-4 z-10 flex max-w-[40%] flex-wrap items-center gap-1.5 rounded-xl border border-parchment-300 bg-white/95 px-3 py-1.5 text-xs shadow">
-                <span className="text-bark-500">Hidden:</span>
+                <span className="text-bark-500">{t("hidden.label")}</span>
                 {hiddenIds.map((id) => {
                   const m = tree.members.find((x) => x.id === id);
                   if (!m) return null;
@@ -1373,7 +1371,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                       <button type="button" className="font-naskh text-sm" dir="auto" onClick={() => select(id)}>{m.name}</button>
                       {more > 0 && <span className="text-bark-500">+{more}</span>}
                       <button type="button" className="rounded-full px-1.5 text-bark-500 hover:bg-parchment-200 hover:text-bark-900"
-                        aria-label={`Show ${m.name} on the poster again`} title="Show again"
+                        aria-label={t("hidden.showName", { name: m.name })} title={t("hidden.showAgain")}
                         onClick={() => updateSettings({ hiddenIds: hiddenIds.filter((x) => x !== id) })}>✕</button>
                     </span>
                   );
@@ -1492,27 +1490,28 @@ function LegibilityNotice({
   onShortenSoil?: () => void;
 }) {
   const [otherWays, setOtherWays] = useState(false);
+  const { t } = useLanguage();
   return (
     <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
-      <p className="font-semibold">Too dense for {paper}</p>
+      <p className="font-semibold">{t("notice.tooDenseFor", { paper })}</p>
       <p className="mt-1">
-        The smallest names would print at {smallestMm.toFixed(1)} mm (minimum {minMm.toFixed(1)} mm).
+        {t("notice.smallest", { mm: smallestMm.toFixed(1), min: minMm.toFixed(1) })}
         {suggestion === "checking"
-          ? " Checking which paper keeps every name readable…"
+          ? t("notice.checking")
           : suggestion
-            ? ` On ${suggestion} every name stays readable.`
-            : " No single larger sheet keeps every name readable with every line clear."}
+            ? t("notice.readableOn", { paper: suggestion })
+            : t("notice.noLarger")}
       </p>
       {suggestion && suggestion !== "checking" && (
         <button type="button" className="btn-outline mt-2 py-1 text-xs" onClick={() => onChoose(suggestion)}>
-          Use {suggestion}
+          {t("notice.use", { paper: suggestion })}
         </button>
       )}
       {onShortenSoil && (
         <>
-          <p className="mt-2">The foundation keeps every ancestor&apos;s name and takes part of the canopy&apos;s room.</p>
+          <p className="mt-2">{t("notice.soilShare")}</p>
           <button type="button" className="btn-outline mt-1 py-1 text-xs" onClick={onShortenSoil}>
-            Shorten the foundation (…) instead
+            {t("notice.shorten")}
           </button>
         </>
       )}
@@ -1520,7 +1519,7 @@ function LegibilityNotice({
       {/* (keeping this paper: a poster of one branch, measured only when asked) */}
       {suggestion && !otherWays && (
         <button type="button" className="mt-2 block text-start underline" onClick={() => setOtherWays(true)}>
-          Or keep {paper}: a poster of one branch, or fewer names…
+          {t("notice.keepPaper", { paper })}
         </button>
       )}
       {suggestion && otherWays && <FallbackActions {...fallbacks} />}
@@ -1545,14 +1544,15 @@ function ClarityNotice({
   onChoose: (p: PaperSize) => void;
 }) {
   const [state, setState] = useState<"idle" | "searching" | PaperSize | "none">("idle");
+  const { t, n } = useLanguage();
   useEffect(() => setState("idle"), [issues, paper]);
   return (
     <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 shadow">
-      <p className="font-semibold">{tooDense ? `Too dense for ${paper}: shown for reference only` : `Some connections are ambiguous on ${paper}`}</p>
+      <p className="font-semibold">{tooDense ? t("notice.refOnly", { paper }) : t("notice.ambiguous", { paper })}</p>
       <p className="mt-1">
         {tooDense
-          ? `${issues} connections could be misread at this size. Do not print it on ${paper}.`
-          : `${issues} place${issues === 1 ? "" : "s"} (circled) where a line passes under another name, crosses another line or runs into one, so a reader could misread who descends from whom.`}
+          ? t("notice.misreadDontPrint", { n: n(issues), paper })
+          : t("notice.places", { n: n(issues) })}
       </p>
       {state === "idle" && (
         <button
@@ -1564,22 +1564,19 @@ function ClarityNotice({
             void findSize().then((p) => setState(p ?? "none"));
           }}
         >
-          Find a poster size where every line is clear
+          {t("notice.findSize")}
         </button>
       )}
-      {state === "searching" && <p className="mt-2">Checking larger sizes…</p>}
+      {state === "searching" && <p className="mt-2">{t("notice.checkingLarger")}</p>}
       {state === "none" && (
         <>
-          <p className="mt-2">
-            No single poster up to 2A0 keeps every line clear for the whole family. The circled places
-            stay marked here (they never print). Instead:
-          </p>
+          <p className="mt-2">{t("notice.noneUpTo")}</p>
           <FallbackActions {...fallbacks} />
         </>
       )}
       {state !== "idle" && state !== "searching" && state !== "none" && (
         <button type="button" className="btn-outline mt-2 py-1 text-xs" onClick={() => onChoose(state)}>
-          Use {state}: every line clear
+          {t("notice.useClear", { paper: state })}
         </button>
       )}
     </div>
@@ -1605,17 +1602,16 @@ function TooDensePanel({
   const [state, setState] = useState<"idle" | "searching" | PaperSize | "none">("idle");
   useEffect(() => setState("idle"), [issues, paper]);
   const larger = PAPER_ORDER.slice(PAPER_ORDER.indexOf(paper) + 1);
+  const { t, n } = useLanguage();
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center overflow-auto p-6">
       <div role="alert" className="w-full max-w-xl rounded-2xl border-2 border-red-300 bg-white px-8 py-7 text-red-950 shadow-xl">
-        <p className="text-2xl font-bold">This {branch ? "branch" : "family"} is too dense for {paper}.</p>
-        <p className="mt-2 text-lg">Please use a larger poster size or focus on a smaller sub-branch.</p>
-        <p className="mt-2 text-sm text-red-800">
-          {issues} connections could be misread at this size, even with the names set smaller, so the poster is not shown.
-        </p>
+        <p className="text-2xl font-bold">{t(branch ? "notice.branchTooDense" : "notice.familyTooDense", { paper })}</p>
+        <p className="mt-2 text-lg">{t("notice.useLarger")}</p>
+        <p className="mt-2 text-sm text-red-800">{t("notice.notShown", { n: n(issues) })}</p>
         {larger.length > 0 && (
           <div className="mt-5">
-            <p className="text-sm font-semibold">A larger poster</p>
+            <p className="text-sm font-semibold">{t("notice.largerPoster")}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {larger.map((p) => (
                 <button key={p} type="button" className="btn-outline py-1.5 text-sm" onClick={() => onChoose(p)}>
@@ -1631,25 +1627,25 @@ function TooDensePanel({
                     void findSize().then((p) => setState(p ?? "none"));
                   }}
                 >
-                  Find the smallest size where every line is clear
+                  {t("notice.findSmallest")}
                 </button>
               )}
-              {state === "searching" && <span className="text-sm">Checking larger sizes…</span>}
-              {state === "none" && <span className="text-sm">No single poster up to 2A0 is clear: use a sub-branch.</span>}
+              {state === "searching" && <span className="text-sm">{t("notice.checkingLarger")}</span>}
+              {state === "none" && <span className="text-sm">{t("notice.noneUseBranch")}</span>}
               {state !== "idle" && state !== "searching" && state !== "none" && (
                 <button type="button" className="btn-primary py-1.5 text-sm" onClick={() => onChoose(state)}>
-                  Use {state}: every line clear
+                  {t("notice.useClear", { paper: state })}
                 </button>
               )}
             </div>
           </div>
         )}
         <div className="mt-5 text-sm">
-          <p className="font-semibold">A smaller sub-branch</p>
+          <p className="font-semibold">{t("notice.smallerBranch")}</p>
           <FallbackActions {...fallbacks} />
         </div>
         <button type="button" className="mt-5 text-xs text-red-800 underline" onClick={onShowAnyway}>
-          Show the poster anyway (for reference, not for printing)
+          {t("notice.showAnyway")}
         </button>
       </div>
     </div>
@@ -1702,10 +1698,11 @@ function FallbackActions({ branches, measure, onFocus, onHideDaughters, onTiled 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure only when the branches change
   }, [key]);
   const chosen = ranked?.find((b) => b.id === choice);
+  const { t, n } = useLanguage();
   return (
     <div className="mt-2 space-y-1.5">
       {branches.length > 0 && !ranked && (
-        <p>Checking which poster size each branch fits… {done} of {branches.length}</p>
+        <p>{t("notice.checkingBranches", { done: n(done), n: n(branches.length) })}</p>
       )}
       {ranked && ranked.length > 0 && (
         <div className="space-y-1">
@@ -1713,25 +1710,25 @@ function FallbackActions({ branches, measure, onFocus, onHideDaughters, onTiled 
             {ranked.map((b) => (
               <option key={b.id} value={b.id}>
                 {/* the name isolated (U+2068 … U+2069), so an Arabic name does not reorder the English around it */}
-                {`\u2068${b.name}\u2069`} — {b.people} people — {b.clearAt ? `clear on ${b.clearAt}` : "not clear even on 2A0"}
+                {`\u2068${b.name}\u2069`} — {t("notice.branchOption", { people: n(b.people), fit: b.clearAt ? t("notice.clearOn", { paper: b.clearAt }) : t("notice.notClear") })}
               </option>
             ))}
           </select>
           {chosen && (
             <button type="button" className="btn-outline py-1 text-xs" onClick={() => onFocus(chosen.id, chosen.clearAt)}>
-              {chosen.clearAt ? `Poster of this branch on ${chosen.clearAt}` : "Poster of this branch (then narrow it further)"}
+              {chosen.clearAt ? t("notice.branchOn", { paper: chosen.clearAt }) : t("notice.branchNarrow")}
             </button>
           )}
         </div>
       )}
       {onHideDaughters && (
         <button type="button" className="btn-outline block py-1 text-xs" onClick={onHideDaughters}>
-          Hide daughters
+          {t("notice.hideDaughters")}
         </button>
       )}
       {onTiled && (
         <button type="button" className="btn-outline block py-1 text-xs" onClick={onTiled}>
-          Use the next size up, printed as a Tiled PDF
+          {t("notice.tiled")}
         </button>
       )}
     </div>
