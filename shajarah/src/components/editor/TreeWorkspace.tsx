@@ -13,6 +13,7 @@ import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branc
 import { generationColor } from "@/lib/layout/palette";
 import { buildFamilyIndex } from "@/lib/family/index";
 import { PersonProfile } from "./PersonProfile";
+import { RecordsPage } from "./RecordsPage";
 import { PeopleFilters, activeFilters } from "./PeopleFilters";
 import { peopleSearch, type PeopleQuery } from "@/lib/family/filters";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
@@ -149,14 +150,15 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   );
 
   // Poster or sources page; #sources in the address keeps the choice on reload
-  const [view, setView] = useState<"poster" | "sources">("poster");
+  const [view, setView] = useState<"poster" | "sources" | "records">("poster");
   const [sourceId, setSourceId] = useState<string | null>(null);
   useEffect(() => {
     if (window.location.hash === "#sources") setView("sources");
+    if (window.location.hash === "#records") setView("records");
   }, []);
-  const showView = (v: "poster" | "sources") => {
+  const showView = (v: "poster" | "sources" | "records") => {
     setView(v);
-    window.history.replaceState(null, "", v === "sources" ? "#sources" : window.location.pathname + window.location.search);
+    window.history.replaceState(null, "", v === "poster" ? window.location.pathname + window.location.search : `#${v}`);
   };
 
   const selectedId = panel.kind === "edit" ? panel.id : null;
@@ -667,7 +669,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           </p>
         </div>
         <div role="tablist" aria-label="View" className="flex shrink-0 overflow-hidden rounded-md border border-parchment-300 text-sm">
-          {(["poster", "sources"] as const).map((v) => (
+          {(["poster", "sources", "records"] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -676,7 +678,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               className={`whitespace-nowrap px-3 py-1 ${view === v ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700 hover:bg-parchment-50"}`}
               onClick={() => showView(v)}
             >
-              {v === "poster" ? "Poster" : `Sources (${tree.sources.length})`}
+              {v === "poster" ? "Poster" : v === "sources" ? `Sources (${tree.sources.length})` : "Records"}
             </button>
           ))}
         </div>
@@ -1255,7 +1257,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             ];
             return <PersonMenu name={nasab(tree.members, id, 2)} x={personMenu.x} y={personMenu.y} items={items} onClose={() => setPersonMenu(null)} />;
           })()}
-          {view === "sources" ? (
+          {view === "records" ? (
+            <RecordsPage ix={family} tree={tree} onOpenMember={openPerson} />
+          ) : view === "sources" ? (
             <SourcesPage
               tree={tree}
               busy={busy}
