@@ -147,6 +147,8 @@ describe("every colour on the poster is in the key", () => {
     expect(svg).toContain(LEGEND.branchColours.ar);
   });
 
+  // (numbered from the family's Generation 1: here the canopy's start)
+  const one = (l: { generationOne?: number }) => l.generationOne!;
   for (const depth of [1, 8, 9, 16, 22]) {
     it(`colour by generation, ${depth} generations: every generation present is in the key, in order`, () => {
       const { svg, layout } = render(family({ depth, width: 1 }), { colorBy: "generation" });
@@ -155,14 +157,14 @@ describe("every colour on the poster is in the key", () => {
       // named while there are few and they fit the row, else numbered chips
       if (!svg.includes("data-generation=")) {
         expect(present.length).toBeLessThanOrEqual(8);
-        for (const g of present) expect(svg).toContain(generationLabel(g - layout.generationOffset, true));
+        for (const g of present) expect(svg).toContain(generationLabel(g - one(layout), true));
       } else {
         // one chip per generation, numbered in reading order, in its colour
         const chips = [...svg.matchAll(/data-generation="(\d+)"><rect [^>]*fill="(#[0-9a-f]{6})"[^>]*><\/rect><text[^>]*>([٠-٩]+)<\/text>/gi)];
-        expect(chips.map((c) => Number(c[1]))).toEqual(present.map((g) => g - layout.generationOffset + 1));
+        expect(chips.map((c) => Number(c[1]))).toEqual(present.map((g) => g - one(layout) + 1));
         for (const [i, g] of present.entries()) {
           expect(chips[i][2].toLowerCase()).toBe(generationColor(g - layout.generationOffset).fill.toLowerCase());
-          expect(chips[i][3]).toBe((g - layout.generationOffset + 1).toLocaleString("ar-EG", { useGrouping: false }));
+          expect(chips[i][3]).toBe((g - one(layout) + 1).toLocaleString("ar-EG", { useGrouping: false }));
         }
       }
     }, 60_000);
@@ -216,11 +218,18 @@ describe("the generation key counts from the family's Generation 1", () => {
     }, 60_000);
   }
 
-  it("without a chosen Generation 1 the key is numbered as before, from the oldest drawn", () => {
+  it("without a chosen Generation 1 the key counts from the family's default one, never from the oldest on this poster", () => {
     const base = family({ depth: 12, width: 1 });
-    const { svg, layout } = renderWith(base, { colorBy: "generation" }, {});
-    expect(layout.generationOne).toBeUndefined();
-    expect(chipsOf(svg).map((c) => Number(c[1]))).toEqual(layout.generationsPresent.map((g) => g - layout.generationOffset + 1));
+    const { svg, layout, tree } = renderWith(base, { colorBy: "generation" }, {});
+    const crown = tree.members.find((m) => m.id === tree.crownBaseId)!;
+    expect(layout.generationOne).toBe(crown.generation);
+    expect(chipsOf(svg).map((c) => Number(c[1]))).toEqual(layout.generationsPresent.map((g) => g - crown.generation + 1));
+    // a poster of one branch keeps the family's numbers
+    const branch = layout.nodes.find((n) => n.generation === crown.generation + 3)!;
+    const focused = renderWith(base, { colorBy: "generation" }, { focusId: branch.member.id });
+    const shown = chipsOf(focused.svg).map((c) => Number(c[1]));
+    expect(shown).toEqual(focused.layout.generationsPresent.map((g) => g - crown.generation + 1));
+    expect(Math.min(...shown)).toBeGreaterThan(1);
   }, 60_000);
 
   it("named generations before Generation 1 read as the editor says them", () => {

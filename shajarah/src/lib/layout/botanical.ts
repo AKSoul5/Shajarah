@@ -354,8 +354,8 @@ export interface PosterLayout {
   /** Oldest generation drawn on the canopy and its side branches; legend numbering and colours start here. */
   generationOffset: number;
   /**
-   * The generation (as `generation` counts it) of the Generation 1 the
-   * family chose (src/lib/family/generations.ts): the key numbers generations from it,
+   * The generation (as `generation` counts it) of the family's Generation 1
+   * (src/lib/family/generations.ts): the key numbers generations from it,
    * as the editor does, "−3" for one three before it. Absent: numbered from
    * the oldest drawn (generationOffset). Colours start at generationOffset
    * either way.
@@ -408,12 +408,10 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
   const layout = withBoxRoom(tree, opts);
-  // the key's numbers, as the editor counts: from the family's Generation 1,
-  // once the family has chosen one (until then, from the oldest drawn, as
-  // before: which person is Generation 1 by default awaits the family's
-  // decision, see docs/PROGRESS.md)
-  const chosen = tree.settings?.referenceId;
-  const one = chosen ? tree.members.find((m) => m.id === referenceIdOf(tree)) : undefined;
+  // the key's numbers, as the editor counts: from the family's own
+  // Generation 1 (never from whoever is oldest on this one poster); older
+  // generations before it, "−1", "−2"
+  const one = tree.members.find((m) => m.id === referenceIdOf(tree));
   return one ? { ...layout, generationOne: one.generation } : layout;
 }
 

@@ -21,8 +21,9 @@ type Person = Pick<MemberDTO, "id" | "fatherId" | "motherId">;
 /**
  * Who is Generation 1: the tree's chosen reference person; else the person
  * the canopy starts from (the family's founder as the poster presents it);
- * else the tree's root. (The default is a decision awaiting the family's
- * approval: see docs/PROGRESS.md.)
+ * else the tree's root. Generation 1 belongs to the family, never to one
+ * poster: a branch poster or a focus keeps the family's numbers, older
+ * generations before it (−1, −2, …).
  */
 export function referenceIdOf(tree: Pick<TreeDTO, "settings" | "crownBaseId" | "rootMemberId" | "members">): string | null {
   const ids = new Set(tree.members.map((m) => m.id));
