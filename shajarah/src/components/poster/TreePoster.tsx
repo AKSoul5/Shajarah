@@ -11,6 +11,7 @@ import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
 import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
 import type { PosterTheme } from "@/lib/types";
 import { LEGEND, NAMED_GENERATIONS, say, spouseLabel, statCards } from "@/lib/legend";
+import { DESIGNS, designPath, isDesignShape, leafPath, NODE_STROKE, RING_GAP, RING_STROKE } from "@/lib/layout/nodeGeometry";
 
 export interface PosterMeta {
   title: string | null;
@@ -500,11 +501,6 @@ function LineageTrace({ layout, pal, ids, selectedId, W, H, click }: {
 }
 
 /** Leaf blade centred on the origin, pointing along +x: round base, pointed tip. */
-function leafPath(L: number, w: number): string {
-  const f = (n: number) => n.toFixed(2);
-  return `M${f(-L / 2)} 0C${f(-L * 0.22)} ${f(-w * 0.78)} ${f(L * 0.28)} ${f(-w * 0.62)} ${f(L / 2)} 0`
-    + `C${f(L * 0.28)} ${f(w * 0.62)} ${f(-L * 0.22)} ${f(w * 0.78)} ${f(-L / 2)} 0Z`;
-}
 
 /**
  * A fine grain in the paper, as of laid and aged sheets: short fibres in a
@@ -685,7 +681,7 @@ function PersonNode({
   detail?: PosterPalette["rimStyle"] | null;
 }) {
   const fs = node.fontSize;
-  const sw = fs * 0.06;
+  const sw = fs * NODE_STROKE;
   const leaf = node.shape === "leaf";
   // Leaves keep their text upright by flipping when they point leftwards.
   const flip = leaf && (node.angle > 90 || node.angle < -90);
@@ -714,6 +710,16 @@ function PersonNode({
       body = <ellipse rx={node.w / 2} ry={node.h / 2} fill={fill} stroke={border} strokeWidth={sw} />;
       break;
     default:
+      if (isDesignShape(node.shape)) {
+        const orn = DESIGNS[node.shape].ornament?.(node.w, node.h, fs);
+        body = (
+          <>
+            <path d={designPath(node.shape, node.w, node.h, fs)} fill={fill} stroke={border} strokeWidth={sw} strokeLinejoin="round" />
+            {orn && <path d={orn} fill={border} opacity={0.7} />}
+          </>
+        );
+        break;
+      }
       body = <rect x={-node.w / 2} y={-node.h / 2} width={node.w} height={node.h} rx={node.h / 2} fill={fill} stroke={border} strokeWidth={sw} />;
   }
   // the design's rim detail, inside the outline (never on leaves)
@@ -724,18 +730,23 @@ function PersonNode({
       ? { fill: "none", stroke: border, strokeWidth: sw * 0.45, opacity: 0.65 }
       : { fill: "none", stroke: "#ffffff", strokeWidth: sw * 0.55, opacity: 0.55 };
     if (node.shape === "oval") return <ellipse rx={node.w / 2 - g} ry={node.h / 2 - g} {...props} />;
+    // (the cameo's beads are its inner frame)
+    if (node.shape === "cameo") return null;
+    if (isDesignShape(node.shape)) return <path d={designPath(node.shape, node.w - 2 * g, node.h - 2 * g, fs)} strokeLinejoin="round" {...props} />;
     if (node.shape === "circle" && !(node.w > node.h + 0.5)) return <circle r={node.w / 2 - g} {...props} />;
     return <rect x={-node.w / 2 + g} y={-node.h / 2 + g} width={node.w - 2 * g} height={node.h - 2 * g} rx={node.h / 2 - g} {...props} />;
   })();
   // a parent: a second, gold ring just outside the name (the key's "له ذرية")
   const ring = node.terminal ? null : (() => {
-    const g = fs * 0.16, stroke = pal.ornament, w = sw * 1.1;
+    const g = fs * RING_GAP, stroke = pal.ornament, w = fs * RING_STROKE;
     switch (node.shape) {
       case "leaf": return null;
       case "circle": return node.w > node.h + 0.5
         ? <rect x={-node.w / 2 - g} y={-node.h / 2 - g} width={node.w + 2 * g} height={node.h + 2 * g} rx={node.h / 2 + g} fill="none" stroke={stroke} strokeWidth={w} />
         : <circle r={node.w / 2 + g} fill="none" stroke={stroke} strokeWidth={w} />;
       case "oval": return <ellipse rx={node.w / 2 + g} ry={node.h / 2 + g} fill="none" stroke={stroke} strokeWidth={w} />;
+      case "rect": case "cartouche": case "octagon": case "shield": case "hexagon": case "cameo": case "scallop":
+        return <path d={designPath(node.shape, node.w + 2 * g, node.h + 2 * g, fs)} fill="none" stroke={stroke} strokeWidth={w} strokeLinejoin="round" />;
       default: return <rect x={-node.w / 2 - g} y={-node.h / 2 - g} width={node.w + 2 * g} height={node.h + 2 * g} rx={node.h / 2 + g} fill="none" stroke={stroke} strokeWidth={w} />;
     }
   })();
@@ -745,7 +756,7 @@ function PersonNode({
       {ring}
       {body}
       {inner}
-      <g transform={flip ? "rotate(180)" : undefined}>
+      <g transform={flip ? "rotate(180)" : isDesignShape(node.shape) && DESIGNS[node.shape].textDy ? `translate(0 ${(DESIGNS[node.shape].textDy * fs).toFixed(1)})` : undefined}>
         <text y={nameY(node)} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={node.terminal ? 400 : 700} fill={text}>
           {node.label}
         </text>

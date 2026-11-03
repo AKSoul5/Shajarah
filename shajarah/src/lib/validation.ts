@@ -29,7 +29,7 @@ export const themeSchema = z
     branch: hexColor,
     background: z.enum(["parchment", "white"]),
     metallic: z.boolean(),
-    nodeShape: z.enum(["auto", "leaf", "circle", "oval"]),
+    nodeShape: z.enum(["auto", "leaf", "circle", "oval", "rect", "cartouche", "octagon", "shield", "hexagon", "cameo", "scallop"]),
     labelMode: z.enum(["name", "withFather"]),
     showYears: z.boolean(),
     motherNames: z.boolean(),

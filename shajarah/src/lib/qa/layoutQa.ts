@@ -19,6 +19,7 @@
 
 import { textWidth, type PosterLayout } from "../layout/botanical";
 import { validateRelationships } from "../layout/clarity";
+import { decorOutset, drawnOutline, outlinesOverlap } from "../layout/nodeGeometry";
 import type { Vec } from "../layout/geometry";
 import type { TreeDTO } from "../types";
 
@@ -28,7 +29,7 @@ export const NEAR_MM = 0.6;
 export type FindingKind =
   | "missing" | "misattached" | "occlusion" | "crossing" | "merge" | "junction" | "trunk-order"
   | "label-overlap" | "soil-text-overlap" | "soil-over-canopy" | "soil-over-key"
-  | "clear-crossing" | "near-miss";
+  | "clear-crossing" | "near-miss" | "decor-overlap";
 
 export const DEFECTS: FindingKind[] = [
   "missing", "misattached", "occlusion", "crossing", "merge", "junction", "trunk-order",
@@ -89,6 +90,19 @@ export function inspectPoster(layout: PosterLayout, tree: TreeDTO, paperWidthMm:
     if (overlap(labels[i].box, labels[j].box, 1)) {
       const a = labels[i].box;
       findings.push({ kind: "label-overlap", at: { x: (a.x0 + a.x1) / 2, y: (a.y0 + a.y1) / 2 }, ids: [labels[i].id, labels[j].id] });
+    }
+  }
+
+  // names whose drawn shapes touch: the outline's stroke and a parent's
+  // gold ring reach past the laid-out box, so boxes clear of each other can
+  // still be drawn touching (shape-accurate: an oval's empty corners count
+  // for nothing)
+  {
+    const shapes = layout.nodes.map((n) => ({ id: n.id, out: drawnOutline(n), r: Math.max(n.w, n.h) / 2 + decorOutset(n), x: n.x, y: n.y }));
+    for (let i = 0; i < shapes.length; i++) for (let j = i + 1; j < shapes.length; j++) {
+      const a = shapes[i], b = shapes[j];
+      if (Math.hypot(a.x - b.x, a.y - b.y) > a.r + b.r) continue;
+      if (outlinesOverlap(a.out, b.out)) findings.push({ kind: "decor-overlap", at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, ids: [a.id, b.id] });
     }
   }
 

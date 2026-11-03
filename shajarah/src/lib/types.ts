@@ -50,8 +50,12 @@ export interface PosterTheme {
   inkOnly?: boolean;
   /** Metallic gradients on nodes (silver / gold look). */
   metallic: boolean;
-  /** "auto": leaves for a small canopy, ovals for a large one (see AUTO_LEAF_LIMIT). */
-  nodeShape: "auto" | "leaf" | "circle" | "oval";
+  /**
+   * The design of every name (the node design): "auto" is leaves for a small
+   * canopy, ovals for a large one (see AUTO_LEAF_LIMIT). The design is
+   * decoration only: it says nothing of a person's place, status or gender.
+   */
+  nodeShape: "auto" | "leaf" | "circle" | "oval" | "rect" | "cartouche" | "octagon" | "shield" | "hexagon" | "cameo" | "scallop";
   labelMode: "name" | "withFather";
   showYears: boolean;
   /** Spouses on the branch: each wife a man had children with on his branch, her children growing from her (see LayoutOptions.motherNames). */

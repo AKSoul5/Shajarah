@@ -55,7 +55,7 @@ import { soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from
 import { namesOf, shortenSoil, wordsOf } from "./soil/common";
 import { mulberry32 } from "./random";
 
-export type NodeShape = "leaf" | "circle" | "oval";
+export type NodeShape = "leaf" | "circle" | "oval" | DesignShape;
 
 /**
  * With nodeShape "auto": leaves for a canopy of at most this many names,
@@ -149,7 +149,8 @@ export interface LayoutOptions {
   minTextMm?: number;
 }
 
-export type PosterShape = "medallion" | "pill" | "leaf" | "circle" | "oval";
+import { decorOutset, designSize, isDesignShape, type DesignShape, type PosterShape } from "./nodeGeometry";
+export type { PosterShape } from "./nodeGeometry";
 
 export interface PosterNode {
   id: string;
@@ -351,6 +352,8 @@ type HNode = HierarchyNode<TNode> & { u?: number; u0?: number; u1?: number };
 type Region = "crown" | "side" | "fixed";
 type LiveNode = PosterNode & {
   tx: number; ty: number; mass: number; region: Region; side: number;
+  /** Drawn past the box on every side (nodeGeometry's decorOutset), kept clear in relaxation. */
+  pad?: number;
   /** Crown nodes: the angular sector (around the crown base) of their sub-branch. */
   sector?: [number, number];
   /** Crown nodes: the ray (angle from the crown base) the name sits on. */
@@ -1247,6 +1250,10 @@ function layoutAttempt(
     }
     if (nodeShape === "circle") return (fs * 2.55) * Math.max(fs * 2.55, textWidth(label, fs) + fs * 1.1);
     if (nodeShape === "oval") return (textWidth(label, fs) + fs * OVAL_PAD) * fs * OVAL_H;
+    if (isDesignShape(nodeShape)) {
+      const { w, h } = designSize(nodeShape, textWidth(label, fs), fs, 0);
+      return w * h;
+    }
     return (textWidth(label, fs) + fs * 0.9) * fs * 1.45;
   };
 
@@ -1979,6 +1986,10 @@ function layoutAttempt(
         shape = "oval";
         w = tw + fs * OVAL_PAD;
         h = fs * OVAL_H + subH;
+      } else if (isDesignShape(nodeShape)) {
+        // (sized by the design's own geometry: see nodeGeometry's DESIGNS)
+        shape = nodeShape;
+        ({ w, h } = designSize(nodeShape, Math.max(textWidth(label, fs), subW), fs, subH));
       } else {
         shape = "pill";
         w = tw + fs * 0.9;
@@ -1993,6 +2004,8 @@ function layoutAttempt(
       parentId: n.parent?.data.member?.id ?? null,
       mass: medallion ? 4 : 1, region, side,
     };
+    // (the name's drawing past its box: its stroke, a parent's gold ring)
+    node.pad = decorOutset(node);
     nodes.push(node);
     byId.set(node.id, node);
     return node;
@@ -3484,7 +3497,8 @@ function layoutAttempt(
     for (let j = i + 1; j < nodes.length; j++) {
       const b = nodes[j];
       if (a.region === "fixed" && b.region === "fixed") continue;
-      if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 - 0.5 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 - 0.5) overlaps++;
+      const pads = (a.pad ?? 0) + (b.pad ?? 0);
+      if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pads - 0.5 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pads - 0.5) overlaps++;
     }
   }
 
@@ -3929,7 +3943,7 @@ export function textWidth(text: string, fontSize: number): number {
   return Math.max(w, 1.2) * fontSize;
 }
 
-type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number; mass: number };
+type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number; mass: number; /** Drawn past the box on every side (see nodeGeometry's decorOutset). */ pad?: number };
 
 /**
  * Pushes overlapping label boxes apart. Uses a uniform grid for neighbour
@@ -3943,17 +3957,19 @@ export function relax<T extends Body>(nodes: T[], constrain: (n: T) => void, ite
   // The grid's cells fit ordinary names; the few large bodies (the canopy
   // base, frame medallions, trunk badges) are checked against every name
   // instead, so they do not make every cell large and every pass quadratic.
-  const sizes = nodes.map((n) => Math.max(n.w, n.h)).sort((a, b) => a - b);
+  const sizes = nodes.map((n) => Math.max(n.w, n.h) + 2 * (n.pad ?? 0)).sort((a, b) => a - b);
   const cell = sizes[Math.min(sizes.length - 1, Math.floor(sizes.length * 0.9))] + gap;
-  const big = nodes.map((n, i) => (Math.max(n.w, n.h) + gap > cell ? i : -1)).filter((i) => i >= 0);
+  const big = nodes.map((n, i) => (Math.max(n.w, n.h) + 2 * (n.pad ?? 0) + gap > cell ? i : -1)).filter((i) => i >= 0);
   const isBig = new Set(big);
   const keyOf = (gx: number, gy: number) => (gx + 4096) * 8192 + (gy + 4096);
   const push = (i: number, j: number) => {
     const a = nodes[i], b = nodes[j];
     if (a.mass >= 1e6 && b.mass >= 1e6) return 0;
     const dx = b.x - a.x, dy = b.y - a.y;
-    const px = (a.w + b.w) / 2 + gap - Math.abs(dx);
-    const py = (a.h + b.h) / 2 + gap - Math.abs(dy);
+    // (what is drawn past each box, a parent's ring, is kept apart too)
+    const pads = (a.pad ?? 0) + (b.pad ?? 0);
+    const px = (a.w + b.w) / 2 + pads + gap - Math.abs(dx);
+    const py = (a.h + b.h) / 2 + pads + gap - Math.abs(dy);
     if (px <= 0 || py <= 0) return 0;
     const ma = b.mass / (a.mass + b.mass);
     const mb = a.mass / (a.mass + b.mass);
