@@ -471,10 +471,10 @@ function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
 /** Other balances are tried only while the poster has taken less than this. */
 const BALANCE_BUDGET_MS = 15_000;
 /** ...or, for a family whose first layout is slow, this many times as long, up to the bound. */
-const BALANCE_BUDGET_FACTOR = 3;
-const BALANCE_BUDGET_MAX_MS = 150_000;
+const BALANCE_BUDGET_FACTOR = 2;
+const BALANCE_BUDGET_MAX_MS = 60_000;
 const BALANCES = [-0.04, 0.06, -0.02];
-const BALANCE_ISSUES = 40;
+const BALANCE_ISSUES = 15;
 
 /** One layout of the poster (see computePosterLayout, which may lay it out again). */
 function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
