@@ -1,3 +1,4 @@
+import type { PosterTheme } from "@/lib/types";
 import { isPaperSize } from "@/lib/paper";
 import { SOIL_STYLES, type SoilStyleId } from "@/lib/layout/soil";
 import { TreeWorkspace } from "@/components/editor/TreeWorkspace";
@@ -58,7 +59,7 @@ export default function DemoPage({ searchParams }: { searchParams: { sample?: st
         ...base.settings?.theme,
         ...(searchParams.colors === "1" ? { branchColors: true } : {}),
         ...(searchParams.soil && searchParams.soil in SOIL_STYLES ? { soilStyle: searchParams.soil as SoilStyleId } : {}),
-        ...(["auto", "leaf", "circle", "oval"].includes(searchParams.shape ?? "") ? { nodeShape: searchParams.shape as "auto" | "leaf" | "circle" | "oval" } : {}),
+        ...(["auto", "leaf", "circle", "oval", "rect", "cartouche", "octagon", "shield", "hexagon", "cameo", "scallop"].includes(searchParams.shape ?? "") ? { nodeShape: searchParams.shape as PosterTheme["nodeShape"] } : {}),
       },
     },
   };

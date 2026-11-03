@@ -42,10 +42,10 @@ export interface CaseResult {
   summary: ReturnType<typeof inspectPoster>["summary"]; ms: number;
 }
 
-export function runCase(fixture: QaFixture, mode: Mode, theme: ThemePreset, paper: PaperSize, soilStyle?: string): CaseResult {
+export function runCase(fixture: QaFixture, mode: Mode, theme: ThemePreset, paper: PaperSize, soilStyle?: string, nodeShape?: string): CaseResult {
   const tree = QA_FIXTURES[fixture]();
   const m = MODES[mode];
-  const themeSettings = { preset: theme, v: 2, motherNames: m.motherNames, ...(soilStyle ? { soilStyle } : {}) };
+  const themeSettings = { preset: theme, v: 2, motherNames: m.motherNames, ...(soilStyle ? { soilStyle } : {}), ...(nodeShape ? { nodeShape } : {}) };
   const settings = { posterSize: paper, showFemales: m.showFemales, familiesThrough: m.through ? daughtersWithFamilies(tree) : [], theme: themeSettings } as unknown as TreeDTO["settings"];
   const t = resolveTheme(settings);
   const t0 = Date.now();
@@ -54,7 +54,7 @@ export function runCase(fixture: QaFixture, mode: Mode, theme: ThemePreset, pape
   // (an empty poster is a failure of the case itself, not a clean result)
   expect(layout.nodes.length, `${fixture} ${mode}: nothing laid out`).toBeGreaterThan(0);
   const ins = inspectPoster(layout, { ...tree, settings }, PAPER_SIZES[paper].w);
-  const id = [fixture, mode, theme, paper, ...(soilStyle ? [soilStyle] : [])].join("_");
+  const id = [fixture, mode, theme, paper, ...(soilStyle ? [soilStyle] : []), ...(nodeShape ? [nodeShape] : [])].join("_");
   mkdirSync(`${OUT}/svg`, { recursive: true });
   mkdirSync(`${OUT}/json`, { recursive: true });
   const svg = renderToStaticMarkup(React.createElement(TreePoster, { layout, meta: { title: tree.title, subtitle: null, name: "" }, theme: t }));
