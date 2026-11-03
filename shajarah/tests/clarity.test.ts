@@ -66,17 +66,37 @@ describe("relationship-clarity validator", () => {
     expect(r.issues.some((i) => i.kind === "occlusion" && i.other === "B1")).toBe(true);
   });
 
-  it("allows a clear crossing but flags a shallow one", () => {
+  it("flags every crossing, a clear one as well as a shallow one", () => {
     // A → A1 and B → B1 swap sides: they cross steeply in the middle
     const steep = validateRelationships(drawing([P, A, B, node("A1", 750, 200, "A"), node("B1", 250, 200, "B")],
       [good[0], good[1], line("A", "A1", A, { x: 750, y: 200 }), line("B", "B1", B, { x: 250, y: 200 })]), tree);
     expect(steep.clearCrossings).toBe(1);
-    expect(steep.issues.filter((i) => i.kind === "crossing")).toEqual([]);
+    expect(steep.issues.filter((i) => i.kind === "crossing").map((i) => i.detail)).toEqual(["clear"]);
+    expect(steep.ok).toBe(false);
     // nearly parallel lines crossing at a few degrees
     const A2 = node("A", 480, 500, "P"), B2 = node("B", 520, 500, "P");
     const shallow = validateRelationships(drawing([P, A2, B2, node("A1", 540, 100, "A"), node("B1", 460, 100, "B")],
       [line("P", "A", P, A2), line("P", "B", P, B2), line("A", "A1", A2, { x: 540, y: 100 }), line("B", "B1", B2, { x: 460, y: 100 })]), tree);
     expect(shallow.issues.some((i) => i.kind === "crossing")).toBe(true);
+  });
+
+  it("flags siblings' lines crossing on the way out, however steeply", () => {
+    // P → A swings out to the right first and back across P → B near their
+    // father (a son's branch rising and sweeping out under his brothers'
+    // lines): the inner half of the line, which the check used to skip
+    const via = { x: 700, y: 650 };
+    const swing: Edge = {
+      parentId: "P", childId: "A", w0: 4, w1: 3,
+      points: [
+        ...Array.from({ length: 8 }, (_, i) => ({ x: P.x + ((via.x - P.x) * i) / 8, y: P.y + ((via.y - P.y) * i) / 8 })),
+        ...Array.from({ length: 9 }, (_, i) => ({ x: via.x + ((A.x - via.x) * i) / 8, y: via.y + ((A.y - via.y) * i) / 8 })),
+      ],
+    };
+    const r = validateRelationships(drawing([P, A, B, A1, B1], [swing, good[1], good[2], good[3]]), tree);
+    expect(r.issues.some((i) => i.kind === "crossing" && i.detail === "between siblings")).toBe(true);
+    expect(r.ok).toBe(false);
+    // the same family fanned out in order is clean
+    expect(validateRelationships(drawing([P, A, B, A1, B1], good), tree).ok).toBe(true);
   });
 
   it("finds two lines running together", () => {
@@ -90,7 +110,10 @@ describe("relationship-clarity validator", () => {
 // ── the real layouts ─────────────────────────────────────────────────────
 describe("relationship clarity of the poster layouts", () => {
   const clean: [string, TreeDTO, "A2" | "A1" | "A0"][] = [
-    ["dense branches (220)", denseFamily(), "A1"],
+    // (on A1 it once passed with four brothers' and sisters' lines crossing
+    // near their fathers, which the check did not look at; with no line
+    // crossing another it is clean there with smaller names, and legible on A0)
+    ["dense branches (220)", denseFamily(), "A0"],
     ["small family", smallFamily(), "A2"],
     ["Al-Kalali chain", kalaliTree(), "A2"],
     ["several marriages", marriagesFamily(), "A2"],

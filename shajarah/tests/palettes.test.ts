@@ -36,7 +36,9 @@ describe("each design's palette, at print size", () => {
       return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
     };
     for (const preset of presets) {
-      const ls = PRESET_PALETTES[preset].lineage;
+      // (the first four, as every poster had them; all eight are checked,
+      // perceptually, in branch-colours.test.ts)
+      const ls = PRESET_PALETTES[preset].lineage.slice(0, 4);
       for (let i = 0; i < ls.length; i++) for (let j = i + 1; j < ls.length; j++) expect(dist(ls[i], ls[j]), `${preset} ${i}/${j}`).toBeGreaterThan(40);
     }
   });

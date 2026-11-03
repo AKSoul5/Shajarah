@@ -163,7 +163,9 @@ export function rootsTo(p: SoilPlacement, toY: number, spread: number, perSide =
     const end: Vec = { x: cx + side * (trunkWidth * 0.7 + spread * (0.2 + 0.28 * k)), y: toY - f * 0.05 };
     const curve: Cubic = {
       p0: start, c1: add(start, { x: 0, y: (end.y - start.y) * 0.6 }),
-      c2: add(end, { x: -side * (end.x - start.x) * 0.5, y: -f * 0.1 }), p1: end,
+      // (the end's control point lies back towards the start on either side:
+      // it once lay beyond the end on the left, and the root hooked back)
+      c2: add(end, { x: -(end.x - start.x) * 0.5, y: -f * 0.1 }), p1: end,
     };
     roots.push(ribbonPath(curve, trunkWidth * (0.12 - 0.025 * k) * weight, 1.2, 12));
   }

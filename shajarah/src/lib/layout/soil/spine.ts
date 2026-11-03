@@ -77,6 +77,7 @@ function measure(ctx: SoilContext) {
 
 export const spine: SoilStyleDef = {
   id: "spine",
+  endsInOrnament: true,
   label: "Timeline Spine",
   description: "Alternating generations on a fine spine, each with its generation number.",
   height: (ctx) => measure(ctx).height,

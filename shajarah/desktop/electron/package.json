@@ -1,7 +1,7 @@
 {
   "name": "shajarah-desktop",
   "productName": "Shajarah",
-  "version": "1.0.46",
+  "version": "1.0.48",
   "description": "Shajarah family tree posters",
   "author": "Shajarah",
   "private": true,
@@ -30,6 +30,8 @@
     "asar": false,
     "files": [
       "main.js",
+      "menu.js",
+      "preload.js",
       "postgres.js",
       "migrate.js",
       "build/icon.*",

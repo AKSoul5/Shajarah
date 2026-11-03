@@ -74,6 +74,31 @@ installed and runs its smoke test. If that fails the new release is
 deleted again, so no copy updates to it. (Copies older than 1.0.7 have no
 updater: install 1.0.7 once by hand.)
 
+### The menu bar
+
+The program has a menu bar (File, Edit, View, Help), always shown. Its
+items run the app's own actions, the same as the buttons on the page:
+
+- **File**: New Family (Ctrl+N), Open Project (Ctrl+O), Save Project File
+  (Ctrl+S) and Save Project File As (Ctrl+Shift+S), Import (GEDCOM, family
+  outline), Export Poster (SVG, PDF, PNG, tiled PDF), Exit. Open and Import
+  use the Windows file dialog; saving and exporting ask where to save.
+- **Edit**: Undo (Ctrl+Z) and Redo (Ctrl+Y) step through the family's
+  history and name the step; while typing in a field they undo the typing
+  instead. Cut, Copy, Paste, Select All.
+- **View**: Member List (`[`, ticked as the page shows it), Zoom In
+  (Ctrl+=), Zoom Out (Ctrl+-), Fit Poster to Window (Ctrl+0), Full Screen
+  (F11).
+- **Help**: Documentation (this README), Release Notes, About (version).
+
+Items that need a family open are greyed out on the start page. The page
+and the program talk through a narrow bridge (`desktop/electron/preload.js`):
+the page receives only known commands, and reports only which page is open,
+what undo and redo would do, and whether the member list is shown. The page
+has no access to Node or the file system (context isolation on, Node
+integration off, sandboxed). In a browser there is no menu bar and nothing
+changes.
+
 The project's home is **github.com/AKSoul5/Shajarah**, and releases come
 from there. Up to 1.0.31 they came from the earlier repository
 (AKSoul5/react-dhxenaid). Its last release, 1.0.32, is the bridge:
@@ -599,8 +624,8 @@ foundation** goes back to the suggestion.
 
 | Style (saved id) | Look | Trunk meets it | Suggested for |
 | --- | --- | --- | --- |
-| **Ancestral Roots** (`roots`, new) | A central taproot that sways a little and tapers to a point. Each ancestor rests at the end of a fine root, alternating sides from the side the reading starts on (right in Arabic, left in English), read downward in order and set level. The oldest that do not fit continue in the deep soil: a fine stratum line, then an inscription. | The trunk flares into a few fine roots of its own and the taproot leaves from under it. The gold thread runs on down the taproot. | Botanical Classic, Emerald Dynasty |
-| **Calligraphic Column** (`column`) | A centred column on a fine thread, with a small ornament between names. Short names are in Ruqaa; long or compound names are in Amiri, so they stay readable. The nearest name is in the bark's colour. Size and spacing ease off further down. | The trunk narrows to a point and the thread runs on from it. | Refined Heritage |
+| **Ancestral Roots** (`roots`, new) | A central taproot that sways a little and tapers to a point. Each ancestor rests at the end of a fine root, alternating sides from the side the reading starts on (right in Arabic, left in English), read downward in order and set level. The oldest that do not fit continue in the deep soil: a fine stratum line, then an inscription. | The trunk flares into a few fine roots of its own and the taproot leaves from under it, starting on the trunk outline's base line and filled with the trunk's own shading, laid across the page as the trunk's is, so there is no seam. Each root's base lies under the taproot, both opaque, so no darker overlap shows. The gold thread runs on down the taproot and stops while it is still well inside it. | Botanical Classic, Emerald Dynasty |
+| **Calligraphic Column** (`column`) | A centred column on a fine thread, with a small ornament between names. The whole column is in one typeface, never switched name by name: Ruqaa for Arabic (Amiri in Platinum and Modern Archive, whose titles are in Kufi), Amiri for a Latin-script lineage. A long name is fitted by its size, never below the legible minimum. The nearest name is in the bark's colour. Size and spacing ease off further down. | The trunk narrows to a point and the thread runs on from it. | Refined Heritage |
 | **Timeline Spine** (`spine`) | A spine in the trunk's colour with names alternating on short, even ticks. Each name has its generation on a disc (٤٧, ٤٦ …), set smaller than the names but never below the legible minimum. | The spine starts at the trunk's width and tapers down. | Platinum |
 | **Illuminated Manuscript** (`banner`) | A manuscript panel with a double rule. Ornaments sit only at the corners and mid-sides, with a head- and tailpiece. The nearest ancestor is first, a little larger, in the bark's colour. A long lineage is set in columns with fine rules between them, read right to left in Arabic and left to right in English. | The trunk's roots land on a low pointed arch rising from the panel's top rule. | Imperial Gold |
 | **Generational Layers** (`pedestal`) | Soft layers widening downward. Each layer has a low arched top edge, sides sloping to the layer below, and alternating tone. Each carries the next group of names ("بن نصر بن سهل بن …"). | The trunk's roots settle onto the first layer. | (any) |
@@ -655,6 +680,28 @@ are left out, so the poster never implies the lineage is complete:
 "… 12 generations …" in English. The roots and the column break their root
 or thread there, and the spine leaves a gap crossed by a dashed line. The
 marker is never clickable and never split across lines.
+
+Shortening keeps what matters, not merely the fewest names. The smallest
+cut that fits the foundation's share could leave only one of the nearest
+ancestors (on an A3 branch poster: 73 of 76 generations left out). So a
+shortened lineage keeps 7 of its nearest ancestors, or as many down to 5,
+when the poster can afford it:
+- The foundation takes more than its share.
+- The canopy's names stay legible and lose at most 12% of their size. A
+  canopy set far above the legible size (a small branch) may give more, as
+  long as its names stay at least 1.5 times the legible size.
+- The finished poster must still be legible; if it is not, it is laid out
+  again with the plain cut.
+
+On that A3 branch poster the Calligraphic Column and Ancestral Roots now
+keep 7 and the Timeline Spine 5; the oldest two always stay at the end.
+
+**Clear paper above the key.** A foundation that ends in a lone ornament on
+the axis (the column's finial, the spine's, the taproot's point) keeps at
+least 4 mm of paper at print size between it and the footer's key, more on
+a large poster. (The column's finial once sat 2.5 mm above the key on A3.)
+A panel or a ruled inscription keeps room of its own under its last line,
+so its poster is laid out as before.
 
 **Every name in the foundation** (on whole-family and branch posters alike). On a whole-family poster the foundation's
 share is 40%, or 25% when the canopy holds more people than trunk and
@@ -883,10 +930,14 @@ Every preset but the black-and-white one colours each main branch
 youngest names. (Colouring the names by generation instead is under
 **Colour nodes by**.)
 
-- **Four branch colours, of like weight:** deep teal, antique gold, dusty
-  plum and slate blue, in turn, so neighbouring branches always differ.
-  (Six or seven colours read as a rainbow; branches four apart are far
-  apart.)
+- **Up to eight branch colours, of like weight, per design:** each design
+  has its own eight, the first four the ones it always had (in Refined
+  Heritage: deep teal, antique gold, dusty plum and slate blue). A poster
+  uses six in turn, so neighbouring branches always differ and no two of
+  the first six branches share a colour; the seventh and eighth are used
+  only by a family with that many main branches. Every colour is checked
+  to stay distinct from the others and readable on the design's paper.
+  Modern Archive keeps plain black lines.
 - **Limbs no heavier than they need be:** a line's width still follows how
   many people it carries, but the widest is at most 1.2% of the page, so
   the names, not the wood, carry the poster.
@@ -1476,7 +1527,10 @@ undo.
   software.
 - **PDF / PNG** are rendered in the browser at the chosen size and
   150/200/300 DPI. Rendering in the browser guarantees correct Arabic letter
-  joining, which many PDF text engines get wrong.
+  joining, which many PDF text engines get wrong. The PNG carries the
+  resolution it was drawn at (a pHYs chunk), so image editors and print
+  software open a 300 DPI A1 at its real size, not 72 DPI and 2.5 m wide;
+  the pixels are untouched.
 - **Tiled PDF** splits the poster over A4 or A3 sheets for home or
   copy-shop printing. Each sheet has 10 mm overlap, crop marks and its
   row/column.

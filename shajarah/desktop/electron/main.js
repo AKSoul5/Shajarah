@@ -14,7 +14,7 @@
 // `Shajarah --update-test` (used by the installer build) checks for the
 // latest version, downloads it and installs it silently.
 
-const { app, BrowserWindow, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
@@ -23,6 +23,7 @@ const net = require("node:net");
 const path = require("node:path");
 const { Database } = require("./postgres");
 const { migrate } = require("./migrate");
+const { COMMANDS, EMPTY_STATE, cleanState, buildMenuTemplate } = require("./menu");
 
 const SMOKE = process.argv.includes("--smoke-test");
 const UPDATE_TEST = process.argv.includes("--update-test");
@@ -142,10 +143,121 @@ function splashWindow() {
   return w;
 }
 
+// ── The menu bar ─────────────────────────────────────────────────────
+// File, Edit, View and Help, shown (not hidden behind Alt). Items that act
+// on a family are commands the page carries out with its own actions; the
+// page reports what is possible and the menu is built again from that (see
+// menu.js). Files opened from the menu are chosen in the program's own
+// dialog, read here and handed to the page's usual open or import.
+const COMMAND = "shajarah:command";
+const STATE = "shajarah:state";
+// (the project's own home, where its updates are published)
+const repo = (() => {
+  const publish = require("./package.json").build?.publish;
+  return publish?.provider === "github" && publish.owner && publish.repo ? `https://github.com/${publish.owner}/${publish.repo}` : null;
+})();
+const LINKS = repo ? { documentation: `${repo}#readme`, releases: `${repo}/releases` } : {};
+/** A file the menu opens: how large it may be, and what it may be called. */
+const OPENS = {
+  project: { title: "Open Project", filters: [{ name: "Shajarah project", extensions: ["shajarah", "json"] }], maxBytes: 512 * 1024 * 1024 },
+  gedcom: { title: "Import a GEDCOM File", filters: [{ name: "GEDCOM", extensions: ["ged", "gedcom"] }], maxBytes: 20 * 1024 * 1024 },
+  outline: { title: "Import a Family Outline", filters: [{ name: "Family outline", extensions: ["txt"] }], maxBytes: 20 * 1024 * 1024 },
+};
+let menuState = EMPTY_STATE;
+let editorWindow = null;
+
+/** The window commands go to (none: the command is dropped). */
+function commandTarget() {
+  const w = BrowserWindow.getFocusedWindow() ?? editorWindow;
+  return w && !w.isDestroyed() && !w.webContents.isDestroyed() ? w : null;
+}
+
+function sendCommand(command) {
+  if (!COMMANDS.includes(command.type)) return;
+  const w = commandTarget();
+  if (!w) return log(`menu: ${command.type} with no window`);
+  w.webContents.send(COMMAND, command);
+}
+
+async function openFromMenu(kind) {
+  const spec = OPENS[kind];
+  const w = commandTarget();
+  if (!spec || !w) return;
+  const { canceled, filePaths } = await dialog.showOpenDialog(w, { title: spec.title, filters: spec.filters, properties: ["openFile"] });
+  if (canceled || !filePaths[0]) return;
+  const file = filePaths[0];
+  try {
+    const { size } = await fs.promises.stat(file);
+    if (size > spec.maxBytes) throw new Error(`The file is ${Math.round(size / 1024 / 1024)} MB; the most this can open is ${spec.maxBytes / 1024 / 1024} MB.`);
+    const data = new Uint8Array(await fs.promises.readFile(file));
+    sendCommand({ type: kind === "project" ? "open-project" : `import-${kind}`, file: { name: path.basename(file), data } });
+  } catch (err) {
+    dialog.showMessageBox(w, { type: "error", title: spec.title, message: `Could not open ${path.basename(file)}`, detail: err.message });
+  }
+}
+
+function showAbout() {
+  const w = commandTarget();
+  const options = {
+    type: "info", title: "About Shajarah", buttons: ["OK"],
+    message: `Shajarah ${app.getVersion()}`,
+    detail: [
+      "Family tree posters.",
+      "",
+      `Version ${app.getVersion()} (desktop)`,
+      `Electron ${process.versions.electron} · Chromium ${process.versions.chrome} · Node ${process.versions.node}`,
+      ...(repo ? ["", repo] : []),
+    ].join("\n"),
+  };
+  return w ? dialog.showMessageBox(w, options) : dialog.showMessageBox(options);
+}
+
+function buildMenu() {
+  const template = buildMenuTemplate(menuState, {
+    send: (type) => sendCommand({ type }),
+    act: {
+      openProject: () => openFromMenu("project"),
+      importFile: (kind) => openFromMenu(kind),
+      about: () => showAbout(),
+      openLink: (name) => LINKS[name] && shell.openExternal(LINKS[name]),
+    },
+    appName: "Shajarah", isMac: process.platform === "darwin", links: LINKS,
+  });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function installMenu() {
+  buildMenu();
+  // (only from the program's own window; the report is checked field by field)
+  ipcMain.on(STATE, (event, raw) => {
+    if (!editorWindow || editorWindow.isDestroyed() || event.sender !== editorWindow.webContents) return;
+    const next = cleanState(raw);
+    if (JSON.stringify(next) === JSON.stringify(menuState)) return;
+    menuState = next;
+    buildMenu();
+  });
+}
+
 function mainWindow() {
   const w = new BrowserWindow({
     width: 1400, height: 900, show: false, icon: iconPath, title: "Shajarah",
-    autoHideMenuBar: true, backgroundColor: "#f6efe0",
+    autoHideMenuBar: false, backgroundColor: "#f6efe0",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
+    },
+  });
+  editorWindow = w;
+  // a page loaded afresh reports again; until then nothing is on offer
+  w.webContents.on("did-start-navigation", ({ isMainFrame, isSameDocument }) => {
+    if (!isMainFrame || isSameDocument) return;
+    menuState = EMPTY_STATE;
+    buildMenu();
+  });
+  w.on("closed", () => {
+    if (editorWindow === w) editorWindow = null;
+    menuState = EMPTY_STATE;
+    buildMenu();
   });
   // Photos and documents open in a window of their own; other links in the browser.
   w.webContents.setWindowOpenHandler(({ url }) => {
@@ -174,8 +286,63 @@ async function smokeTest() {
   const tree = await created.json().catch(() => ({}));
   results.readTree = tree.id ? (await fetch(`${appUrl}/api/trees/${tree.id}`)).status : 0;
   if (tree.id) results.deleteTree = (await fetch(`${appUrl}/api/trees/${tree.id}`, { method: "DELETE" })).status;
-  const ok = results.home === 200 && results.demo === 200 && results.createTree === 201 && results.readTree === 200;
+  results.ui = await uiSmoke().catch((err) => ({ ok: false, errors: [`smoke test failed: ${err.message}`] }));
+  const ok = results.home === 200 && results.demo === 200 && results.createTree === 201 && results.readTree === 200 && results.ui.ok;
   return { ok, results };
+}
+
+/**
+ * The editor itself, as a person uses it: a sample family opened in a
+ * (hidden) window, the poster drawn, then every menu in its header opened
+ * and closed (the Style menu draws every design and foundation style), and
+ * a name chosen. Any error on the page, a crashed page, or the page's
+ * "Application error" fails the smoke test, so a build that breaks on a
+ * click is never published.
+ */
+async function uiSmoke() {
+  const errors = [];
+  const win = new BrowserWindow({ show: false, width: 1400, height: 900, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  const wc = win.webContents;
+  // (Electron passes the level as a number before version 35, as a word since)
+  wc.on("console-message", (...args) => {
+    const e = args[0];
+    const level = typeof args[1] === "number" ? args[1] : e?.level;
+    const message = typeof args[2] === "string" ? args[2] : e?.message ?? "";
+    if ((level === 3 || level === "error") && !/favicon|DevTools/i.test(message)) errors.push(message.slice(0, 300));
+  });
+  wc.on("render-process-gone", (_e, d) => errors.push(`page crashed: ${d.reason}`));
+  const run = (js) => wc.executeJavaScript(js, true);
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    await win.loadURL(`${appUrl}/demo?sample=nouri`);
+    const drawn = await run(`new Promise((done) => {
+      const t0 = Date.now();
+      const look = () => document.querySelector("main svg[role=img]") ? done(true) : Date.now() - t0 > 180000 ? done(false) : setTimeout(look, 500);
+      look();
+    })`);
+    if (!drawn) errors.push("the poster was not drawn within 3 minutes");
+    const broken = () => run(`/Application error/.test(document.body.innerText)`);
+    // every menu in the header (buttons that open a panel), opened and closed
+    const menus = await run(`[...document.querySelectorAll("header button[aria-expanded]")].map((b) => b.innerText.trim()).filter(Boolean)`);
+    const opened = [];
+    for (let i = 0; i < menus.length; i++) {
+      await run(`document.querySelectorAll("header button[aria-expanded]")[${i}]?.click()`);
+      await pause(2500);
+      opened.push(menus[i]);
+      if (await broken()) { errors.push(`the page broke on opening "${menus[i]}"`); break; }
+      await run(`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); document.body.click()`);
+      await pause(500);
+    }
+    // a name chosen on the poster opens the person's panel
+    if (!errors.length) {
+      await run(`document.querySelector("main [data-member]")?.dispatchEvent(new MouseEvent("click", { bubbles: true }))`);
+      await pause(1500);
+      if (await broken()) errors.push("the page broke on choosing a name");
+    }
+    return { ok: drawn && errors.length === 0 && opened.length > 0, menus: opened, errors: errors.slice(0, 5) };
+  } finally {
+    win.destroy();
+  }
 }
 
 // ── Updates ──────────────────────────────────────────────────────────
@@ -270,6 +437,7 @@ if (UPDATE_TEST) {
       app.exit(ok ? 0 : 1);
       return;
     }
+    installMenu();
     const window = mainWindow();
     splash.destroy();
     watchForUpdates(window);

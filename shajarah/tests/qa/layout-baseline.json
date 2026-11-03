@@ -1,0 +1,968 @@
+{
+"A_all_classic_A1": {
+"legible": true
+},
+"A_all_classic_A3": {
+"legible": true
+},
+"A_all_emerald_A1": {
+"legible": true
+},
+"A_all_emerald_A3": {
+"legible": true
+},
+"A_all_heritage_A1": {
+"legible": true
+},
+"A_all_heritage_A3": {
+"legible": true
+},
+"A_all_luxe_A1": {
+"legible": true
+},
+"A_all_luxe_A3": {
+"legible": true
+},
+"A_all_mono_A1": {
+"legible": true
+},
+"A_all_mono_A3": {
+"legible": true
+},
+"A_all_refined_A1": {
+"legible": true
+},
+"A_all_refined_A3": {
+"legible": true
+},
+"A_all_silver-gold_A1": {
+"legible": true
+},
+"A_all_silver-gold_A3": {
+"legible": true
+},
+"A_daughters_classic_A1": {
+"legible": true
+},
+"A_daughters_classic_A3": {
+"legible": true
+},
+"A_daughters_emerald_A1": {
+"legible": true
+},
+"A_daughters_emerald_A3": {
+"legible": true
+},
+"A_daughters_heritage_A1": {
+"legible": true
+},
+"A_daughters_heritage_A3": {
+"legible": true
+},
+"A_daughters_luxe_A1": {
+"legible": true
+},
+"A_daughters_luxe_A3": {
+"legible": true
+},
+"A_daughters_mono_A1": {
+"legible": true
+},
+"A_daughters_mono_A3": {
+"legible": true
+},
+"A_daughters_refined_A1": {
+"legible": true
+},
+"A_daughters_refined_A3": {
+"legible": true
+},
+"A_daughters_silver-gold_A1": {
+"legible": true
+},
+"A_daughters_silver-gold_A3": {
+"legible": true
+},
+"A_males_classic_A1": {
+"legible": true
+},
+"A_males_classic_A3": {
+"legible": true
+},
+"A_males_emerald_A1": {
+"legible": true
+},
+"A_males_emerald_A3": {
+"legible": true
+},
+"A_males_heritage_A1": {
+"legible": true
+},
+"A_males_heritage_A3": {
+"legible": true
+},
+"A_males_luxe_A1": {
+"legible": true
+},
+"A_males_luxe_A3": {
+"legible": true
+},
+"A_males_mono_A1": {
+"legible": true
+},
+"A_males_mono_A3": {
+"legible": true
+},
+"A_males_refined_A1": {
+"legible": true
+},
+"A_males_refined_A3": {
+"legible": true
+},
+"A_males_silver-gold_A1": {
+"legible": true
+},
+"A_males_silver-gold_A3": {
+"legible": true
+},
+"A_spouses_classic_A1": {
+"legible": true
+},
+"A_spouses_classic_A3": {
+"legible": true
+},
+"A_spouses_emerald_A1": {
+"legible": true
+},
+"A_spouses_emerald_A3": {
+"legible": true
+},
+"A_spouses_heritage_A1": {
+"legible": true
+},
+"A_spouses_heritage_A3": {
+"legible": true
+},
+"A_spouses_luxe_A1": {
+"legible": true
+},
+"A_spouses_luxe_A3": {
+"legible": true
+},
+"A_spouses_mono_A1": {
+"legible": true
+},
+"A_spouses_mono_A3": {
+"legible": true
+},
+"A_spouses_refined_A1": {
+"legible": true
+},
+"A_spouses_refined_A3": {
+"legible": true
+},
+"A_spouses_silver-gold_A1": {
+"legible": true
+},
+"A_spouses_silver-gold_A3": {
+"legible": true
+},
+"B_all_classic_A1": {
+"legible": true
+},
+"B_all_classic_A3": {
+"legible": true
+},
+"B_all_emerald_A1": {
+"legible": true
+},
+"B_all_emerald_A3": {
+"legible": true
+},
+"B_all_heritage_A1": {
+"legible": true
+},
+"B_all_heritage_A3": {
+"legible": true
+},
+"B_all_luxe_A1": {
+"legible": true
+},
+"B_all_luxe_A3": {
+"legible": true
+},
+"B_all_mono_A1": {
+"legible": true
+},
+"B_all_mono_A3": {
+"legible": true
+},
+"B_all_refined_A1": {
+"legible": true
+},
+"B_all_refined_A3": {
+"legible": true
+},
+"B_all_silver-gold_A1": {
+"legible": true
+},
+"B_all_silver-gold_A3": {
+"legible": true
+},
+"B_daughters_classic_A1": {
+"legible": true
+},
+"B_daughters_classic_A3": {
+"legible": true
+},
+"B_daughters_emerald_A1": {
+"legible": true
+},
+"B_daughters_emerald_A3": {
+"legible": true
+},
+"B_daughters_heritage_A1": {
+"legible": true
+},
+"B_daughters_heritage_A3": {
+"legible": true
+},
+"B_daughters_luxe_A1": {
+"legible": true
+},
+"B_daughters_luxe_A3": {
+"legible": true
+},
+"B_daughters_mono_A1": {
+"legible": true
+},
+"B_daughters_mono_A3": {
+"legible": true
+},
+"B_daughters_refined_A1": {
+"legible": true
+},
+"B_daughters_refined_A3": {
+"legible": true
+},
+"B_daughters_silver-gold_A1": {
+"legible": true
+},
+"B_daughters_silver-gold_A3": {
+"legible": true
+},
+"B_males_classic_A1": {
+"legible": true
+},
+"B_males_classic_A3": {
+"legible": true
+},
+"B_males_emerald_A1": {
+"legible": true
+},
+"B_males_emerald_A3": {
+"legible": true
+},
+"B_males_heritage_A1": {
+"legible": true
+},
+"B_males_heritage_A3": {
+"legible": true
+},
+"B_males_luxe_A1": {
+"legible": true
+},
+"B_males_luxe_A3": {
+"legible": true
+},
+"B_males_mono_A1": {
+"legible": true
+},
+"B_males_mono_A3": {
+"legible": true
+},
+"B_males_refined_A1": {
+"legible": true
+},
+"B_males_refined_A3": {
+"legible": true
+},
+"B_males_silver-gold_A1": {
+"legible": true
+},
+"B_males_silver-gold_A3": {
+"legible": true
+},
+"B_spouses_classic_A1": {
+"legible": true
+},
+"B_spouses_classic_A3": {
+"legible": true
+},
+"B_spouses_emerald_A1": {
+"legible": true
+},
+"B_spouses_emerald_A3": {
+"legible": true
+},
+"B_spouses_heritage_A1": {
+"legible": true
+},
+"B_spouses_heritage_A3": {
+"legible": true
+},
+"B_spouses_luxe_A1": {
+"legible": true
+},
+"B_spouses_luxe_A3": {
+"legible": true
+},
+"B_spouses_mono_A1": {
+"legible": true
+},
+"B_spouses_mono_A3": {
+"legible": true
+},
+"B_spouses_refined_A1": {
+"legible": true
+},
+"B_spouses_refined_A3": {
+"legible": true
+},
+"B_spouses_silver-gold_A1": {
+"legible": true
+},
+"B_spouses_silver-gold_A3": {
+"legible": true
+},
+"C-en_all_classic_A1": {
+"legible": false
+},
+"C-en_all_classic_A3": {
+"legible": false
+},
+"C-en_all_emerald_A1": {
+"legible": false
+},
+"C-en_all_emerald_A3": {
+"legible": false
+},
+"C-en_all_heritage_A1": {
+"legible": false
+},
+"C-en_all_heritage_A3": {
+"legible": false
+},
+"C-en_all_luxe_A1": {
+"legible": false
+},
+"C-en_all_luxe_A3": {
+"legible": false
+},
+"C-en_all_mono_A1": {
+"legible": false
+},
+"C-en_all_mono_A3": {
+"legible": false
+},
+"C-en_all_refined_A1": {
+"legible": true
+},
+"C-en_all_refined_A3": {
+"legible": false
+},
+"C-en_all_silver-gold_A1": {
+"legible": false
+},
+"C-en_all_silver-gold_A3": {
+"legible": false
+},
+"C-en_daughters_classic_A1": {
+"legible": false
+},
+"C-en_daughters_classic_A3": {
+"legible": false
+},
+"C-en_daughters_emerald_A1": {
+"legible": false
+},
+"C-en_daughters_emerald_A3": {
+"legible": false
+},
+"C-en_daughters_heritage_A1": {
+"legible": true
+},
+"C-en_daughters_heritage_A3": {
+"legible": false
+},
+"C-en_daughters_luxe_A1": {
+"legible": false
+},
+"C-en_daughters_luxe_A3": {
+"legible": false
+},
+"C-en_daughters_mono_A1": {
+"legible": true
+},
+"C-en_daughters_mono_A3": {
+"legible": false
+},
+"C-en_daughters_refined_A1": {
+"legible": true
+},
+"C-en_daughters_refined_A3": {
+"legible": false
+},
+"C-en_daughters_silver-gold_A1": {
+"legible": false
+},
+"C-en_daughters_silver-gold_A3": {
+"legible": false
+},
+"C-en_males_classic_A1": {
+"legible": true
+},
+"C-en_males_classic_A3": {
+"legible": false
+},
+"C-en_males_emerald_A1": {
+"legible": true
+},
+"C-en_males_emerald_A3": {
+"legible": false
+},
+"C-en_males_heritage_A1": {
+"legible": true
+},
+"C-en_males_heritage_A3": {
+"legible": false
+},
+"C-en_males_luxe_A1": {
+"legible": true
+},
+"C-en_males_luxe_A3": {
+"legible": false
+},
+"C-en_males_mono_A1": {
+"legible": true
+},
+"C-en_males_mono_A3": {
+"legible": false
+},
+"C-en_males_refined_A1": {
+"legible": true
+},
+"C-en_males_refined_A3": {
+"legible": false
+},
+"C-en_males_silver-gold_A1": {
+"legible": true
+},
+"C-en_males_silver-gold_A3": {
+"legible": false
+},
+"C-en_spouses_classic_A1": {
+"legible": true
+},
+"C-en_spouses_classic_A3": {
+"legible": false
+},
+"C-en_spouses_emerald_A1": {
+"legible": true
+},
+"C-en_spouses_emerald_A3": {
+"legible": false
+},
+"C-en_spouses_heritage_A1": {
+"legible": true
+},
+"C-en_spouses_heritage_A3": {
+"legible": false
+},
+"C-en_spouses_luxe_A1": {
+"legible": true
+},
+"C-en_spouses_luxe_A3": {
+"legible": false
+},
+"C-en_spouses_mono_A1": {
+"legible": true
+},
+"C-en_spouses_mono_A3": {
+"legible": false
+},
+"C-en_spouses_refined_A1": {
+"legible": true
+},
+"C-en_spouses_refined_A3": {
+"legible": false
+},
+"C-en_spouses_silver-gold_A1": {
+"legible": true
+},
+"C-en_spouses_silver-gold_A3": {
+"legible": false
+},
+"C_all_classic_2A0": {
+"legible": true
+},
+"C_all_classic_4A0": {
+"legible": true
+},
+"C_all_classic_A1": {
+"legible": true
+},
+"C_all_classic_A2_banner": {
+"legible": false
+},
+"C_all_classic_A2_column": {
+"legible": false
+},
+"C_all_classic_A2_paragraph": {
+"legible": false
+},
+"C_all_classic_A2_pedestal": {
+"legible": false
+},
+"C_all_classic_A2_roots": {
+"legible": false
+},
+"C_all_classic_A2_spine": {
+"legible": false
+},
+"C_all_classic_A3": {
+"legible": false
+},
+"C_all_emerald_2A0": {
+"legible": true
+},
+"C_all_emerald_4A0": {
+"legible": true
+},
+"C_all_emerald_A1": {
+"legible": true
+},
+"C_all_emerald_A2_banner": {
+"legible": false
+},
+"C_all_emerald_A2_column": {
+"legible": false
+},
+"C_all_emerald_A2_paragraph": {
+"legible": false
+},
+"C_all_emerald_A2_pedestal": {
+"legible": false
+},
+"C_all_emerald_A2_roots": {
+"legible": false
+},
+"C_all_emerald_A2_spine": {
+"legible": false
+},
+"C_all_emerald_A3": {
+"legible": false
+},
+"C_all_heritage_2A0": {
+"legible": true
+},
+"C_all_heritage_4A0": {
+"legible": true
+},
+"C_all_heritage_A1": {
+"legible": true
+},
+"C_all_heritage_A2_banner": {
+"legible": false
+},
+"C_all_heritage_A2_column": {
+"legible": false
+},
+"C_all_heritage_A2_paragraph": {
+"legible": false
+},
+"C_all_heritage_A2_pedestal": {
+"legible": false
+},
+"C_all_heritage_A2_roots": {
+"legible": false
+},
+"C_all_heritage_A2_spine": {
+"legible": false
+},
+"C_all_heritage_A3": {
+"legible": false
+},
+"C_all_luxe_2A0": {
+"legible": true
+},
+"C_all_luxe_4A0": {
+"legible": true
+},
+"C_all_luxe_A1": {
+"legible": true
+},
+"C_all_luxe_A2_banner": {
+"legible": false
+},
+"C_all_luxe_A2_column": {
+"legible": false
+},
+"C_all_luxe_A2_paragraph": {
+"legible": false
+},
+"C_all_luxe_A2_pedestal": {
+"legible": false
+},
+"C_all_luxe_A2_roots": {
+"legible": false
+},
+"C_all_luxe_A2_spine": {
+"legible": false
+},
+"C_all_luxe_A3": {
+"legible": false
+},
+"C_all_mono_2A0": {
+"legible": true
+},
+"C_all_mono_4A0": {
+"legible": true
+},
+"C_all_mono_A1": {
+"legible": true
+},
+"C_all_mono_A2_banner": {
+"legible": false
+},
+"C_all_mono_A2_column": {
+"legible": false
+},
+"C_all_mono_A2_paragraph": {
+"legible": false
+},
+"C_all_mono_A2_pedestal": {
+"legible": false
+},
+"C_all_mono_A2_roots": {
+"legible": false
+},
+"C_all_mono_A2_spine": {
+"legible": false
+},
+"C_all_mono_A3": {
+"legible": false
+},
+"C_all_refined_2A0": {
+"legible": true
+},
+"C_all_refined_4A0": {
+"legible": true
+},
+"C_all_refined_A1": {
+"legible": true
+},
+"C_all_refined_A2_banner": {
+"legible": false
+},
+"C_all_refined_A2_column": {
+"legible": false
+},
+"C_all_refined_A2_paragraph": {
+"legible": false
+},
+"C_all_refined_A2_pedestal": {
+"legible": false
+},
+"C_all_refined_A2_roots": {
+"legible": false
+},
+"C_all_refined_A2_spine": {
+"legible": false
+},
+"C_all_refined_A3": {
+"legible": false
+},
+"C_all_silver-gold_2A0": {
+"legible": true
+},
+"C_all_silver-gold_4A0": {
+"legible": true
+},
+"C_all_silver-gold_A1": {
+"legible": true
+},
+"C_all_silver-gold_A2_banner": {
+"legible": false
+},
+"C_all_silver-gold_A2_column": {
+"legible": false
+},
+"C_all_silver-gold_A2_paragraph": {
+"legible": false
+},
+"C_all_silver-gold_A2_pedestal": {
+"legible": false
+},
+"C_all_silver-gold_A2_roots": {
+"legible": false
+},
+"C_all_silver-gold_A2_spine": {
+"legible": false
+},
+"C_all_silver-gold_A3": {
+"legible": false
+},
+"C_daughters_classic_2A0": {
+"legible": true
+},
+"C_daughters_classic_4A0": {
+"legible": true
+},
+"C_daughters_classic_A1": {
+"legible": true
+},
+"C_daughters_classic_A3": {
+"legible": false
+},
+"C_daughters_emerald_2A0": {
+"legible": true
+},
+"C_daughters_emerald_4A0": {
+"legible": true
+},
+"C_daughters_emerald_A1": {
+"legible": true
+},
+"C_daughters_emerald_A3": {
+"legible": false
+},
+"C_daughters_heritage_2A0": {
+"legible": true
+},
+"C_daughters_heritage_4A0": {
+"legible": true
+},
+"C_daughters_heritage_A1": {
+"legible": true
+},
+"C_daughters_heritage_A3": {
+"legible": false
+},
+"C_daughters_luxe_2A0": {
+"legible": true
+},
+"C_daughters_luxe_4A0": {
+"legible": true
+},
+"C_daughters_luxe_A1": {
+"legible": true
+},
+"C_daughters_luxe_A3": {
+"legible": false
+},
+"C_daughters_mono_2A0": {
+"legible": true
+},
+"C_daughters_mono_4A0": {
+"legible": true
+},
+"C_daughters_mono_A1": {
+"legible": true
+},
+"C_daughters_mono_A3": {
+"legible": false
+},
+"C_daughters_refined_2A0": {
+"legible": true
+},
+"C_daughters_refined_4A0": {
+"legible": true
+},
+"C_daughters_refined_A1": {
+"legible": true
+},
+"C_daughters_refined_A3": {
+"legible": false
+},
+"C_daughters_silver-gold_2A0": {
+"legible": true
+},
+"C_daughters_silver-gold_4A0": {
+"legible": true
+},
+"C_daughters_silver-gold_A1": {
+"legible": true
+},
+"C_daughters_silver-gold_A3": {
+"legible": false
+},
+"C_males_classic_2A0": {
+"legible": true
+},
+"C_males_classic_4A0": {
+"legible": true
+},
+"C_males_classic_A1": {
+"legible": true
+},
+"C_males_classic_A3": {
+"legible": false
+},
+"C_males_emerald_2A0": {
+"legible": true
+},
+"C_males_emerald_4A0": {
+"legible": true
+},
+"C_males_emerald_A1": {
+"legible": true
+},
+"C_males_emerald_A3": {
+"legible": false
+},
+"C_males_heritage_2A0": {
+"legible": true
+},
+"C_males_heritage_4A0": {
+"legible": true
+},
+"C_males_heritage_A1": {
+"legible": true
+},
+"C_males_heritage_A3": {
+"legible": false
+},
+"C_males_luxe_2A0": {
+"legible": true
+},
+"C_males_luxe_4A0": {
+"legible": true
+},
+"C_males_luxe_A1": {
+"legible": true
+},
+"C_males_luxe_A3": {
+"legible": false
+},
+"C_males_mono_2A0": {
+"legible": true
+},
+"C_males_mono_4A0": {
+"legible": true
+},
+"C_males_mono_A1": {
+"legible": true
+},
+"C_males_mono_A3": {
+"legible": true
+},
+"C_males_refined_2A0": {
+"legible": true
+},
+"C_males_refined_4A0": {
+"legible": true
+},
+"C_males_refined_A1": {
+"legible": true
+},
+"C_males_refined_A3": {
+"legible": false
+},
+"C_males_silver-gold_2A0": {
+"legible": true
+},
+"C_males_silver-gold_4A0": {
+"legible": true
+},
+"C_males_silver-gold_A1": {
+"legible": true
+},
+"C_males_silver-gold_A3": {
+"legible": false
+},
+"C_spouses_classic_2A0": {
+"legible": true
+},
+"C_spouses_classic_4A0": {
+"legible": true
+},
+"C_spouses_classic_A1": {
+"legible": true
+},
+"C_spouses_classic_A3": {
+"legible": false
+},
+"C_spouses_emerald_2A0": {
+"legible": true
+},
+"C_spouses_emerald_4A0": {
+"legible": true
+},
+"C_spouses_emerald_A1": {
+"legible": true
+},
+"C_spouses_emerald_A3": {
+"legible": false
+},
+"C_spouses_heritage_2A0": {
+"legible": true
+},
+"C_spouses_heritage_4A0": {
+"legible": true
+},
+"C_spouses_heritage_A1": {
+"legible": true
+},
+"C_spouses_heritage_A3": {
+"legible": false
+},
+"C_spouses_luxe_2A0": {
+"legible": true
+},
+"C_spouses_luxe_4A0": {
+"legible": true
+},
+"C_spouses_luxe_A1": {
+"legible": true
+},
+"C_spouses_luxe_A3": {
+"legible": false
+},
+"C_spouses_mono_2A0": {
+"legible": true
+},
+"C_spouses_mono_4A0": {
+"legible": true
+},
+"C_spouses_mono_A1": {
+"legible": true
+},
+"C_spouses_mono_A3": {
+"legible": true
+},
+"C_spouses_refined_2A0": {
+"legible": true
+},
+"C_spouses_refined_4A0": {
+"legible": true
+},
+"C_spouses_refined_A1": {
+"legible": true
+},
+"C_spouses_refined_A3": {
+"legible": false
+},
+"C_spouses_silver-gold_2A0": {
+"legible": true
+},
+"C_spouses_silver-gold_4A0": {
+"legible": true
+},
+"C_spouses_silver-gold_A1": {
+"legible": true
+},
+"C_spouses_silver-gold_A3": {
+"legible": false
+}
+}

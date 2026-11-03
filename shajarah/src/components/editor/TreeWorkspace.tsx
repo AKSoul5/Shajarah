@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { computePosterLayout } from "@/lib/layout/botanical";
 import { usePosterLayout } from "./usePosterLayout";
+import { smallestClearPaperOffPage, useReadablePaper } from "./useReadablePaper";
 import { ViewMenu } from "./ViewMenu";
 import { UndoControls } from "./UndoControls";
 import { PersonMenu, type PersonMenuItem } from "./PersonMenu";
 import { MemberPicker } from "./MemberPicker";
 import { relationship } from "@/lib/relationship";
-import { branchHeads, clearestPaper, rankBranches, smallestClearPaper, type BranchOption } from "@/lib/layout/branches";
+import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branches";
 import { generationColor } from "@/lib/layout/palette";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
 import type { Gender, MemberDTO, PosterTheme, TreeDTO } from "@/lib/types";
@@ -27,10 +27,12 @@ import { emptyHistory, forget, record, redo, undo, type History } from "@/lib/hi
 import { RelationsPanel } from "./RelationsPanel";
 import { StylePanel } from "./StylePanel";
 import { compactTheme, layoutOptionsFor, resolveTheme } from "@/lib/theme";
-import { isPaperSize, PAPER_ORDER, PAPER_SIZES, paperForScale, type PaperSize } from "@/lib/paper";
+import { isPaperSize, PAPER_ORDER, PAPER_SIZES, type PaperSize } from "@/lib/paper";
 import { ConflictError, apiRepository, localRepository, type FamilyRepository } from "./repository";
 import { readProjectFile, withNewIds } from "@/lib/project";
-import { openProjectFile } from "../projectFiles";
+import { openProjectFile, saveProjectFile } from "../projectFiles";
+import { editingText, fileOf, inDesktop, useDesktopCommands, useDesktopState, type DesktopCommand } from "@/lib/desktop";
+import { exportPoster, type ExportKind } from "../poster/ExportMenu";
 import { mergePeople, spouseNamed } from "@/lib/merge";
 import { explainNotDrawn, type NotDrawn, type NotDrawnKind } from "@/lib/notDrawn";
 import { normalizeName } from "@/lib/nasab";
@@ -81,6 +83,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     showFemales, seed,
     ...layoutOptionsFor(theme, posterSize),
   });
+  // drawn clean but with names too small: the paper on which it is both
+  const readablePaper = useReadablePaper(deferredTree, layoutPending ? null : layout, posterSize, (p) => ({ showFemales, seed, ...layoutOptionsFor(theme, p) }));
+  // a clean poster whose smallest names print below the legible size (the
+  // export menu says so, as the notice on the poster does)
+  const smallText = layout && layout.clarity.ok && !layout.legibility.ok
+    ? { smallestMm: layout.legibility.smallestTextMm, minMm: layout.legibility.minTextMm }
+    : undefined;
 
   // ── Undo/redo: snapshots of the whole tree (src/lib/history.ts). The
   // refs hold the latest values for callbacks that outlive a render.
@@ -154,6 +163,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   // poster can fill the window
   const [sidebarOpen, setSidebarOpenState] = useState(true);
   const [fullScreen, setFullScreen] = useState(false);
+  // (the poster's zoom asked for by the desktop menu or its keys; see PosterViewport)
+  const [zoomCommand, setZoomCommand] = useState<{ kind: "in" | "out" | "fit"; seq: number } | null>(null);
   useEffect(() => {
     try { if (localStorage.getItem("shajarah:sidebar") === "closed") setSidebarOpenState(false); } catch { /* storage unavailable */ }
   }, []);
@@ -347,7 +358,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   );
   const travelRef = useRef(travel);
   travelRef.current = travel;
-  const layoutKeysRef = useRef({ toggleSidebar: () => {}, toggleFullScreen: () => {}, exitFullScreen: () => {}, openFind: () => false as boolean });
+  const layoutKeysRef = useRef({ toggleSidebar: () => {}, toggleFullScreen: () => {}, exitFullScreen: () => {}, openFind: () => false as boolean, zoom: (_k: "in" | "out" | "fit") => {} });
   layoutKeysRef.current = {
     openFind: () => {
       if (view !== "poster") return false;
@@ -358,6 +369,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     toggleSidebar: () => setSidebarOpen(!sidebarOpen),
     toggleFullScreen: () => setFullScreen((f) => !f),
     exitFullScreen: () => setFullScreen(false),
+    zoom: (kind) => setZoomCommand((z) => ({ kind, seq: (z?.seq ?? 0) + 1 })),
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -367,17 +379,23 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") {
         if (layoutKeysRef.current.openFind()) { e.preventDefault(); return; }
       }
-      const typing = (e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']");
+      const typing = (e.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable=''], [contenteditable='true']");
       if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (e.key === "[") { e.preventDefault(); layoutKeysRef.current.toggleSidebar(); return; }
         if (e.key === "f" || e.key === "F") { e.preventDefault(); layoutKeysRef.current.toggleFullScreen(); return; }
         if (e.key === "Escape") layoutKeysRef.current.exitFullScreen();
       }
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-      // inside a text field the browser's own undo edits the text
-      const el = e.target as HTMLElement | null;
-      if (el?.closest("textarea, [contenteditable=''], [contenteditable='true']")) return;
-      if (el instanceof HTMLInputElement && !["checkbox", "radio", "button", "submit", "range", "color", "file"].includes(el.type)) return;
+      // inside a text field the browser's own undo edits the text (the
+      // same rule as the desktop menu's Undo)
+      if (editingText(e.target as Element | null)) return;
+      // In the desktop program, Ctrl + = − 0 zoom the poster, as its menu
+      // says (in a browser they stay the browser's own zoom)
+      if (inDesktop() && !e.shiftKey && ["=", "+", "-", "0"].includes(e.key)) {
+        e.preventDefault();
+        layoutKeysRef.current.zoom(e.key === "0" ? "fit" : e.key === "-" ? "out" : "in");
+        return;
+      }
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -401,15 +419,17 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const nextPaper = PAPER_ORDER[PAPER_ORDER.indexOf(posterSize) + 1] ?? null;
   const fallbacks: Fallbacks = {
     branches,
-    measure: (id) => clearestPaper(deferredTree, id, (p) => ({ showFemales, seed, ...layoutOptionsFor(theme, p) })),
+    measure: (id, signal) => smallestClearPaperOffPage(deferredTree, PAPER_ORDER.map((p) => ({ paper: p, options: { showFemales, seed, ...layoutOptionsFor(theme, p), focusId: id } })), signal),
     onFocus: (id, paper) => updateSettings({ focusId: id, ...(paper ? { posterSize: paper } : {}) }),
     onHideDaughters: showFemales && tree.lineage !== "MATRILINEAL" ? () => updateSettings({ showFemales: false }) : null,
     // (a larger paper, printed in tiles: there is always a larger one)
     onTiled: nextPaper ? () => updateSettings({ posterSize: nextPaper }) : null,
   };
   /** The smallest larger poster on which every connection is unambiguous. */
-  const findClearSize = () =>
-    nextPaper && smallestClearPaper((p) => computePosterLayout(deferredTree, { showFemales, seed, ...layoutOptionsFor(theme, p) }), nextPaper);
+  // (in a worker: it lays the poster out once per size)
+  const findClearSize = () => nextPaper
+    ? smallestClearPaperOffPage(deferredTree, PAPER_ORDER.slice(PAPER_ORDER.indexOf(nextPaper)).map((p) => ({ paper: p, options: { showFemales, seed, ...layoutOptionsFor(theme, p) } })))
+    : Promise.resolve(null);
   // the options replace a too-dense poster again whenever the layout changes
   useEffect(() => setShowDense(false), [layout]);
   // a branch poster needs at least one descendant to be a branch
@@ -539,6 +559,58 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     return [...list].sort((a, b) => listGeneration(a) - listGeneration(b) || a.birthOrder - b.birthOrder);
   }, [tree.members, query, listGeneration]);
 
+  // ── The desktop program's menu bar (desktop/electron/menu.js) ──────
+  // Each command runs the same action as the button for it here; the menu
+  // is told what is possible (something to undo, the member list shown).
+  const [incomingImport, setIncomingImport] = useState<{ file: File; seq: number } | null>(null);
+  const zoomBy = (kind: "in" | "out" | "fit") => setZoomCommand((z) => ({ kind, seq: (z?.seq ?? 0) + 1 }));
+  // (in a text field, undo and redo edit the text, as their keys do there)
+  const step = (dir: "undo" | "redo") => {
+    if (editingText()) document.execCommand(dir);
+    else void travel(dir);
+  };
+  const exportFromMenu = (kind: ExportKind) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    exportPoster(kind, svg, exportName(tree.name), posterSize).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  const importFromMenu = ({ file }: DesktopCommand) => {
+    if (!file) return;
+    setSidebarOpen(true);
+    setFullScreen(false);
+    setPanel({ kind: "gedcom" });
+    setIncomingImport((p) => ({ file: fileOf(file, "text/plain"), seq: (p?.seq ?? 0) + 1 }));
+  };
+  const saveFromMenu = () => {
+    saveProjectFile(tree).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  useDesktopCommands({
+    "new-family": () => window.location.assign("/#new"),
+    "open-project": ({ file }) => file && void openProject(fileOf(file, "application/json")),
+    "save-project": saveFromMenu,
+    "save-project-as": saveFromMenu,
+    "import-gedcom": importFromMenu,
+    "import-outline": importFromMenu,
+    "export-svg": () => exportFromMenu("svg"),
+    "export-pdf": () => exportFromMenu("pdf"),
+    "export-png": () => exportFromMenu("png"),
+    "export-tiled-pdf": () => exportFromMenu("tiles"),
+    undo: () => step("undo"),
+    redo: () => step("redo"),
+    "toggle-sidebar": () => setSidebarOpen(!sidebarOpen),
+    "zoom-in": () => zoomBy("in"),
+    "zoom-out": () => zoomBy("out"),
+    "zoom-reset": () => zoomBy("fit"),
+  });
+  useDesktopState({
+    page: "editor",
+    canUndo: history.undo.length > 0,
+    canRedo: history.redo.length > 0,
+    undoLabel: history.undo.at(-1)?.label ?? null,
+    redoLabel: history.redo.at(-1)?.label ?? null,
+    sidebar: sidebarOpen,
+  });
+
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-parchment-100 text-bark-900">
       <header className={`relative z-40 flex items-center gap-3 border-b border-parchment-300 bg-white/80 px-4 py-2.5 backdrop-blur ${fullScreen ? "hidden" : ""}`}>
@@ -604,7 +676,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               ))}
             </select>
           </label>
-          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} />
+          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
         </div>
       </header>
       {conflict && (
@@ -796,6 +868,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               onImport={(text, fileName) => void runImport(() => repo.importGedcom(text), fileName)}
               opensAsNew={mode === "api"}
               onOpenProject={(file) => void openProject(file)}
+              incoming={incomingImport}
             />
           )}
 
@@ -1045,7 +1118,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
                 ✕ Exit full screen
               </button>
-              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} />
+              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
             </div>
           )}
           {view === "poster" && layout && (
@@ -1151,7 +1224,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             )}
             {/* (kept in the page while hidden, so export still has the poster) */}
             <div className={layout.tooDense && !showDense ? "invisible" : "contents"}>
-            <PosterViewport width={layout.width} height={layout.height} reserveBottom={layout.focus ? 56 : 0} focusOn={focusOn}>
+            <PosterViewport width={layout.width} height={layout.height} reserveBottom={layout.focus ? 56 : 0} focusOn={focusOn} zoomCommand={zoomCommand}>
               <TreePoster
                 ref={svgRef}
                 layout={layout}
@@ -1210,12 +1283,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 onChoose={(p) => updateSettings({ posterSize: p })}
               />
             )}
-            {layout.clarity.ok && !layout.legibility.ok && (
+            {/* (not while the next layout is on its way: it may be another paper's) */}
+            {layout.clarity.ok && !layout.legibility.ok && !layoutPending && (
               <LegibilityNotice
                 smallestMm={layout.legibility.smallestTextMm}
                 minMm={layout.legibility.minTextMm}
                 paper={posterSize}
-                suggestion={paperForScale(posterSize, layout.legibility.scaleNeeded)}
+                suggestion={readablePaper}
                 fallbacks={fallbacks}
                 onChoose={(p) => updateSettings({ posterSize: p })}
                 onShortenSoil={layout.soilOverShare && !theme.soilShorten ? () => updateSettings({ theme: { ...theme, soilShorten: true } }) : undefined}
@@ -1293,22 +1367,26 @@ function LegibilityNotice({
   smallestMm: number;
   minMm: number;
   paper: PaperSize;
-  suggestion: PaperSize | null;
+  /** The smallest larger paper on which the poster is clean and legible ("checking" while it is laid out on each). */
+  suggestion: PaperSize | null | "checking";
   fallbacks: Fallbacks;
   onChoose: (p: PaperSize) => void;
   /** When every name in a long foundation takes the canopy's room: shorten it instead ("…"). */
   onShortenSoil?: () => void;
 }) {
+  const [otherWays, setOtherWays] = useState(false);
   return (
     <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
       <p className="font-semibold">Too dense for {paper}</p>
       <p className="mt-1">
         The smallest names would print at {smallestMm.toFixed(1)} mm (minimum {minMm.toFixed(1)} mm).
-        {suggestion
-          ? ` On ${suggestion} every name stays readable.`
-          : " Even 2A0 is too small for the whole family on one sheet."}
+        {suggestion === "checking"
+          ? " Checking which paper keeps every name readable…"
+          : suggestion
+            ? ` On ${suggestion} every name stays readable.`
+            : " No single larger sheet keeps every name readable with every line clear."}
       </p>
-      {suggestion && (
+      {suggestion && suggestion !== "checking" && (
         <button type="button" className="btn-outline mt-2 py-1 text-xs" onClick={() => onChoose(suggestion)}>
           Use {suggestion}
         </button>
@@ -1321,14 +1399,21 @@ function LegibilityNotice({
           </button>
         </>
       )}
-      {!suggestion && <FallbackActions {...fallbacks} />}
+      {suggestion === null && <FallbackActions {...fallbacks} />}
+      {/* (keeping this paper: a poster of one branch, measured only when asked) */}
+      {suggestion && !otherWays && (
+        <button type="button" className="mt-2 block text-start underline" onClick={() => setOtherWays(true)}>
+          Or keep {paper}: a poster of one branch, or fewer names…
+        </button>
+      )}
+      {suggestion && otherWays && <FallbackActions {...fallbacks} />}
     </div>
   );
 }
 
 /**
  * Shown when some connections could still be misread (a line under an
- * unrelated name, a shallow crossing, two lines running together). The
+ * unrelated name, a crossing, two lines running together). The
  * spots are circled on the poster; a larger poster usually resolves them.
  */
 function ClarityNotice({
@@ -1339,7 +1424,7 @@ function ClarityNotice({
   tooDense: boolean;
   paper: PaperSize;
   fallbacks: Fallbacks;
-  findSize: () => PaperSize | null;
+  findSize: () => Promise<PaperSize | null>;
   onChoose: (p: PaperSize) => void;
 }) {
   const [state, setState] = useState<"idle" | "searching" | PaperSize | "none">("idle");
@@ -1350,7 +1435,7 @@ function ClarityNotice({
       <p className="mt-1">
         {tooDense
           ? `${issues} connections could be misread at this size. Do not print it on ${paper}.`
-          : `${issues} place${issues === 1 ? "" : "s"} (circled) where a line passes under another name, crosses too shallowly or runs into another line, so a reader could misread who descends from whom.`}
+          : `${issues} place${issues === 1 ? "" : "s"} (circled) where a line passes under another name, crosses another line or runs into one, so a reader could misread who descends from whom.`}
       </p>
       {state === "idle" && (
         <button
@@ -1359,7 +1444,7 @@ function ClarityNotice({
           onClick={() => {
             setState("searching");
             // let the button repaint before the (blocking) layout runs
-            setTimeout(() => setState(findSize() ?? "none"), 30);
+            void findSize().then((p) => setState(p ?? "none"));
           }}
         >
           Find a poster size where every line is clear
@@ -1396,7 +1481,7 @@ function TooDensePanel({
   branch: boolean;
   paper: PaperSize;
   fallbacks: Fallbacks;
-  findSize: () => PaperSize | null;
+  findSize: () => Promise<PaperSize | null>;
   onChoose: (p: PaperSize) => void;
   onShowAnyway: () => void;
 }) {
@@ -1426,7 +1511,7 @@ function TooDensePanel({
                   className="btn-primary py-1.5 text-sm"
                   onClick={() => {
                     setState("searching");
-                    setTimeout(() => setState(findSize() ?? "none"), 30);
+                    void findSize().then((p) => setState(p ?? "none"));
                   }}
                 >
                   Find the smallest size where every line is clear
@@ -1456,8 +1541,8 @@ function TooDensePanel({
 
 type Fallbacks = {
   branches: Omit<BranchOption, "clearAt">[];
-  /** Smallest clear poster for one branch (runs layouts: slow on big families). */
-  measure: (id: string) => PaperSize | null;
+  /** Smallest clear poster for one branch (runs layouts, in a worker: slow on big families). */
+  measure: (id: string, signal: AbortSignal) => Promise<PaperSize | null>;
   onFocus: (id: string, paper: PaperSize | null) => void;
   onHideDaughters: (() => void) | null;
   onTiled: (() => void) | null;
@@ -1475,28 +1560,28 @@ function FallbackActions({ branches, measure, onFocus, onHideDaughters, onTiled 
   const [choice, setChoice] = useState("");
   const key = branches.map((b) => b.id).join(",");
   useEffect(() => {
-    let live = true;
+    const abort = new AbortController();
     setRanked(null);
     setDone(0);
     const results: BranchOption[] = [];
-    // one branch per tick, so the notice can show progress between layouts
+    // one branch after another (each in a worker), showing progress
     const next = (i: number) => {
-      if (!live) return;
+      if (abort.signal.aborted) return;
       if (i === branches.length) {
         const r = rankBranches(results);
         setRanked(r);
         setChoice(r[0]?.id ?? "");
         return;
       }
-      results.push({ ...branches[i], clearAt: measure(branches[i].id) });
-      setDone(i + 1);
-      setTimeout(() => next(i + 1), 0);
+      void measure(branches[i].id, abort.signal).then((clearAt) => {
+        if (abort.signal.aborted) return;
+        results.push({ ...branches[i], clearAt });
+        setDone(i + 1);
+        next(i + 1);
+      });
     };
-    const t = setTimeout(() => next(0), 30);
-    return () => {
-      live = false;
-      clearTimeout(t);
-    };
+    next(0);
+    return () => abort.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure only when the branches change
   }, [key]);
   const chosen = ranked?.find((b) => b.id === choice);

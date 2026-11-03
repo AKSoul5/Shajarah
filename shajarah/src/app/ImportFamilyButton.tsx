@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { decodeGedcom } from "@/lib/gedcom";
 import { looksLikeOutline } from "@/lib/outline";
+import { fileOf, useDesktopCommands } from "@/lib/desktop";
 
 /** A family's name from the file: an outline's "# Family:" line, else the file name. */
 function familyName(text: string, fileName: string): string {
@@ -51,6 +52,11 @@ export function ImportFamilyButton() {
     }
   };
 
+  // (a file chosen in the desktop menu's Import dialog: a new family, as here)
+  useDesktopCommands({
+    "import-gedcom": ({ file }) => file && void start(fileOf(file, "text/plain")),
+    "import-outline": ({ file }) => file && void start(fileOf(file, "text/plain")),
+  });
   return (
     <div className="space-y-2">
       <input ref={input} type="file" accept=".ged,.gedcom,.txt,text/plain" className="hidden" onChange={(e) => void start(e.target.files?.[0])} />

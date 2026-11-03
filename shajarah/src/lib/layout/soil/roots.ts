@@ -37,6 +37,8 @@ interface Row {
   omitted: boolean;
 }
 
+/** How wide the trunk's own root flare spreads over the ground (see SoilGeometry.trunkSpread). */
+const SPREAD = 0.45;
 /** Half the taproot's width where it leaves the trunk. */
 const tapHalf = (ctx: SoilContext) => ctx.f * 0.3;
 
@@ -87,6 +89,7 @@ function measure(ctx: SoilContext) {
 
 export const roots: SoilStyleDef = {
   id: "roots",
+  endsInOrnament: true,
   label: "Ancestral Roots",
   description: "The trunk grows into its roots; each ancestor rests on a root, read downward from the trunk.",
   height: (ctx) => measure(ctx).height,
@@ -97,9 +100,16 @@ export const roots: SoilStyleDef = {
     const texts: SoilText[] = [];
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
 
-    // The taproot: from under the trunk to a fine point below the last name,
-    // swaying a little (it is a root, not a rule), tapering as it goes.
-    const yTop = G - p.f * 0.2;
+    // The taproot: from the trunk's base to a fine point below the last name,
+    // swaying a little (it is a root, not a rule), tapering as it goes. It is
+    // filled with the trunk's own shading, laid across the page as the
+    // trunk's is, so trunk and taproot read as one piece (no seam where they
+    // meet); it starts a hair above the ground line, under the trunk's base.
+    // (starting on the trunk outline's base line, so in black ink, where both
+    // are outlined, the taproot's sides run on from the trunk's with no ends
+    // showing above it)
+    // (a hair above it, under the trunk, so no paper shows between them)
+    const yTop = (p.trunkBaseY?.(SPREAD) ?? G) - p.W * 0.0002;
     const yEnd = G + m.headBottom - (m.rest ? 0 : (m.rows.at(-1)?.fs ?? p.f) * 0.3);
     // as wide as a good share of the trunk where it leaves it, narrowing
     // quickly to the measured width, then on to a fine point
@@ -118,23 +128,34 @@ export const roots: SoilStyleDef = {
       right.push(`${fx(x + half)} ${fx(y)}`);
       left.unshift(`${fx(x - half)} ${fx(y)}`);
     }
-    shapes.push({ d: `M${right.join("L")}L${left.join("L")}Z`, fill: "trunk" });
-    // the gold thread runs on from the trunk's ancestors down the taproot
+    // (left open across its top: in black ink, where the taproot is outlined,
+    // no line is drawn across where it leaves the trunk)
+    const taproot: SoilShape = { d: `M${right.join("L")}L${left.join("L")}`, fill: "trunk" };
+    // The gold thread runs on from the trunk's ancestors down the taproot and
+    // stops where the taproot grows too thin to hold it (well inside it, its
+    // round end included), so it never runs out onto the paper.
+    const threadW = p.f * 0.06;
+    let threadEnd = yEnd;
+    for (let i = 0; i <= 200; i++) {
+      const y = yTop + ((yEnd - yTop) * i) / 200;
+      if (at(y).half < threadW * 1.6) { threadEnd = y - threadW; break; }
+    }
     const thread: string[] = [];
     for (let i = 0; i <= N; i++) {
-      const y = p.threadFrom + ((yEnd - p.f * 0.4 - p.threadFrom) * i) / N;
+      const y = p.threadFrom + ((threadEnd - p.threadFrom) * i) / N;
       thread.push(`${fx(y < yTop ? p.cx : at(y).x)} ${fx(y)}`);
     }
-    shapes.push({ d: `M${thread.join("L")}`, stroke: "goldLight", strokeWidth: p.f * 0.06 });
     boxes.push({ x: p.cx - w0 - sway, y: G, w: 2 * (w0 + sway), h: Math.max(0, yEnd - G) });
 
     // A root to each name: it leaves the taproot above the name and curves
-    // out and down to it, ending in a small knot by the name.
+    // out and down to it, ending in a small knot by the name. Its base starts
+    // inside the taproot, which is drawn over it, and both are opaque, so a
+    // root grows out of the taproot's edge with no darker overlap.
     const rootlets: string[] = [];
     for (const r of m.rows) {
       const y = G + r.y;
       const from = at(y - r.fs * 1.0);
-      const start = { x: from.x + r.side * from.half * 0.6, y: y - r.fs * 1.0 };
+      const start = { x: from.x + r.side * from.half * 0.15, y: y - r.fs * 1.0 };
       const end = { x: p.cx + r.side * m.reach, y: y - r.fs * 0.05 };
       // leaving the taproot steeply, then easing out level towards the name
       const curve: Cubic = {
@@ -157,7 +178,12 @@ export const roots: SoilStyleDef = {
       const w = p.textWidth(r.label, r.fs);
       boxes.push({ x: extendsRight ? nearX : nearX - w, y: y - r.fs * 0.8, w, h: r.fs * 1.4 });
     }
-    if (rootlets.length) shapes.push({ d: rootlets.join(""), fill: "bark", opacity: 0.85 });
+    // drawing order: the roots, the taproot over their bases, the gold thread on it
+    const ornaments = shapes.splice(0);
+    if (rootlets.length) shapes.push({ d: rootlets.join(""), fill: "root" });
+    shapes.push(taproot);
+    shapes.push({ d: `M${thread.join("L")}`, stroke: "goldLight", strokeWidth: threadW });
+    shapes.push(...ornaments);
 
     if (m.rest) {
       // the deep soil: a fine stratum line, the taproot's point on it, then the rest of the lineage
@@ -185,7 +211,7 @@ export const roots: SoilStyleDef = {
       box: unionBox(boxes),
       count: p.custom ? 0 : p.entries.length,
       custom: p.custom,
-      trunkSpread: 0.45,
+      trunkSpread: SPREAD,
       trunkTaper: 0,
     };
   },

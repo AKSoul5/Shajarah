@@ -15,6 +15,8 @@ interface Props {
    * at least `zoom` times the fitted size; a new `seq` moves there again.
    */
   focusOn?: { x: number; y: number; zoom: number; seq: number } | null;
+  /** Zoom in, out or fit, as the + − Fit buttons do (from the desktop menu); a new `seq` does it again. */
+  zoomCommand?: { kind: "in" | "out" | "fit"; seq: number } | null;
   children: ReactNode;
 }
 
@@ -27,7 +29,7 @@ interface Props {
  * zooms at the pointer; dragging pans. The poster stays within half its
  * size of the view, so it cannot be scrolled out of sight.
  */
-export function PosterViewport({ width, height, reserveBottom = 0, focusOn = null, children }: Props) {
+export function PosterViewport({ width, height, reserveBottom = 0, focusOn = null, zoomCommand = null, children }: Props) {
   const outer = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const behavior = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
@@ -101,6 +103,14 @@ export function PosterViewport({ width, height, reserveBottom = 0, focusOn = nul
   const zoomBy = (k: number) => {
     if (outer.current && behavior.current) select(outer.current).call(behavior.current.scaleBy, k);
   };
+  const lastCommand = useRef(zoomCommand?.seq ?? 0);
+  useEffect(() => {
+    if (!zoomCommand || zoomCommand.seq === lastCommand.current) return;
+    lastCommand.current = zoomCommand.seq;
+    if (zoomCommand.kind === "fit") fit();
+    else zoomBy(zoomCommand.kind === "in" ? 1.4 : 1 / 1.4);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per command
+  }, [zoomCommand?.seq]);
 
   return (
     // (never scrolled itself: pan and zoom move the poster; a browser
