@@ -40,6 +40,14 @@ The page at **`/demo`** works without a database. It runs the same editor
 with an in-memory repository. **`/demo?sample=kalali`** loads the Al-Kalali
 lineage (85 generations, آدم → أحمد بن نوفل).
 
+**`/lab/nodes`** shows the name boxes of every design side by side, to
+judge them: one small family (`src/lib/samples/nodeLab.ts`, generic names)
+laid out by the layout engine and drawn by the poster's own renderer on A3,
+in Arabic and in English. Each box is lifted from that poster as drawn and
+shown at one scale for every design, grouped into ordinary and long names,
+with and without descendants, with its shape and printed type size. It is
+an evaluation page only; it changes nothing on any poster.
+
 ## Desktop app (Windows installer)
 
 `desktop/electron/` packages Shajarah as an ordinary Windows program,
