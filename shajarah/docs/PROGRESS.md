@@ -10,7 +10,8 @@ Every item is on its own branch for review.
 | 1.0.46 | No crossing lines; daughters' families; desktop menu bar | 456 tests; 322-poster QA; the app driven through every menu item |
 | 1.0.47 | Eight branch colours per design | 475 tests; 322-poster QA |
 | 1.0.48 | Hotfix: the Style menu crashed in 1.0.47 | 483 tests; the installer's smoke test now opens every header menu; passed on Windows |
-| **1.0.49** | **The poster key** (`legend-review`): accurate wording; every colour explained; generation chips | 501 tests; 322-poster QA; the Windows installer run passed (with its smoke test); release assets published |
+| 1.0.49 | The poster key (`legend-review`): accurate wording; every colour explained; generation chips | 501 tests; 322-poster QA; the Windows installer run passed (with its smoke test); release assets published |
+| **1.0.50** | **Posters** (`a2-poster`, `spouse-legend`, `node-designs`, `cousin-marriages`): seven new name designs; spouses in the key; cousin marriages and complex families; faster dense posters | 600 tests; 448-poster QA; production build; the Windows installer run passed (with its smoke test); release assets published (`v1.0.50`) |
 
 ## The genealogy platform (branches, in the order they build on each other)
 
@@ -47,7 +48,7 @@ Each branch contains the ones above it.
 
 1. **Releases, in a controlled order.**
    - **1.0.50 (approved):** `a2-poster`, `spouse-legend`, `node-designs`
-     and `cousin-marriages`, on top of 1.0.49.
+     and `cousin-marriages`, on top of 1.0.49. **Released** (`1961357`).
    - **1.1.0 (not yet):** `integration`, only after 1.0.50 has been tried
      and the integrated build reviewed. Before it is released, the
      production build is run again on the exact final `integration`
