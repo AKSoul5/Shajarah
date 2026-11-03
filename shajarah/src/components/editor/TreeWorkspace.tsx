@@ -11,6 +11,7 @@ import { MemberPicker } from "./MemberPicker";
 import { relationship } from "@/lib/relationship";
 import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branches";
 import { generationColor } from "@/lib/layout/palette";
+import { generationBadge, generationText, referenceIdOf, treeGenerations, type GenerationStatus } from "@/lib/family/generations";
 import { buildFamilyIndex } from "@/lib/family/index";
 import { PersonProfile } from "./PersonProfile";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
@@ -572,22 +573,20 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     else void mutate(() => repo.undoImport(lastImport.receipt), { label: "Undo import" });
   };
 
-  // A wife or husband who married in (no parents of their own on record) is
-  // listed in the generation of the one they married, not with the root at
-  // the very top as generation 1.
-  const marriedIn = useMemo(() => {
-    const byId = new Map(tree.members.map((m) => [m.id, m]));
-    const partnerGen = new Map<string, number>();
-    for (const mm of tree.marriages) {
-      for (const [a, b] of [[mm.spouseAId, mm.spouseBId], [mm.spouseBId, mm.spouseAId]]) {
-        const me = byId.get(a), other = byId.get(b);
-        if (!me || !other || me.fatherId || me.motherId || me.id === tree.rootMemberId) continue;
-        if (other.fatherId || other.motherId || other.id === tree.rootMemberId) partnerGen.set(me.id, other.generation);
-      }
-    }
-    return partnerGen;
-  }, [tree.members, tree.marriages, tree.rootMemberId]);
-  const listGeneration = useCallback((m: MemberDTO) => marriedIn.get(m.id) ?? m.generation, [marriedIn]);
+  // Generation numbers (src/lib/family/generations.ts): counted from the
+  // tree's reference person, a daughter's children through her, people who
+  // married in with no number of their own (listed beside the one they
+  // married), the unrelated last.
+  const generations = useMemo(() => treeGenerations(tree), [tree]);
+  const referenceId = useMemo(() => referenceIdOf(tree), [tree]);
+  const listGeneration = useCallback((m: MemberDTO) => {
+    const g = generations.get(m.id);
+    if (g?.kind === "level") return g.level;
+    if (g?.kind === "spouse") return g.partnerLevels[0] + 0.5;
+    return Number.MAX_SAFE_INTEGER;
+  }, [generations]);
+  const generationCount = useMemo(() => new Set([...generations.values()].flatMap((g) => (g.kind === "level" && g.level >= 1 ? [g.level] : []))).size, [generations]);
+  const dotColour = (g: GenerationStatus | undefined) => (g?.kind === "level" && g.level >= 1 ? generationColor(g.level - 1).fill : "transparent");
 
   const filtered = useMemo(() => {
     // (hamza forms, ى / ي, ة / ه, diacritics, spaces and case ignored: احمد finds أحمد)
@@ -656,8 +655,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         <Link href="/" className="font-naskh text-2xl font-bold text-bark-700">شجرة</Link>
         <div className="min-w-0">
           <h1 className="truncate font-naskh text-lg font-bold" dir="auto">{tree.name}</h1>
-          <p className="truncate text-xs text-gray-500" title={`${tree.members.length} members · ${tree.members.reduce((g, m) => Math.max(g, m.generation + 1), 0)} generations`}>
-            {tree.members.length} members · {tree.members.reduce((g, m) => Math.max(g, m.generation + 1), 0)} generations
+          <p className="truncate text-xs text-gray-500" title={`${tree.members.length} members · ${generationCount} generations from Generation 1`}>
+            {tree.members.length} members · {generationCount} generations
             {mode === "local" && " · demo mode (changes are not saved)"}
           </p>
         </div>
@@ -798,10 +797,14 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                       onClick={() => selectAndShow(m.id)}
                       className="flex w-full items-center gap-2 border-b border-parchment-100 px-3 py-1.5 text-start hover:bg-parchment-50"
                     >
-                      <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: generationColor(m.generation).fill }} />
+                      <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: dotColour(generations.get(m.id)) }} />
                       <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
-                      <span className="whitespace-nowrap text-xs text-bark-400" title={marriedIn.has(m.id) ? "Married into the family" : undefined}>
-                        {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
+                      <span className="whitespace-nowrap text-xs text-bark-400" title={generationText(generations.get(m.id), "en", m.gender)}>
+                        {(() => {
+                          const g = generations.get(m.id);
+                          if (g?.kind === "spouse") return `${generationBadge({ kind: "level", level: g.partnerLevels[0], via: "father" })} · ${m.gender === "FEMALE" ? "wife" : "husband"}`;
+                          return generationBadge(g);
+                        })()}
                       </span>
                     </button>
                   </li>
@@ -926,10 +929,26 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <div className="flex items-center gap-2">
                 <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>← All</button>
                 <h2 className="truncate font-naskh text-xl font-bold" dir="auto">{selected.name}</h2>
-                <span className="ms-auto rounded-full px-2 py-0.5 text-xs" style={{ background: generationColor(selected.generation).fill, color: generationColor(selected.generation).text }}>
-                  Generation {selected.generation + 1}
-                </span>
+                {(() => {
+                  const g = generations.get(selected.id);
+                  const c = g?.kind === "level" && g.level >= 1 ? generationColor(g.level - 1) : { fill: "#ede6d6", text: "#4a2e17" };
+                  const why = g?.kind === "level" && g.alt
+                    ? `Through the ${g.via}; ${generationText({ kind: "level", level: g.alt.level, via: g.alt.via })} through the ${g.alt.via}`
+                    : undefined;
+                  return (
+                    <span className="ms-auto whitespace-nowrap rounded-full px-2 py-0.5 text-xs" style={{ background: c.fill, color: c.text }} title={why}>
+                      {generationText(g, "en", selected.gender)}{why ? " *" : ""}
+                    </span>
+                  );
+                })()}
               </div>
+              {selected.id === referenceId ? (
+                <p className="-mt-3 text-xs text-bark-400">Generations are counted from this person.</p>
+              ) : generations.get(selected.id)?.kind === "level" && (
+                <button type="button" className="-mt-3 text-xs text-bark-500 underline" onClick={() => updateSettings({ referenceId: selected.id })}>
+                  Count generations from this person
+                </button>
+              )}
               <div role="tablist" aria-label="Person" className="-mt-2 flex gap-1 border-b border-parchment-200 text-sm">
                 {(["profile", "edit"] as const).map((t) => (
                   <button key={t} type="button" role="tab" aria-selected={personTab === t} onClick={() => choosePersonTab(t)}
