@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { computePosterLayout, type LayoutOptions, type PosterLayout } from "@/lib/layout/botanical";
 import type { TreeDTO } from "@/lib/types";
+import { layoutFingerprint, readCachedLayout, writeCachedLayout } from "./layoutCache";
 
-type Job = { id: number; tree: TreeDTO; options: LayoutOptions };
+type Job = { id: number; tree: TreeDTO; options: LayoutOptions; fingerprint: string };
 
 /**
  * The poster's layout, computed in a worker (layout.worker.ts) so the editor
@@ -13,8 +14,13 @@ type Job = { id: number; tree: TreeDTO; options: LayoutOptions };
  * before the first. Only the newest request counts: changes made while one
  * is being laid out are folded into a single next request, never queued.
  * (Where a worker cannot run, it is laid out on the page, as before.)
+ *
+ * With `cacheId` (the tree's id), the last layout kept on this computer is
+ * shown at once when the tree opens: as it is, with no layout run, when
+ * nothing it depends on has changed; otherwise the last one, pending, while
+ * the new one is laid out (layoutCache.ts). Every finished layout is kept.
  */
-export function usePosterLayout(tree: TreeDTO, options: LayoutOptions): { layout: PosterLayout | null; pending: boolean } {
+export function usePosterLayout(tree: TreeDTO, options: LayoutOptions, cacheId?: string): { layout: PosterLayout | null; pending: boolean } {
   const [layout, setLayout] = useState<PosterLayout | null>(null);
   const [pending, setPending] = useState(true);
   const worker = useRef<Worker | null>(null);
@@ -22,16 +28,24 @@ export function usePosterLayout(tree: TreeDTO, options: LayoutOptions): { layout
   const busy = useRef(false);
   const waiting = useRef<Job | null>(null);
   const inFlight = useRef<Job | null>(null);
+  const inFlightJob = useRef<Job | null>(null);
   const latest = useRef(0);
+  // (the first layout waits for the cache to be read: a few milliseconds)
+  const cacheRead = useRef(!cacheId);
 
+  const keep = (job: Job, l: PosterLayout) => {
+    if (cacheId) void writeCachedLayout(cacheId, job.fingerprint, l);
+  };
   const onPage = (job: Job) => {
     if (job.id !== latest.current) return;
-    setLayout(computePosterLayout(job.tree, job.options));
+    const l = computePosterLayout(job.tree, job.options);
+    setLayout(l);
     setPending(false);
+    keep(job, l);
   };
   const send = () => {
     const job = waiting.current;
-    if (!job || busy.current) return;
+    if (!job || busy.current || !cacheRead.current) return;
     if (!worker.current) {
       if (failed.current) {
         waiting.current = null;
@@ -57,10 +71,14 @@ export function usePosterLayout(tree: TreeDTO, options: LayoutOptions): { layout
     worker.current = w;
     w.onmessage = (e: MessageEvent<{ id: number; ok: boolean; layout?: PosterLayout; error?: string }>) => {
       busy.current = false;
+      inFlightJob.current = inFlight.current;
       inFlight.current = null;
+      const done = inFlightJob.current;
       if (e.data.id === latest.current) {
-        if (e.data.ok) setLayout(e.data.layout!);
-        else console.error("Layout failed:", e.data.error);
+        if (e.data.ok) {
+          setLayout(e.data.layout!);
+          if (done && done.id === e.data.id) keep(done, e.data.layout!);
+        } else console.error("Layout failed:", e.data.error);
         setPending(false);
       }
       send();
@@ -78,6 +96,22 @@ export function usePosterLayout(tree: TreeDTO, options: LayoutOptions): { layout
       send();
     };
     send();
+    // The last layout kept for this tree: shown at once (as final when
+    // nothing it depends on has changed), before the first layout is sent.
+    if (cacheId) {
+      void readCachedLayout(cacheId).then((cached) => {
+        const job = waiting.current;
+        if (cached && job && latest.current === job.id) {
+          setLayout((now) => now ?? cached.layout);
+          if (cached.fingerprint === job.fingerprint && process.env.NODE_ENV !== "development") {
+            waiting.current = null;
+            setPending(false);
+          }
+        }
+        cacheRead.current = true;
+        send();
+      });
+    }
     return () => {
       w.terminate();
       worker.current = null;
@@ -89,7 +123,7 @@ export function usePosterLayout(tree: TreeDTO, options: LayoutOptions): { layout
 
   const key = JSON.stringify(options);
   useEffect(() => {
-    waiting.current = { id: ++latest.current, tree, options };
+    waiting.current = { id: ++latest.current, tree, options, fingerprint: layoutFingerprint(tree, options) };
     setPending(true);
     send();
     // (options is rebuilt on every render: its content is what counts)

@@ -89,10 +89,11 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   // Layout is recomputed on every edit, in a worker: the editor stays
   // usable while a large family is laid out (the last poster stays shown).
   const deferredTree = useDeferredValue(tree);
+  // (the last poster kept on this computer is shown at once when a tree opens)
   const { layout, pending: layoutPending } = usePosterLayout(deferredTree, {
     showFemales, seed,
     ...layoutOptionsFor(theme, posterSize),
-  });
+  }, tree.id);
   // drawn clean but with names too small: the paper on which it is both
   const readablePaper = useReadablePaper(deferredTree, layoutPending ? null : layout, posterSize, (p) => ({ showFemales, seed, ...layoutOptionsFor(theme, p) }));
   // a clean poster whose smallest names print below the legible size (the
