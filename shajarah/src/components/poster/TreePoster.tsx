@@ -89,7 +89,8 @@ function makePalette(theme: PosterTheme, layout: PosterLayout, uid = "sh"): Pale
   const bark = mono ? "#1a1a1a" : theme.branch;
   // how many main branches the poster has (the seventh and eighth colours
   // only for one with that many; see lineageColor)
-  const count = 1 + Math.max(-1, ...layout.nodes.map((n) => n.lineage ?? -1));
+  // (a preview's stub layout has no names: the default count)
+  const count = 1 + (layout.nodes ?? []).reduce((m, n) => Math.max(m, n.lineage ?? -1), -1);
   return {
     ...tokens,
     uid,
@@ -1154,7 +1155,7 @@ export const SoilPreview = memo(function SoilPreview({ style, theme, rtl = true,
   const soil = def.layout({ ...ctx, cx, groundY, threadFrom: groundY - 26, trunkWidth, W: 1400 });
   const H = groundY + def.height(ctx) + 16;
   const stub = { soil: { ...soil, area: { x: cx - ctx.maxWidth / 2, w: ctx.maxWidth } }, width: 1400, rtl } as unknown as PosterLayout;
-  const pal = makePalette(theme, { generationOffset: 0 } as PosterLayout, idPrefix);
+  const pal = makePalette(theme, { generationOffset: 0, nodes: [] } as unknown as PosterLayout, idPrefix);
   const bark = pal.mono ? "#1a1a1a" : theme.branch;
   // the trunk: straight down to the ground, then into the style's own meeting with it
   const hw = trunkWidth / 2;
