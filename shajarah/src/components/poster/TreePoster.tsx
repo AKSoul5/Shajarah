@@ -1035,6 +1035,22 @@ const KEY_GAP = 1.8;
 
 function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: PosterTheme; pal: Palette; meta: PosterMeta }) {
   const { width: W, rtl, stats, generationsPresent, generationOffset } = layout;
+  // a generation's number in the key: counted from the family's Generation 1
+  // (as the editor shows it), "−3" three generations before it
+  const genNumber = (g: number) => g - (layout.generationOne ?? generationOffset) + 1;
+  const genChip = (g: number) => {
+    const k = genNumber(g);
+    const digits = (v: number) => v.toLocaleString(rtl ? "ar-EG" : "en-US", { useGrouping: false });
+    return k >= 1 ? digits(k) : `−${digits(1 - k)}`;
+  };
+  const genName = (g: number) => {
+    const k = genNumber(g);
+    if (k >= 1) return generationLabel(k - 1, rtl);
+    const back = 1 - k;
+    return rtl
+      ? back === 1 ? "قبل الجيل الأول بجيل" : back === 2 ? "قبل الجيل الأول بجيلين" : `قبل الجيل الأول بـ${back.toLocaleString("ar-EG")} أجيال`
+      : `${back} generation${back === 1 ? "" : "s"} before Generation 1`;
+  };
   const fs = W * 0.012;
   // key, the cards, then the credit on footerY
   // (set a little low, the cards and credit closer under it: a clear line
@@ -1143,7 +1159,7 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
   if (theme.colorBy === "generation" && generationsPresent.length) {
     const named: Item[] = generationsPresent.map((g) => {
       const c = generationColor(g - generationOffset).fill;
-      return { label: generationLabel(g - generationOffset, rtl), swatch: (x: number) => pill(x, c, shade(c, -0.35)) };
+      return { label: genName(g), swatch: (x: number) => pill(x, c, shade(c, -0.35)) };
     });
     const rowWidth = (list: Item[]) => list.reduce((a, it) => a + (it.width ?? sw) + fs * 0.5 + textWidth(it.label, fs), 0) + KEY_GAP * fs * (list.length - 1);
     // (named while few and while they fit the row, as far as KEY_MIN)
@@ -1169,10 +1185,10 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
               // reading order: the first generation on the right in Arabic
               const cx = rtl ? x + stripW - chip / 2 - k * (chip + chipGap) : x + chip / 2 + k * (chip + chipGap);
               return (
-                <g key={g} data-generation={g - generationOffset + 1}>
+                <g key={g} data-generation={genNumber(g)}>
                   <rect x={cx - chip / 2} y={y - fs * 0.5} width={chip} height={fs} rx={fs * 0.22} fill={c.fill} stroke={shade(c.fill, -0.35)} strokeWidth={fs * 0.06} />
-                  <text x={cx} y={y} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.62} fontWeight={700} fill={c.text}>
-                    {(g - generationOffset + 1).toLocaleString(rtl ? "ar-EG" : "en-US", { useGrouping: false })}
+                  <text x={cx} y={y} dominantBaseline="central" textAnchor="middle" fontSize={fs * 0.62} fontWeight={700} fill={c.text} direction="ltr">
+                    {genChip(g)}
                   </text>
                 </g>
               );

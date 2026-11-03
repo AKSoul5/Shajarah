@@ -8,6 +8,7 @@ import { computePosterLayout, textWidth } from "@/lib/layout/botanical";
 import { generationColor, generationLabel } from "@/lib/layout/palette";
 import { LEGEND, spouseLabel, statCards } from "@/lib/legend";
 import { computeGenerations } from "@/lib/genealogy";
+import { generationLevels, referenceIdOf } from "@/lib/family/generations";
 import { layoutOptionsFor, resolveTheme } from "@/lib/theme";
 import { TreePoster } from "@/components/poster/TreePoster";
 import type { Gender, MarriageDTO, MemberDTO, TreeDTO } from "@/lib/types";
@@ -176,4 +177,58 @@ describe("every colour on the poster is in the key", () => {
       expect(Number(m[1]), `${depth} ${framed ? "framed" : "unframed"} ${rtl ? "ar" : "en"}`).toBeLessThanOrEqual(Number(m[2]) + 0.1);
     }
   }, 240_000);
+});
+
+describe("the generation key counts from the family's Generation 1", () => {
+  const renderWith = (tree: TreeDTO, theme: Record<string, unknown>, extra: Record<string, unknown>) => {
+    const settings = { theme: { preset: "classic", v: 2, ...theme }, ...extra } as unknown as TreeDTO["settings"];
+    const t = resolveTheme(settings);
+    const withSettings = { ...tree, settings };
+    const layout = computePosterLayout(withSettings, { showFemales: true, ...layoutOptionsFor(t, "A1") });
+    const svg = renderToStaticMarkup(React.createElement(TreePoster, { layout, meta: { title: tree.title, subtitle: null, name: tree.name }, theme: t }));
+    return { layout, svg, tree: withSettings };
+  };
+  // the oldest generation the key shows on this family's default poster
+  const firstDrawn = (t: TreeDTO) => renderWith(t, { colorBy: "generation" }, {}).layout.generationsPresent[0];
+  const chipsOf = (svg: string) => [...svg.matchAll(/data-generation="(-?\d+)"><rect [^>]*fill="(#[0-9a-f]{6})"[^>]*><\/rect><text[^>]*>([−٠-٩0-9]+)<\/text>/gi)];
+
+  for (const [label, pick] of [
+    ["a chosen Generation 1 at the canopy's start", (t: TreeDTO) => t.crownBaseId!],
+    ["a chosen Generation 1 below the oldest drawn", (t: TreeDTO) => t.members.find((m) => m.generation === firstDrawn(t) + 2)!.id],
+  ] as const) {
+    it(`${label}: each chip's number is the editor's generation of the people in it`, () => {
+      const base = family({ depth: 12, width: 1 });
+      const ref = pick(base);
+      const { svg, layout, tree } = renderWith(base, { colorBy: "generation" }, ref ? { referenceId: ref } : {});
+      const levels = generationLevels(tree.members, tree.lineage, referenceIdOf(tree), tree.marriages);
+      const chips = chipsOf(svg);
+      expect(chips.length).toBe(layout.generationsPresent.length);
+      for (const [i, g] of layout.generationsPresent.entries()) {
+        const someone = layout.nodes.find((n) => n.generation === g && levels.get(n.member.id)?.kind === "level")!;
+        const level = (levels.get(someone.member.id) as { level: number }).level;
+        expect(Number(chips[i][1])).toBe(level);
+        const shown = level >= 1 ? level.toLocaleString("ar-EG") : `−${(1 - level).toLocaleString("ar-EG")}`;
+        expect(chips[i][3]).toBe(shown);
+        // the colours stay where they were: counted from the oldest drawn
+        expect(chips[i][2].toLowerCase()).toBe(generationColor(g - layout.generationOffset).fill.toLowerCase());
+      }
+      if (ref !== base.crownBaseId) expect(chips.slice(0, 3).map((c) => c[3])).toEqual(["−٢", "−١", "١"]);
+    }, 60_000);
+  }
+
+  it("without a chosen Generation 1 the key is numbered as before, from the oldest drawn", () => {
+    const base = family({ depth: 12, width: 1 });
+    const { svg, layout } = renderWith(base, { colorBy: "generation" }, {});
+    expect(layout.generationOne).toBeUndefined();
+    expect(chipsOf(svg).map((c) => Number(c[1]))).toEqual(layout.generationsPresent.map((g) => g - layout.generationOffset + 1));
+  }, 60_000);
+
+  it("named generations before Generation 1 read as the editor says them", () => {
+    const base = family({ depth: 4, width: 1 });
+    const ref = base.members.find((m) => m.generation === firstDrawn(base) + 1)!.id;
+    const { svg } = renderWith(base, { colorBy: "generation" }, { referenceId: ref });
+    expect(svg).not.toContain("data-generation=");
+    expect(svg).toContain("قبل الجيل الأول بجيل");
+    expect(svg).toContain(generationLabel(0, true));
+  }, 60_000);
 });
