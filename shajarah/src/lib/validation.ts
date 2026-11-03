@@ -67,6 +67,7 @@ export const updateTreeSchema = createTreeSchema.partial().extend({
       centerBranchId: z.string().nullable().optional(),
       familiesThrough: z.array(z.string()).max(1000).optional(),
       hiddenIds: z.array(z.string()).max(1000).optional(),
+      hiddenSpouses: z.array(z.string().max(200)).max(1000).optional(),
       seed: z.number().int().optional(),
       theme: themeSchema.optional(),
       pinned: z.boolean().optional(),

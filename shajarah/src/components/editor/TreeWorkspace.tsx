@@ -1030,6 +1030,16 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   )
                 }
                 onRemoveMarriage={(id) => void mutate(() => repo.deleteMarriage(id), { label: "Remove marriage" })}
+                // (a marriage hidden on the poster, either way round; nothing deleted)
+                hiddenOnPoster={new Set((tree.settings?.hiddenSpouses ?? []).flatMap((k) => {
+                  const [a, b] = k.split(":");
+                  return a === selected.id ? [b] : b === selected.id ? [a] : [];
+                }))}
+                onTogglePoster={(sid) => {
+                  const list = tree.settings?.hiddenSpouses ?? [];
+                  const isThis = (k: string) => k === `${selected.id}:${sid}` || k === `${sid}:${selected.id}`;
+                  updateSettings({ hiddenSpouses: list.some(isThis) ? list.filter((k) => !isThis(k)) : [...list, `${selected.id}:${sid}`] });
+                }}
               />
               <section className="space-y-2 rounded-md border border-parchment-200 p-3 text-sm" aria-label="Relationship">
                 <h4 className="section-title">Relationship</h4>

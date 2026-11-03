@@ -26,12 +26,16 @@ interface Props {
   onMerge: (keepId: string, dropIds: string[]) => void;
   /** Moves a child to `position` (0 = eldest) among their brothers and sisters. */
   onMove: (childId: string, position: number) => void;
+  /** Spouses whose marriage to this person is hidden on the poster (settings.hiddenSpouses). */
+  hiddenOnPoster?: ReadonlySet<string>;
+  /** Hides or shows the marriage to this spouse on the poster (the records unchanged). */
+  onTogglePoster?: (spouseId: string) => void;
 }
 
 /** Fast relationship entry: type a name, press Enter, and the child is linked. */
 export function RelationsPanel({
   tree, member, busy, onSelect, onQuickAddChild, onQuickAddParent, onAddSpouse, onNewSpouse, onRemoveMarriage,
-  onSetParent, onMerge, onMove,
+  onSetParent, onMerge, onMove, hiddenOnPoster, onTogglePoster,
 }: Props) {
   const { t, n } = useLanguage();
   const her = member.gender === "FEMALE";
@@ -295,6 +299,12 @@ export function RelationsPanel({
             return (
               <li key={x.id} className="flex items-center gap-2">
                 <Chip m={s} onClick={() => onSelect(s.id)} />
+                {hiddenOnPoster?.has(s.id) && <span className="text-xs text-bark-500">{t("rel.hiddenOnPoster")}</span>}
+                {onTogglePoster && (
+                  <button type="button" className="text-xs text-bark-700 hover:underline" disabled={busy} title={t("rel.hideOnPosterTitle")} onClick={() => onTogglePoster(s.id)}>
+                    {t(hiddenOnPoster?.has(s.id) ? "rel.showOnPoster" : "rel.hideOnPoster")}
+                  </button>
+                )}
                 <button type="button" className="text-xs text-red-700 hover:underline" onClick={() => onRemoveMarriage(x.id)}>
                   {t("rel.unlink")}
                 </button>
