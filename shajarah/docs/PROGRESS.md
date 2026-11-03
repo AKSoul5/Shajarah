@@ -21,7 +21,7 @@ Each branch contains the ones above it.
 | `generation-numbering` … `family-register` | `e59f9ce` | Generation numbers, the family engine, profiles, search and filters, the Records view, Analytics, Charts (pedigree, Ahnentafel, group sheets, fan, hourglass, bowtie, timeline, radial), and the family register | full suite 551 pass; production build passes |
 | `translate-menus` | `9883c94` | Interface in Arabic, second pass: header, View menu, undo and redo, find, a name's menu, the Style menu (with every design's and foundation's name), the export menu, the member form and the relations. **Fixed:** "Add a child…" and "How are they related to…" did nothing when the person panel opened on its Profile tab | full suite 553 pass; checked in the running editor, Arabic and English |
 | `cousin-editing` | `ea8d912` | Adding a relative who is already recorded: the people it may be are offered with their nasab, to link instead of recording twice. Deleting a linked person says what is linked. "Hide on poster" beside each spouse (nothing deleted) | 3 new; checked in the running editor |
-| `integration` | latest | Everything above together (the editor chain and the poster chain), for trying 1.1.0 | suite and QA: *running* |
+| `integration` | `a851ae4` | Everything above together (the editor chain and the poster chain), for trying 1.1.0 | full suite 673 pass; QA 448 pass; production build passes |
 
 ## Posters (branches on 1.0.49, in order)
 
