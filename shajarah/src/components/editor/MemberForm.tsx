@@ -6,6 +6,7 @@ import type { Gender, MemberDTO, TreeDTO } from "@/lib/types";
 import type { CreateMemberInput } from "@/lib/validation";
 import { MemberPicker } from "./MemberPicker";
 import { useConfirm } from "../ConfirmDialog";
+import { useLanguage } from "@/lib/i18n";
 
 export interface MemberDraft {
   name: string;
@@ -59,6 +60,7 @@ interface Props {
 
 export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel, onDelete, onMove, attachments }: Props) {
   const { dialog, ask } = useConfirm();
+  const { t, n } = useLanguage();
   const [d, setD] = useState<MemberDraft>(member ? toDraft(member) : (initialDraft ?? emptyDraft()));
   useEffect(() => {
     setD(member ? toDraft(member) : (initialDraft ?? emptyDraft()));
@@ -74,14 +76,14 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
     const p = id ? tree.members.find((m) => m.id === id) : undefined;
     if (!p) return undefined;
     const ids = tree.marriages.filter((x) => x.spouseAId === p.id || x.spouseBId === p.id).map((x) => (x.spouseAId === p.id ? x.spouseBId : x.spouseAId));
-    return ids.length ? { ids, note: `${as} of ${p.name}` } : undefined;
+    return ids.length ? { ids, note: t(as === "wife" ? "form.wifeOf" : "form.husbandOf", { name: p.name }) } : undefined;
   };
   // brothers and sisters, eldest first (a new member is added as the youngest)
   const siblings = member ? siblingsInOrder(tree.members, tree.lineage, member.id) : [];
   const place = siblings.findIndex((m) => m.id === member?.id);
   const yearError =
     num(d.birthYear) !== null && num(d.deathYear) !== null && num(d.deathYear)! < num(d.birthYear)!
-      ? "Death year is before birth year."
+      ? t("form.yearError")
       : null;
 
   return (
@@ -96,47 +98,47 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
       >
         <div className="grid grid-cols-[1fr_auto] gap-2">
           <div>
-            <label htmlFor={id("name")} className="mb-1 block text-xs font-medium text-bark-700">Name *</label>
-            <input id={id("name")} className="input font-naskh text-base" dir="auto" autoFocus={!member} required value={d.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. عبدالله" />
+            <label htmlFor={id("name")} className="mb-1 block text-xs font-medium text-bark-700">{t("form.name")}</label>
+            <input id={id("name")} className="input font-naskh text-base" dir="auto" autoFocus={!member} required value={d.name} onChange={(e) => set("name", e.target.value)} placeholder={t("form.namePlaceholder")} />
           </div>
           <div>
-            <span id={id("gender")} className="mb-1 block text-xs font-medium text-bark-700">Gender</span>
+            <span id={id("gender")} className="mb-1 block text-xs font-medium text-bark-700">{t("form.gender")}</span>
             <div className="flex overflow-hidden rounded-md border border-parchment-300" role="group" aria-labelledby={id("gender")}>
               {/* (unknown: as a GEDCOM file may give it, until it is known) */}
               {(["MALE", "FEMALE", "UNKNOWN"] as const).map((g) => (
                 <button
                   key={g} type="button" aria-pressed={d.gender === g}
-                  title={g === "UNKNOWN" ? "Not known yet" : undefined}
+                  title={g === "UNKNOWN" ? t("form.unknownTitle") : undefined}
                   className={`px-2.5 py-1.5 text-sm ${d.gender === g ? "bg-bark-700 text-parchment-50" : "bg-white text-bark-700"}`}
                   onClick={() => set("gender", g)}
                 >
-                  {g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : "Unknown"}
+                  {t(g === "MALE" ? "form.male" : g === "FEMALE" ? "form.female" : "form.unknown")}
                 </button>
               ))}
             </div>
           </div>
         </div>
         <div>
-          <label htmlFor={id("laqab")} className="mb-1 block text-xs font-medium text-bark-700">Laqab / nickname</label>
-          <input id={id("laqab")} className="input font-naskh" dir="auto" value={d.laqab} onChange={(e) => set("laqab", e.target.value)} placeholder="e.g. الملقب بلقمان" />
+          <label htmlFor={id("laqab")} className="mb-1 block text-xs font-medium text-bark-700">{t("form.laqab")}</label>
+          <input id={id("laqab")} className="input font-naskh" dir="auto" value={d.laqab} onChange={(e) => set("laqab", e.target.value)} placeholder={t("form.laqabPlaceholder")} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label htmlFor={id("born")} className="mb-1 block text-xs font-medium text-bark-700">Born</label>
-            <input id={id("born")} className="input" inputMode="numeric" value={d.birthYear} onChange={(e) => set("birthYear", e.target.value.replace(/[^\d-]/g, ""))} placeholder="year" />
+            <label htmlFor={id("born")} className="mb-1 block text-xs font-medium text-bark-700">{t("form.born")}</label>
+            <input id={id("born")} className="input" inputMode="numeric" value={d.birthYear} onChange={(e) => set("birthYear", e.target.value.replace(/[^\d-]/g, ""))} placeholder={t("form.year")} />
           </div>
           <div>
-            <label htmlFor={id("died")} className="mb-1 block text-xs font-medium text-bark-700">Died</label>
-            <input id={id("died")} className="input" inputMode="numeric" value={d.deathYear} onChange={(e) => set("deathYear", e.target.value.replace(/[^\d-]/g, ""))} placeholder="year" />
+            <label htmlFor={id("died")} className="mb-1 block text-xs font-medium text-bark-700">{t("form.died")}</label>
+            <input id={id("died")} className="input" inputMode="numeric" value={d.deathYear} onChange={(e) => set("deathYear", e.target.value.replace(/[^\d-]/g, ""))} placeholder={t("form.year")} />
           </div>
         </div>
         {onMove && siblings.length > 1 && (
           <div>
-            <label htmlFor={id("order")} className="mb-1 block text-xs font-medium text-bark-700">Place among brothers and sisters</label>
+            <label htmlFor={id("order")} className="mb-1 block text-xs font-medium text-bark-700">{t("form.place")}</label>
             <select id={id("order")} className="input" value={place} disabled={busy} onChange={(e) => onMove(Number(e.target.value))}>
               {siblings.map((_, i) => (
                 <option key={i} value={i}>
-                  {i + 1} of {siblings.length}{i === 0 ? " — eldest" : i === siblings.length - 1 ? " — youngest" : ""}
+                  {t("form.placeN", { i: n(i + 1), n: n(siblings.length) })}{i === 0 ? t("form.eldest") : i === siblings.length - 1 ? t("form.youngest") : ""}
                 </option>
               ))}
             </select>
@@ -147,26 +149,26 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
         )}
         <label className="flex items-center gap-2 text-sm text-bark-700">
           <input type="checkbox" checked={d.isDeceased} onChange={(e) => set("isDeceased", e.target.checked)} />
-          Deceased (رحمه الله)
+          {t("form.deceased")}
         </label>
         {yearError && <p className="text-sm text-red-700">{yearError}</p>}
 
         {/* a parent's spouses come first: the other parent is most likely one of them */}
-        <MemberPicker label="Father" members={tree.members} value={d.fatherId} onChange={(v) => set("fatherId", v)} excludeGender="FEMALE" excludeIds={self}
+        <MemberPicker label={t("form.father")} members={tree.members} value={d.fatherId} onChange={(v) => set("fatherId", v)} excludeGender="FEMALE" excludeIds={self}
           suggested={spousesOf(d.motherId, "husband")} />
-        <MemberPicker label="Mother" members={tree.members} value={d.motherId} onChange={(v) => set("motherId", v)} excludeGender="MALE" excludeIds={self}
+        <MemberPicker label={t("form.mother")} members={tree.members} value={d.motherId} onChange={(v) => set("motherId", v)} excludeGender="MALE" excludeIds={self}
           suggested={spousesOf(d.fatherId, "wife")} />
 
         <div>
-          <label htmlFor={id("notes")} className="mb-1 block text-xs font-medium text-bark-700">Notes</label>
+          <label htmlFor={id("notes")} className="mb-1 block text-xs font-medium text-bark-700">{t("form.notes")}</label>
           <textarea id={id("notes")} className="input min-h-[60px]" dir="auto" value={d.notes} onChange={(e) => set("notes", e.target.value)} />
         </div>
 
         <div className="flex flex-wrap gap-2 pt-1">
           <button type="submit" className="btn-primary" disabled={busy || !d.name.trim() || !!yearError}>
-            {member ? "Save changes" : "Add member"}
+            {member ? t("form.save") : t("form.add")}
           </button>
-          {onCancel && <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>}
+          {onCancel && <button type="button" className="btn-ghost" onClick={onCancel}>{t("form.cancel")}</button>}
           {onDelete && (
             <button
               type="button"
@@ -174,14 +176,14 @@ export function MemberForm({ tree, member, initialDraft, busy, onSave, onCancel,
               disabled={busy}
               onClick={async () => {
                 const ok = await ask({
-                  title: `Delete ${member ? nasab(tree.members, member.id, 2) : "this member"}?`,
-                  message: "Their children stay in the family without this parent. You can undo this.",
-                  confirm: "Delete", danger: true,
+                  title: t("form.deleteTitle", { name: member ? nasab(tree.members, member.id, 2) : t("form.thisMember") }),
+                  message: t("form.deleteMessage"),
+                  confirm: t("form.delete"), danger: true,
                 });
                 if (ok) onDelete();
               }}
             >
-              Delete
+              {t("form.delete")}
             </button>
           )}
         </div>

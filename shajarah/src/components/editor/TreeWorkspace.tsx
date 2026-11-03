@@ -1264,8 +1264,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             const items: PersonMenuItem[] = [
               { label: t("personMenu.open"), onClick: () => select(id) },
               { label: t("personMenu.trace"), onClick: () => { setTrace(true); select(id); } },
-              { label: t("personMenu.relation"), onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("section[aria-label=Relationship] input")?.focus()); } },
-              { label: t("personMenu.addChild"), onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("aside input[placeholder^='Add a']")?.focus()); }, divider: true },
+              { label: t("personMenu.relation"), onClick: () => { select(id); setPersonTab("edit"); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("section[aria-label=Relationship] input")?.focus()); } },
+              { label: t("personMenu.addChild"), onClick: () => { select(id); setPersonTab("edit"); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("aside input[data-add-child]")?.focus()); }, divider: true },
               tree.settings?.centerBranchId === id
                 ? { label: t("personMenu.centred"), onClick: () => updateSettings({ centerBranchId: null }), divider: true }
                 : { label: t("personMenu.centre"), onClick: () => updateSettings({ centerBranchId: id }), disabled: !inCanopy, title: inCanopy ? undefined : t("personMenu.centreOnlyCanopy"), divider: true },

@@ -11,6 +11,8 @@ import { RecordsPage } from "@/components/editor/RecordsPage";
 import { PeopleFilters } from "@/components/editor/PeopleFilters";
 import { ViewMenu } from "@/components/editor/ViewMenu";
 import { UndoControls } from "@/components/editor/UndoControls";
+import { MemberForm } from "@/components/editor/MemberForm";
+import { RelationsPanel } from "@/components/editor/RelationsPanel";
 import { buildFamilyIndex } from "@/lib/family/index";
 import { QA_FIXTURES } from "@/lib/qa/fixtures";
 
@@ -62,5 +64,21 @@ describe("the interface's languages", () => {
     expect(undo).toContain("تراجع: إضافة سالم");
     expect(undo).toContain("لا شيء لإعادته");
     expect(undo).not.toMatch(/Undo|Redo|Recent/);
+  });
+
+  it("the member form and the relations panel are drawn in Arabic", () => {
+    const m = tree.members.find((x) => x.fatherId && x.motherId)!;
+    const noop = () => {};
+    const form = inArabic(React.createElement(MemberForm, { tree, member: m, busy: false, onSave: noop, onCancel: noop, onDelete: noop }));
+    expect(form).toContain("حفظ التغييرات");
+    expect(form).toContain("الأب");
+    expect(form).not.toMatch(/>(Save changes|Father|Notes|Born)</);
+    const rel = inArabic(React.createElement(RelationsPanel, {
+      tree, member: m, busy: false, onSelect: noop, onQuickAddChild: noop, onQuickAddParent: noop, onAddSpouse: noop,
+      onNewSpouse: noop, onRemoveMarriage: noop, onSetParent: noop, onMerge: noop, onMove: noop,
+    }));
+    expect(rel).toContain("الوالدان");
+    expect(rel).toContain("data-add-child");
+    expect(rel).not.toMatch(/press Enter|>Parents</);
   });
 });

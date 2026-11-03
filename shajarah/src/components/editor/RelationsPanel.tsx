@@ -5,6 +5,7 @@ import { compareSiblings, lineageParentId, nasab } from "@/lib/genealogy";
 import { duplicateSpouses } from "@/lib/merge";
 import type { Gender, MemberDTO, TreeDTO } from "@/lib/types";
 import { MemberPicker } from "./MemberPicker";
+import { useLanguage } from "@/lib/i18n";
 
 interface Props {
   tree: TreeDTO;
@@ -31,6 +32,8 @@ export function RelationsPanel({
   tree, member, busy, onSelect, onQuickAddChild, onQuickAddParent, onAddSpouse, onNewSpouse, onRemoveMarriage,
   onSetParent, onMerge, onMove,
 }: Props) {
+  const { t, n } = useLanguage();
+  const her = member.gender === "FEMALE";
   const [parentName, setParentName] = useState("");
   // the missing parent (the father first)
   const missing: Gender[] = [...(member.fatherId ? [] : ["MALE" as const]), ...(member.motherId ? [] : ["FEMALE" as const])];
@@ -91,7 +94,7 @@ export function RelationsPanel({
   return (
     <div className="space-y-4">
       <section>
-        <h4 className="section-title">Parents</h4>
+        <h4 className="section-title">{t("rel.parents")}</h4>
         {parents.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {parents.map((p) => <Chip key={p.id} m={p} onClick={() => onSelect(p.id)} />)}
@@ -100,11 +103,11 @@ export function RelationsPanel({
         {likelyParents.length > 0 && (
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-sm">
             <span className="text-xs text-gray-600">
-              {member.gender === "FEMALE" ? "Her" : "His"} {missingRole === "motherId" ? "mother" : "father"}:
+              {t(missingRole === "motherId" ? (her ? "rel.herMother" : "rel.hisMother") : (her ? "rel.herFather" : "rel.hisFather"))}
             </span>
             {likelyParents.map((p) => (
               <button key={p.id} type="button" className="btn-outline py-0.5 font-naskh text-[15px]" dir="auto" disabled={busy}
-                title={`${p.name} is the ${missingRole === "motherId" ? "mother" : "father"}`}
+                title={t(missingRole === "motherId" ? "rel.isMother" : "rel.isFather", { name: p.name })}
                 onClick={() => onSetParent(member.id, missingRole!, p.id)}>
                 {p.name}
               </button>
@@ -117,7 +120,7 @@ export function RelationsPanel({
             <input
               className="input flex-1 font-naskh text-base"
               dir="auto"
-              placeholder={`Add ${member.gender === "FEMALE" ? "her" : "his"} ${parentGender === "MALE" ? "father" : "mother"} — type name, press Enter`}
+              placeholder={t(parentGender === "MALE" ? (her ? "rel.addHerFather" : "rel.addHisFather") : (her ? "rel.addHerMother" : "rel.addHisMother"))}
               value={parentName}
               onChange={(e) => setParentName(e.target.value)}
               onKeyDown={(e) => {
@@ -131,10 +134,10 @@ export function RelationsPanel({
               <button
                 type="button"
                 className="btn-ghost px-2"
-                title="Toggle father / mother"
+                title={t("rel.toggleParent")}
                 onClick={() => setParentChoice(parentGender === "MALE" ? "FEMALE" : "MALE")}
               >
-                {parentGender === "MALE" ? "Father" : "Mother"}
+                {t(parentGender === "MALE" ? "form.father" : "form.mother")}
               </button>
             )}
             <button type="button" className="btn-primary px-3" disabled={busy || !parentName.trim()} onClick={submitParent}>
@@ -145,11 +148,11 @@ export function RelationsPanel({
       </section>
 
       <section>
-        <h4 className="section-title">Children ({children.length})</h4>
+        <h4 className="section-title">{t("rel.children", { n: n(children.length) })}</h4>
         {(spouses.length > 0 || ordered.length > 1) && children.length > 0 ? (
           // each child's place among them (eldest first), and with spouses
           // recorded, each child's other parent, set right here
-          <ul className="mb-2 space-y-1" aria-label={`Children of ${member.name}, eldest first`}>
+          <ul className="mb-2 space-y-1" aria-label={t("rel.childrenOf", { name: member.name })}>
             {children.map((c) => {
               const at = ordered.indexOf(c);
               return (
@@ -157,9 +160,9 @@ export function RelationsPanel({
                   {ordered.length > 1 && (
                     <span className="flex shrink-0 flex-col leading-none">
                       <button type="button" className="px-1 text-[10px] text-bark-500 hover:text-bark-900 disabled:opacity-25" disabled={busy || at <= 0}
-                        aria-label={`Move ${c.name} earlier (elder)`} title="Earlier (elder)" onClick={() => onMove(c.id, at - 1)}>▲</button>
+                        aria-label={t("rel.moveEarlier", { name: c.name })} title={t("rel.earlier")} onClick={() => onMove(c.id, at - 1)}>▲</button>
                       <button type="button" className="px-1 text-[10px] text-bark-500 hover:text-bark-900 disabled:opacity-25" disabled={busy || at < 0 || at >= ordered.length - 1}
-                        aria-label={`Move ${c.name} later (younger)`} title="Later (younger)" onClick={() => onMove(c.id, at + 1)}>▼</button>
+                        aria-label={t("rel.moveLater", { name: c.name })} title={t("rel.later")} onClick={() => onMove(c.id, at + 1)}>▼</button>
                     </span>
                   )}
                   <Chip m={c} onClick={() => onSelect(c.id)} />
@@ -167,12 +170,12 @@ export function RelationsPanel({
                     <select
                       className="input ms-auto w-40 py-0.5 font-naskh text-sm"
                       dir="auto"
-                      aria-label={`${member.gender === "FEMALE" ? "Father" : "Mother"} of ${c.name}`}
+                      aria-label={t(her ? "rel.fatherOf" : "rel.motherOf", { name: c.name })}
                       value={c[otherRole] ?? ""}
                       disabled={busy}
                       onChange={(e) => onSetParent(c.id, otherRole, e.target.value || null)}
                     >
-                      <option value="">{member.gender === "FEMALE" ? "father" : "mother"} not set</option>
+                      <option value="">{t(her ? "rel.fatherNotSet" : "rel.motherNotSet")}</option>
                       {spouses.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
                       {c[otherRole] && !spouseIds.has(c[otherRole]!) && <option value={c[otherRole]!}>{byId.get(c[otherRole]!)?.name}</option>}
                     </select>
@@ -184,14 +187,15 @@ export function RelationsPanel({
         ) : (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {children.map((c) => <Chip key={c.id} m={c} onClick={() => onSelect(c.id)} />)}
-            {children.length === 0 && <span className="text-sm text-gray-500">None yet</span>}
+            {children.length === 0 && <span className="text-sm text-gray-500">{t("rel.noneYet")}</span>}
           </div>
         )}
         <div className="flex gap-1">
           <input
             className="input flex-1 font-naskh text-base"
             dir="auto"
-            placeholder={`Add a ${childGender === "MALE" ? "son" : "daughter"} — type name, press Enter`}
+            data-add-child
+            placeholder={t(childGender === "MALE" ? "rel.addSon" : "rel.addDaughter")}
             value={childName}
             onChange={(e) => setChildName(e.target.value)}
             onKeyDown={(e) => {
@@ -204,10 +208,10 @@ export function RelationsPanel({
           <button
             type="button"
             className="btn-ghost px-2"
-            title="Toggle son / daughter"
+            title={t("rel.toggleChild")}
             onClick={() => setChildGender((g) => (g === "MALE" ? "FEMALE" : "MALE"))}
           >
-            {childGender === "MALE" ? "Son" : "Daughter"}
+            {t(childGender === "MALE" ? "rel.son" : "rel.daughter")}
           </button>
           <button type="button" className="btn-primary px-3" disabled={busy || !childName.trim()} onClick={submitChild}>
             +
@@ -215,7 +219,7 @@ export function RelationsPanel({
         </div>
         {spouses.length > 1 && (
           <label className="mt-1 flex items-center gap-2 text-xs text-gray-600">
-            {member.gender === "FEMALE" ? "Father" : "Mother"} of the new child
+            {t(her ? "rel.fatherOfNew" : "rel.motherOfNew")}
             <select className="input flex-1 py-1 font-naskh text-sm" dir="auto" value={chosenOther ?? ""} onChange={(e) => setOtherParent(e.target.value)}>
               {spouses.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
             </select>
@@ -224,14 +228,16 @@ export function RelationsPanel({
       </section>
 
       <section>
-        <h4 className="section-title">Spouses ({marriages.length})</h4>
+        <h4 className="section-title">{t("rel.spouses", { n: n(marriages.length) })}</h4>
         {duplicates.map(([keep, ...copies]) => (
           <div key={keep.id} className="mb-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900" role="status">
-            <b className="font-naskh text-sm" dir="auto">{keep.name}</b> is recorded {copies.length + 1} times
-            (as a spouse and as a parent of {member.gender === "FEMALE" ? "her" : "his"} children).
+            {(() => {
+              const [before, after] = t(her ? "rel.duplicateHer" : "rel.duplicateHis", { n: n(copies.length + 1) }).split("{name}");
+              return <>{before}<b className="font-naskh text-sm" dir="auto">{keep.name}</b>{after}</>;
+            })()}
             <button type="button" className="btn-outline ms-2 py-0.5 text-xs" disabled={busy}
               onClick={() => onMerge(keep.id, copies.map((c) => c.id))}>
-              Merge into one
+              {t("rel.merge")}
             </button>
           </div>
         ))}
@@ -243,7 +249,7 @@ export function RelationsPanel({
               <li key={x.id} className="flex items-center gap-2">
                 <Chip m={s} onClick={() => onSelect(s.id)} />
                 <button type="button" className="text-xs text-red-700 hover:underline" onClick={() => onRemoveMarriage(x.id)}>
-                  unlink
+                  {t("rel.unlink")}
                 </button>
               </li>
             );
@@ -254,7 +260,7 @@ export function RelationsPanel({
           <input
             className="input flex-1 font-naskh text-base"
             dir="auto"
-            placeholder={`Add a ${member.gender === "FEMALE" ? "husband" : "wife"} — type name, press Enter`}
+            placeholder={t(her ? "rel.addHusband" : "rel.addWife")}
             value={spouseName}
             onChange={(e) => setSpouseName(e.target.value)}
             onKeyDown={(e) => {
@@ -270,7 +276,7 @@ export function RelationsPanel({
         </div>
         <div className="mt-2">
           <MemberPicker
-            label="…or link someone already in the tree"
+            label={t("rel.linkExisting")}
             members={tree.members}
             value={null}
             onChange={(id) => id && onAddSpouse(id)}

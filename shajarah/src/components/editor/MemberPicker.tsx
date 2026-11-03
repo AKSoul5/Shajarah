@@ -4,6 +4,7 @@ import { useId, useMemo, useState } from "react";
 import { nasab } from "@/lib/genealogy";
 import { normalizeName } from "@/lib/nasab";
 import type { Gender, MemberDTO } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n";
 
 interface Props {
   label: string;
@@ -20,6 +21,7 @@ interface Props {
 
 /** Searchable member combobox; options show the patronymic chain to disambiguate namesakes. */
 export function MemberPicker({ label, members, value, onChange, excludeGender, excludeIds, placeholder, suggested }: Props) {
+  const { t, lang } = useLanguage();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const selected = members.find((m) => m.id === value) ?? null;
@@ -45,7 +47,7 @@ export function MemberPicker({ label, members, value, onChange, excludeGender, e
           className="input flex-1"
           dir="auto"
           value={open ? query : selected ? nasab(members, selected.id, 2) : ""}
-          placeholder={placeholder ?? "Search…"}
+          placeholder={placeholder ?? t("picker.search")}
           onFocus={() => {
             setQuery("");
             setOpen(true);
@@ -54,14 +56,14 @@ export function MemberPicker({ label, members, value, onChange, excludeGender, e
           onChange={(e) => setQuery(e.target.value)}
         />
         {selected && (
-          <button type="button" className="btn-ghost px-2" onClick={() => onChange(null)} title={`Clear ${label.toLowerCase()}`} aria-label={`Clear ${label.toLowerCase()}`}>
+          <button type="button" className="btn-ghost px-2" onClick={() => onChange(null)} title={t("picker.clear", { label: lang === "en" ? label.toLowerCase() : label })} aria-label={t("picker.clear", { label: lang === "en" ? label.toLowerCase() : label })}>
             ✕
           </button>
         )}
       </div>
       {open && (
         <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-parchment-300 bg-white shadow-lg">
-          {options.length === 0 && <li className="px-3 py-2 text-sm text-gray-500">No matches</li>}
+          {options.length === 0 && <li className="px-3 py-2 text-sm text-gray-500">{t("picker.none")}</li>}
           {options.map(({ m, label: l }) => (
             <li key={m.id}>
               <button
