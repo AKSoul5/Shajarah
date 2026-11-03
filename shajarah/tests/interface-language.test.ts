@@ -9,6 +9,8 @@ import { LanguageProvider, translate, numberIn } from "@/lib/i18n";
 import { PersonProfile } from "@/components/editor/PersonProfile";
 import { RecordsPage } from "@/components/editor/RecordsPage";
 import { PeopleFilters } from "@/components/editor/PeopleFilters";
+import { ViewMenu } from "@/components/editor/ViewMenu";
+import { UndoControls } from "@/components/editor/UndoControls";
 import { buildFamilyIndex } from "@/lib/family/index";
 import { QA_FIXTURES } from "@/lib/qa/fixtures";
 
@@ -49,5 +51,16 @@ describe("the interface's languages", () => {
     const records = inArabic(React.createElement(RecordsPage, { ix, tree, onOpenMember: () => {} }));
     expect(records).toContain("سجلات العائلة");
     expect(records).not.toContain("Completeness");
+  });
+
+  it("the View menu and undo and redo are drawn in Arabic", () => {
+    const view = inArabic(React.createElement(ViewMenu, { toggles: [] }));
+    expect(view).toContain("العرض");
+    expect(view).not.toContain("View");
+    const step = { id: "s1", label: "إضافة سالم", at: Date.now() } as never;
+    const undo = inArabic(React.createElement(UndoControls, { undo: [step], redo: [], busy: false, onUndo: () => {}, onRedo: () => {}, onUndoSteps: () => {} }));
+    expect(undo).toContain("تراجع: إضافة سالم");
+    expect(undo).toContain("لا شيء لإعادته");
+    expect(undo).not.toMatch(/Undo|Redo|Recent/);
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useLanguage } from "@/lib/i18n";
 import { useDismiss } from "../useDismiss";
 
 export interface ViewToggle {
@@ -19,12 +20,13 @@ export interface ViewToggle {
  * list and full screen. (They were loose tick boxes crowding the header.)
  */
 export function ViewMenu({ toggles }: { toggles: ViewToggle[] }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const menu = useDismiss<HTMLDivElement>(open, () => setOpen(false));
   return (
     <div className="relative" ref={menu}>
       <button type="button" className="btn-outline whitespace-nowrap" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((o) => !o)}>
-        View ▾
+        {t("viewMenu.button")}
       </button>
       {open && (
         <div role="menu" className="absolute end-0 z-30 mt-2 w-72 space-y-1 rounded-lg border border-parchment-300 bg-white p-2 shadow-xl">

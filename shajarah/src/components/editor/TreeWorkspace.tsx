@@ -65,7 +65,7 @@ type Panel =
   | { kind: "unplaced" };
 
 export function TreeWorkspace({ initialTree, mode }: Props) {
-  const { t, n, lang } = useLanguage();
+  const { t, n, lang, dir } = useLanguage();
   const [tree, setTree] = useState(initialTree);
   const repo = useMemo<FamilyRepository>(
     () => (mode === "api" ? apiRepository(initialTree.id, initialTree.version) : localRepository(initialTree)),
@@ -673,7 +673,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             {mode === "local" && t("header.demo")}
           </p>
         </div>
-        <div role="tablist" aria-label="View" className="flex shrink-0 overflow-hidden rounded-md border border-parchment-300 text-sm">
+        <div role="tablist" aria-label={t("header.viewTabs")} className="flex shrink-0 overflow-hidden rounded-md border border-parchment-300 text-sm">
           {(["poster", "sources", "records", "analytics", "charts"] as const).map((v) => (
             <button
               key={v}
@@ -701,13 +701,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             toggles={[
               // (in a matrilineal tree the women are the line: they are always shown)
               ...(tree.lineage !== "MATRILINEAL"
-                ? [{ label: "Show daughters", checked: showFemales, onChange: (on: boolean) => updateSettings({ showFemales: on }) }]
+                ? [{ label: t("viewMenu.daughters"), checked: showFemales, onChange: (on: boolean) => updateSettings({ showFemales: on }) }]
                 : []),
-              { label: "Show spouses", checked: theme.motherNames, onChange: (on: boolean) => updateSettings({ theme: { ...theme, motherNames: on } }),
-                title: "Each wife (or husband) as a cartouche on the branch, her children growing from it" },
-              { label: "Trace lineage", checked: trace, onChange: setTrace, title: "Select a person to highlight their ancestors and descendants" },
-              { label: "Member list", checked: sidebarOpen, onChange: setSidebarOpen, keys: "[" },
-              { label: "Full screen", checked: fullScreen, onChange: setFullScreen, keys: "F" },
+              { label: t("viewMenu.spouses"), checked: theme.motherNames, onChange: (on: boolean) => updateSettings({ theme: { ...theme, motherNames: on } }),
+                title: t("viewMenu.spousesTitle") },
+              { label: t("viewMenu.trace"), checked: trace, onChange: setTrace, title: t("viewMenu.traceTitle") },
+              { label: t("viewMenu.list"), checked: sidebarOpen, onChange: setSidebarOpen, keys: "[" },
+              { label: t("viewMenu.fullScreen"), checked: fullScreen, onChange: setFullScreen, keys: "F" },
             ]}
           />
           <StylePanel
@@ -720,9 +720,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             meta={{ title: tree.title, subtitle: tree.subtitle, name: tree.name, updated: tree.version ?? null }}
             frameSrc={frameSrc}
           />
-          <label className="flex items-center gap-2 whitespace-nowrap text-sm" title="The printed size the poster is designed for">
-            <span className="hidden xl:inline">Poster</span>
-            <select aria-label="Poster size" className="input w-auto py-1" value={posterSize} onChange={(e) => updateSettings({ posterSize: e.target.value as PaperSize })}>
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm" title={t("header.posterSizeTitle")}>
+            <span className="hidden xl:inline">{t("header.poster")}</span>
+            <select aria-label={t("header.posterSize")} className="input w-auto py-1" value={posterSize} onChange={(e) => updateSettings({ posterSize: e.target.value as PaperSize })}>
               {PAPER_ORDER.map((p) => (
                 <option key={p} value={p}>{p} ({PAPER_SIZES[p].w}×{PAPER_SIZES[p].h})</option>
               ))}
@@ -734,26 +734,25 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
       {conflict && (
         <div role="alert" className="flex items-center gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
           <span className="flex-1">
-            <b>Another tab made changes to this family.</b> Your last change was not saved, so nothing was overwritten.
-            Reload to see the latest version.
+            <b>{t("header.conflict")}</b> {t("header.conflictMore")}
           </span>
-          <button type="button" className="btn-primary py-1" onClick={() => window.location.reload()}>Reload</button>
+          <button type="button" className="btn-primary py-1" onClick={() => window.location.reload()}>{t("header.reload")}</button>
         </div>
       )}
 
       <div className="relative flex min-h-0 flex-1">
         {sidebarOpen && !fullScreen && (
           // a small tab on the list's edge folds it away
-          <button type="button" onClick={() => setSidebarOpen(false)} title="Hide the member list ( [ )" aria-label="Hide the member list"
+          <button type="button" onClick={() => setSidebarOpen(false)} title={`${t("header.hideList")} ( [ )`} aria-label={t("header.hideList")}
             className="absolute start-[380px] top-3 z-20 rounded-e-md border border-s-0 border-parchment-300 bg-white px-1 py-2 text-xs text-bark-500 shadow-sm hover:bg-parchment-50 hover:text-bark-900">
-            «
+            {dir === "rtl" ? "»" : "«"}
           </button>
         )}
         {!sidebarOpen && !fullScreen && (
           // the member list folded away: a thin rail to bring it back
-          <button type="button" onClick={() => setSidebarOpen(true)} title="Show the member list ( [ )" aria-label="Show the member list"
+          <button type="button" onClick={() => setSidebarOpen(true)} title={`${t("header.showList")} ( [ )`} aria-label={t("header.showList")}
             className="flex w-9 shrink-0 items-start justify-center border-e border-parchment-300 bg-white pt-3 text-bark-500 hover:bg-parchment-50 hover:text-bark-900">
-            »
+            {dir === "rtl" ? "«" : "»"}
           </button>
         )}
         <aside className={`relative min-h-0 w-[380px] shrink-0 flex-col overflow-hidden border-e border-parchment-300 bg-white ${sidebarOpen && !fullScreen ? "flex" : "hidden"}`}>
@@ -773,13 +772,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   {t("list.filters")}{filtering ? ` (${n(activeFilters(filters))})` : ""}
                 </button>
                 <button type="button" className="btn-primary whitespace-nowrap" onClick={() => setPanel({ kind: "new", draft: emptyDraft() })}>
-                  + Person
+                  {t("list.addPerson")}
                 </button>
-                <button type="button" className="btn-outline whitespace-nowrap px-2 text-xs" title="Paste a nasab: خالد بن سعد بن …" onClick={() => setPanel({ kind: "import" })}>
-                  Nasab
+                <button type="button" className="btn-outline whitespace-nowrap px-2 text-xs" title={t("list.nasabTitle")} onClick={() => setPanel({ kind: "import" })}>
+                  {t("list.nasab")}
                 </button>
-                <button type="button" className="btn-outline px-2 text-xs" title="Save or open a project file; import or export GEDCOM" onClick={() => setPanel({ kind: "gedcom" })}>
-                  Files
+                <button type="button" className="btn-outline px-2 text-xs" title={t("list.filesTitle")} onClick={() => setPanel({ kind: "gedcom" })}>
+                  {t("list.files")}
                 </button>
               </div>
               {lastImport && importUndoable && (
@@ -791,9 +790,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     disabled={busy}
                     onClick={undoLastImport}
                   >
-                    Undo this import
+                    {t("list.undoImport")}
                   </button>
-                  <button type="button" className="text-emerald-700" aria-label="Dismiss" onClick={() => setLastImport(null)}>×</button>
+                  <button type="button" className="text-emerald-700" aria-label={t("list.dismiss")} onClick={() => setLastImport(null)}>×</button>
                 </div>
               )}
               {filtersOpen && <PeopleFilters ix={family} value={filters} onChange={setFilters} />}
@@ -1216,8 +1215,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           <div className="pointer-events-none absolute end-4 top-4 z-30 flex flex-col items-end gap-2 [&>*]:pointer-events-auto">
           {fullScreen && (
             <div className="flex items-center gap-2 rounded-full border border-parchment-300 bg-white/95 px-2 py-1 shadow">
-              <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
-                ✕ Exit full screen
+              <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title={t("poster.exitFullScreenTitle")}>
+                {t("poster.exitFullScreen")}
               </button>
               <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
             </div>
@@ -1227,30 +1226,30 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <div role="search" className="flex items-center gap-1 rounded-full border border-parchment-300 bg-white/95 py-1 pe-1 ps-3 shadow">
                 <Icon name="search" className="h-3.5 w-3.5" />
                 <input ref={findInput} autoFocus className="w-56 bg-transparent px-1 py-0.5 text-sm outline-none" dir="auto"
-                  placeholder="Find a name on the poster…" aria-label="Find a name on the poster" value={findQuery}
+                  placeholder={t("poster.findPlaceholder")} aria-label={t("poster.findLabel")} value={findQuery}
                   onChange={(e) => setFindQuery(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") { e.preventDefault(); if (e.altKey && findCurrent) selectAndShow(findCurrent); else findStep(e.shiftKey ? -1 : 1); }
                     if (e.key === "Escape") { e.preventDefault(); setFindOpen(false); }
                   }} />
                 <span className="min-w-[3.5rem] text-center text-xs text-bark-500" aria-live="polite">
-                  {findQuery.trim() ? (findMatches.length ? `${Math.min(findIndex, findMatches.length - 1) + 1} of ${findMatches.length}` : "none") : ""}
+                  {findQuery.trim() ? (findMatches.length ? t("poster.findCount", { i: n(Math.min(findIndex, findMatches.length - 1) + 1), n: n(findMatches.length) }) : t("poster.findNone")) : ""}
                 </span>
-                <button type="button" className="rounded-full px-1.5 text-bark-600 hover:bg-parchment-100 disabled:opacity-30" aria-label="Previous" title="Previous (Shift+Enter)" disabled={findMatches.length < 2} onClick={() => findStep(-1)}>↑</button>
-                <button type="button" className="rounded-full px-1.5 text-bark-600 hover:bg-parchment-100 disabled:opacity-30" aria-label="Next" title="Next (Enter)" disabled={findMatches.length < 2} onClick={() => findStep(1)}>↓</button>
-                <button type="button" className="rounded-full px-2 text-xs text-bark-700 hover:bg-parchment-100 disabled:opacity-30" disabled={!findCurrent} title="Open this person (Alt+Enter)" onClick={() => findCurrent && selectAndShow(findCurrent)}>Open</button>
-                <button type="button" className="rounded-full px-1.5 text-bark-500 hover:bg-parchment-100" aria-label="Close" title="Close (Esc)" onClick={() => setFindOpen(false)}>✕</button>
+                <button type="button" className="rounded-full px-1.5 text-bark-600 hover:bg-parchment-100 disabled:opacity-30" aria-label={t("poster.previous")} title={t("poster.previousTitle")} disabled={findMatches.length < 2} onClick={() => findStep(-1)}>↑</button>
+                <button type="button" className="rounded-full px-1.5 text-bark-600 hover:bg-parchment-100 disabled:opacity-30" aria-label={t("poster.next")} title={t("poster.nextTitle")} disabled={findMatches.length < 2} onClick={() => findStep(1)}>↓</button>
+                <button type="button" className="rounded-full px-2 text-xs text-bark-700 hover:bg-parchment-100 disabled:opacity-30" disabled={!findCurrent} title={t("poster.openTitle")} onClick={() => findCurrent && selectAndShow(findCurrent)}>{t("poster.open")}</button>
+                <button type="button" className="rounded-full px-1.5 text-bark-500 hover:bg-parchment-100" aria-label={t("poster.close")} title={t("poster.closeTitle")} onClick={() => setFindOpen(false)}>✕</button>
               </div>
             ) : (
-              <button type="button" onClick={() => layoutKeysRef.current.openFind()} title="Find a name on the poster (Ctrl/⌘+F)"
+              <button type="button" onClick={() => layoutKeysRef.current.openFind()} title={t("poster.findTitle")}
                 className="flex items-center gap-1.5 rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-600 shadow-sm hover:bg-white">
-                <Icon name="search" className="h-3.5 w-3.5" /> Find a name
+                <Icon name="search" className="h-3.5 w-3.5" /> {t("poster.find")}
               </button>
             )
           )}
           {view === "poster" && layout && layoutPending && (
             <div className="rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-500 shadow" role="status">
-              Updating the poster…
+              {t("poster.updating")}
             </div>
           )}
           </div>
@@ -1263,23 +1262,23 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             const hasDescendants = tree.members.some((c) => c.fatherId === id || c.motherId === id);
             const her = m.gender === "FEMALE";
             const items: PersonMenuItem[] = [
-              { label: "Open", onClick: () => select(id) },
-              { label: "Trace their line", onClick: () => { setTrace(true); select(id); } },
-              { label: "How are they related to…", onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("section[aria-label=Relationship] input")?.focus()); } },
-              { label: "Add a child…", onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("aside input[placeholder^='Add a']")?.focus()); }, divider: true },
+              { label: t("personMenu.open"), onClick: () => select(id) },
+              { label: t("personMenu.trace"), onClick: () => { setTrace(true); select(id); } },
+              { label: t("personMenu.relation"), onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("section[aria-label=Relationship] input")?.focus()); } },
+              { label: t("personMenu.addChild"), onClick: () => { select(id); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("aside input[placeholder^='Add a']")?.focus()); }, divider: true },
               tree.settings?.centerBranchId === id
-                ? { label: "✓ Centred — reset", onClick: () => updateSettings({ centerBranchId: null }), divider: true }
-                : { label: "Centre this branch", onClick: () => updateSettings({ centerBranchId: id }), disabled: !inCanopy, title: inCanopy ? undefined : "Only a branch in the canopy can be centred", divider: true },
+                ? { label: t("personMenu.centred"), onClick: () => updateSettings({ centerBranchId: null }), divider: true }
+                : { label: t("personMenu.centre"), onClick: () => updateSettings({ centerBranchId: id }), disabled: !inCanopy, title: inCanopy ? undefined : t("personMenu.centreOnlyCanopy"), divider: true },
               ...(ownFamily ? [familiesThrough.includes(id)
-                ? { label: `✓ ${her ? "Her" : "His"} family shown — hide`, onClick: () => updateSettings({ familiesThrough: familiesThrough.filter((x) => x !== id) }) }
-                : { label: `Show ${her ? "her husband and children" : "his wife and children"}`, onClick: () => updateSettings({ familiesThrough: [...familiesThrough, id] }) }] : []),
+                ? { label: t(her ? "personMenu.herFamilyShown" : "personMenu.hisFamilyShown"), onClick: () => updateSettings({ familiesThrough: familiesThrough.filter((x) => x !== id) }) }
+                : { label: t(her ? "personMenu.showHerFamily" : "personMenu.showHisFamily"), onClick: () => updateSettings({ familiesThrough: [...familiesThrough, id] }) }] : []),
               tree.settings?.focusId === id
-                ? { label: "✓ Branch poster — show the whole family", onClick: () => updateSettings({ focusId: null }) }
-                : { label: "Poster of this branch only", onClick: () => updateSettings({ focusId: id }), disabled: !hasDescendants, title: hasDescendants ? undefined : "No descendants recorded yet" },
-              ...(!standsOn.has(id) ? [{ label: `Hide from the poster${hiddenWith(id) > 0 ? ` (and ${hiddenWith(id)} descendants)` : ""}`, onClick: () => updateSettings({ hiddenIds: [...hiddenIds, id] }) }] : []),
+                ? { label: t("personMenu.branchPosterOn"), onClick: () => updateSettings({ focusId: null }) }
+                : { label: t("personMenu.branchPoster"), onClick: () => updateSettings({ focusId: id }), disabled: !hasDescendants, title: hasDescendants ? undefined : t("personMenu.noDescendants") },
+              ...(!standsOn.has(id) ? [{ label: hiddenWith(id) > 0 ? t("personMenu.hideWith", { n: n(hiddenWith(id)) }) : t("personMenu.hide"), onClick: () => updateSettings({ hiddenIds: [...hiddenIds, id] }) }] : []),
               tree.crownBaseId === id
-                ? { label: "✓ Canopy starts here — reset", onClick: () => void mutate(() => repo.updateTree({ crownBaseId: null }), { label: "Reset the canopy start" }), divider: true }
-                : { label: "Start the canopy here", onClick: () => void mutate(() => repo.updateTree({ crownBaseId: id }), { label: "Set the canopy start" }), divider: true },
+                ? { label: t("personMenu.canopyHere"), onClick: () => void mutate(() => repo.updateTree({ crownBaseId: null }), { label: "Reset the canopy start" }), divider: true }
+                : { label: t("personMenu.startCanopy"), onClick: () => void mutate(() => repo.updateTree({ crownBaseId: id }), { label: "Set the canopy start" }), divider: true },
             ];
             return <PersonMenu name={nasab(tree.members, id, 2)} x={personMenu.x} y={personMenu.y} items={items} onClose={() => setPersonMenu(null)} />;
           })()}
@@ -1408,14 +1407,14 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 className="absolute start-4 top-4 max-w-[45%] rounded-md bg-white/90 px-3 py-2 text-start text-xs shadow outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-gilt-500"
                 onClick={() => setPanel({ kind: "unplaced" })}
               >
-                {notDrawn.length} recorded {notDrawn.length === 1 ? "person is" : "people are"} not on the poster:{" "}
+                {notDrawn.length === 1 ? t("notDrawn.one") : t("notDrawn.many", { n: n(notDrawn.length) })}{" "}
                 {[
-                  notDrawnCount("daughter") && `${notDrawnCount("daughter")} in daughters' families`,
-                  notDrawnCount("spouse") && `${notDrawnCount("spouse")} ${notDrawnCount("spouse") === 1 ? "spouse" : "spouses"}`,
-                  notDrawnCount("unlinked") && `${notDrawnCount("unlinked")} linked to no one`,
-                  notDrawnCount("other") && `${notDrawnCount("other")} not connected to the line`,
-                ].filter(Boolean).join(" · ")}
-                . <span className="font-medium text-gilt-600 underline">Show who →</span>
+                  notDrawnCount("daughter") && t("notDrawn.daughter", { n: n(notDrawnCount("daughter")) }),
+                  notDrawnCount("spouse") && (notDrawnCount("spouse") === 1 ? t("notDrawn.spouse") : t("notDrawn.spouses", { n: n(notDrawnCount("spouse")) })),
+                  notDrawnCount("unlinked") && t("notDrawn.unlinked", { n: n(notDrawnCount("unlinked")) }),
+                  notDrawnCount("other") && t("notDrawn.other", { n: n(notDrawnCount("other")) }),
+                ].filter(Boolean).join(lang === "ar" ? "، " : " · ")}
+                . <span className="font-medium text-gilt-600 underline">{t("notDrawn.showWho")}</span>
               </button>
             )}
             </>
