@@ -21,9 +21,10 @@ Each branch contains the ones above it.
 | `generation-numbering` … `family-register` | `e59f9ce` | Generation numbers, the family engine, profiles, search and filters, the Records view, Analytics, Charts (pedigree, Ahnentafel, group sheets, fan, hourglass, bowtie, timeline, radial), and the family register | full suite 551 pass; production build passes |
 | `translate-menus` | `9883c94` | Interface in Arabic, second pass: header, View menu, undo and redo, find, a name's menu, the Style menu (with every design's and foundation's name), the export menu, the member form and the relations. **Fixed:** "Add a child…" and "How are they related to…" did nothing when the person panel opened on its Profile tab | full suite 553 pass; checked in the running editor, Arabic and English |
 | `cousin-editing` | `ea8d912` | Adding a relative who is already recorded: the people it may be are offered with their nasab, to link instead of recording twice. Deleting a linked person says what is linked. "Hide on poster" beside each spouse (nothing deleted) | 3 new; checked in the running editor |
-| `integration` | `dc68ef7` | Everything above together (the editor chain and the poster chain), for trying 1.1.0; now with the two rows below | full suite 676 pass (at `f0f0254`); QA 448 pass and production build pass (at `a851ae4`) |
+| `integration` | `db12a05` | Everything above together (the editor chain and the poster chain), for trying 1.1.0; now with the three rows below | full suite 681 pass (at `db12a05`); QA 448 and production build: running (last passed at `a851ae4`) |
 | `instant-layout` | `3fbbce4` | **A tree opens with its poster at once**: the last layout is kept on this computer (IndexedDB) with a fingerprint of everything it depends on; no layout runs when nothing changed, otherwise the last poster shows while the new one is laid out | 3 new; measured 8.9 s → 0.5 s on a 243-person tree |
 | `translate-panels` | `dc68ef7` | Interface in Arabic, third pass: the person panel (relationship, details, poster tiers), photos and sources, the not-on-the-poster panel, the notices over the poster, zoom, the Files panel, pasting a nasab | full suite 676 pass; checked in the running editor in Arabic |
+| `translate-rest` | `db12a05` | Interface in Arabic, last pass: the Sources page; the start page (its text moved to a client part, with the language switch); the GEDCOM and family-outline readers' warnings | 5 new; full suite 681 pass; both pages checked in the running app in Arabic |
 
 ## Posters (branches on 1.0.49, in order)
 
@@ -80,9 +81,8 @@ Each branch contains the ones above it.
 - **Database additions** (after approval), then English names, places
   (map, residence filter), full and Hijri dates, biographies, typed
   relationships and events everywhere.
-- **Interface translation, what is left:** the Sources page, the start
-  page (a server page: its text moves to a client part first), and the
-  GEDCOM reader's own warnings.
+- ~~Interface translation~~ (done: `translate-rest`). Still English: error
+  messages sent by the server itself, and the window title.
 - **Poster:** a generation key counted from Generation 1.
 - ~~Loading: show the last layout at once~~ (done: `instant-layout`).
 - **Known limitations:**
