@@ -290,7 +290,7 @@ export function drawnOutline(n: NodeShapeInput & { x: number; y: number }, extra
 }
 
 /** What the layout keeps clear around a node's box: its drawn outset and half the clearance. */
-export const layoutPad = (n: NodeShapeInput) => decorOutset(n) + (n.fontSize * CLEARANCE) / 2;
+export const layoutPad = (n: NodeShapeInput, clearance = CLEARANCE) => decorOutset(n) + (n.fontSize * clearance) / 2;
 
 const cross = (o: Vec, a: Vec, b: Vec) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 const segmentsCross = (p: Vec, q: Vec, r: Vec, s: Vec) =>
