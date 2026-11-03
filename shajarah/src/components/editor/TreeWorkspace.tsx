@@ -13,6 +13,8 @@ import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branc
 import { generationColor } from "@/lib/layout/palette";
 import { buildFamilyIndex } from "@/lib/family/index";
 import { PersonProfile } from "./PersonProfile";
+import { PeopleFilters, activeFilters } from "./PeopleFilters";
+import { peopleSearch, type PeopleQuery } from "@/lib/family/filters";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
 import type { Gender, MemberDTO, PosterTheme, TreeDTO } from "@/lib/types";
 import type { CreateMemberInput } from "@/lib/validation";
@@ -589,14 +591,17 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   }, [tree.members, tree.marriages, tree.rootMemberId]);
   const listGeneration = useCallback((m: MemberDTO) => marriedIn.get(m.id) ?? m.generation, [marriedIn]);
 
+  // The name search and the filters narrow one list (src/lib/family/filters.ts)
+  const [filters, setFilters] = useState<PeopleQuery>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const peopleIndex = useMemo(() => peopleSearch(family, tree), [family, tree]);
+  const filtering = activeFilters(filters) > 0;
   const filtered = useMemo(() => {
-    // (hamza forms, ى / ي, ة / ه, diacritics, spaces and case ignored: احمد finds أحمد)
-    const q = normalizeName(query.trim());
-    const list = q
-      ? tree.members.filter((m) => normalizeName(nasab(tree.members, m.id, 3)).includes(q) || normalizeName(m.laqab ?? "").includes(q))
-      : tree.members;
+    // (every word of the search in the person's name, line or laqab; hamza
+    // forms, ى / ي, ة / ه, diacritics and case ignored: احمد finds أحمد)
+    const list = query.trim() || filtering ? peopleIndex.run({ ...filters, text: query }) : tree.members;
     return [...list].sort((a, b) => listGeneration(a) - listGeneration(b) || a.birthOrder - b.birthOrder);
-  }, [tree.members, query, listGeneration]);
+  }, [tree.members, query, filters, filtering, peopleIndex, listGeneration]);
 
   // ── The desktop program's menu bar (desktop/electron/menu.js) ──────
   // Each command runs the same action as the button for it here; the menu
@@ -755,6 +760,10 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             <>
               <div className="flex gap-2 border-b border-parchment-200 p-3">
                 <input className="input flex-1" dir="auto" placeholder="Search members…" value={query} onChange={(e) => setQuery(e.target.value)} />
+                <button type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}
+                  className={`btn-outline whitespace-nowrap px-2 text-xs ${filtering ? "border-bark-500 text-bark-900" : ""}`} title="Filter the list: gender, status, generation, branch, years, incomplete records">
+                  Filters{filtering ? ` (${activeFilters(filters)})` : ""}
+                </button>
                 <button type="button" className="btn-primary whitespace-nowrap" onClick={() => setPanel({ kind: "new", draft: emptyDraft() })}>
                   + Person
                 </button>
@@ -779,17 +788,22 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                   <button type="button" className="text-emerald-700" aria-label="Dismiss" onClick={() => setLastImport(null)}>×</button>
                 </div>
               )}
+              {filtersOpen && <PeopleFilters ix={family} value={filters} onChange={setFilters} />}
               <ul className="min-h-0 flex-1 overflow-auto">
                 {tree.members.length === 0 && (
                   <li className="p-6 text-center text-sm text-gray-500">
                     Start with the eldest known ancestor — the root of the trunk.
                   </li>
                 )}
-                {query.trim() && filtered.length === 0 && (
+                {(query.trim() || filtering) && filtered.length === 0 && (
                   <li className="p-6 text-center text-sm text-bark-500">
-                    No one in the family matches «<bdi>{query.trim()}</bdi>».{" "}
-                    <button type="button" className="underline hover:text-bark-900" onClick={() => setQuery("")}>Clear the search</button>
+                    {query.trim() ? <>No one in the family matches «<bdi>{query.trim()}</bdi>»{filtering ? " with these filters" : ""}.</> : "No one matches these filters."}{" "}
+                    {query.trim() && <button type="button" className="underline hover:text-bark-900" onClick={() => setQuery("")}>Clear the search</button>}
+                    {filtering && <> <button type="button" className="underline hover:text-bark-900" onClick={() => setFilters({})}>Clear the filters</button></>}
                   </li>
+                )}
+                {filtering && filtered.length > 0 && (
+                  <li className="border-b border-parchment-100 px-3 py-1 text-xs text-bark-500">{filtered.length.toLocaleString()} {filtered.length === 1 ? "person matches" : "people match"}</li>
                 )}
                 {filtered.slice(0, LIST_LIMIT).map((m) => (
                   <li key={m.id}>
@@ -799,7 +813,14 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                       className="flex w-full items-center gap-2 border-b border-parchment-100 px-3 py-1.5 text-start hover:bg-parchment-50"
                     >
                       <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: generationColor(m.generation).fill }} />
-                      <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
+                        {filtering && (
+                          <span className="block truncate text-[11px] text-bark-400">
+                            {[family.branchesOf(m.id).map((b) => b.name).join(" / ") || null, m.isDeceased ? "deceased" : "living", m.birthYear ? `b. ${m.birthYear}` : null].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </span>
                       <span className="whitespace-nowrap text-xs text-bark-400" title={marriedIn.has(m.id) ? "Married into the family" : undefined}>
                         {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
                       </span>
