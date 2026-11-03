@@ -1,6 +1,7 @@
 # Database additions: proposed schema and migration
 
-Status: proposal, awaiting approval. Nothing here is applied.
+Status: proposal, for the family's review (requested 2026-11-03). Nothing
+here is applied, and no migration is written until the review is done.
 
 Every change below **adds**: new tables, or new optional columns. No column
 is removed, renamed or changed in meaning. Existing data, project files,
@@ -15,7 +16,9 @@ new field is used.
 | Arabic and English names | `Member.nameEn`, `NameVariant` (§2.1) |
 | Biography separate from notes | `Member.biography` (§2.1) |
 | Birthplaces and residences | `Event.place`, `Event.country` (§2.2) |
-| Typed family relationships | `ParentLink` (§2.3) |
+| Typed family relationships: adoptive, step, guardian (kafala), foster | `ParentLink` (§2.3) |
+| Disputed or uncertain parentage | `Member.fatherCertainty` / `motherCertainty`, `ParentLink` kind `CLAIMED` (§2.3.1) |
+| Marriage status, notes and sources | `Marriage.status`, `notes`, events, `Citation.marriageId` (§2.6) |
 | Historical events | `Event` (§2.2) |
 | Sources and citations | `Citation.eventId` (§2.4) |
 
@@ -149,6 +152,40 @@ model ParentLink {
   without any record. A STEP link is only for recording it explicitly, for
   example someone raised by a step-father with dates.
 - **Unknown parents** stay unknown: a null `fatherId` / `motherId`.
+- **Guardianship (kafala)** is its own kind, `GUARDIAN`, apart from
+  `ADOPTIVE`: a child in someone's care keeps their own nasab. Nothing but
+  the birth parents (`fatherId` / `motherId`) ever decides a name's nasab,
+  its line on the poster, or its generation.
+- **Kinds:** `ADOPTIVE`, `STEP`, `GUARDIAN`, `FOSTER`, `CLAIMED` (§2.3.1).
+  `ADOPTIVE` is there mainly for GEDCOM files from other programs
+  (`PEDI adopted`, `ADOP`), so that they keep what they say.
+- **Shown:** in the person's panel, the relationship explorer and the
+  family register, each with its kind ("guardian of", "step-father");
+  never as a branch on the poster unless a later, separate poster option
+  is approved.
+
+#### 2.3.1 Disputed or uncertain parentage
+
+Two parts, both optional:
+
+```prisma
+model Member {
+  // … existing fields …
+  fatherCertainty ParentCertainty? // null: as recorded (today's meaning)
+  motherCertainty ParentCertainty?
+}
+enum ParentCertainty { CERTAIN PROBABLE UNCERTAIN DISPUTED }
+```
+
+- **The recorded parent stays the one the family accepts** (`fatherId` /
+  `motherId`). Its certainty says how sure that is.
+- **Another claimed parent** is a `ParentLink` of kind `CLAIMED`, with notes
+  and its own citations (§2.4): "some sources give X as the father".
+- **Nothing is chosen automatically.** Changing which claim is the recorded
+  parent is an ordinary edit, one undo step, made by the family.
+- **Shown:** the person's panel lists each claim with its sources. On the
+  poster, nothing changes unless a later option marks disputed links (for
+  example a dashed line), approved separately.
 
 ### 2.4 Sources and citations
 
@@ -162,20 +199,64 @@ model Citation {
 
 - A citation can support a person in general, as today, or a specific
   event: a birth date, a residence.
+- It can also support **a parent link** or **a marriage**:
+
+  ```prisma
+  model Citation {
+    // … existing fields …
+    parentLinkId String?   // an adoption, a guardianship, a claimed parent
+    parentLink   ParentLink? @relation(fields: [parentLinkId], references: [id], onDelete: SetNull)
+    marriageId   String?   // a marriage, its date or its end
+    marriage     Marriage? @relation(fields: [marriageId], references: [id], onDelete: SetNull)
+  }
+  ```
+
+- `memberId` stays required: a citation always belongs to a person (for a
+  marriage, the spouse it was entered on), so today's lists keep working.
 - `eventType` stays, for citations made before events existed.
 
 ### 2.5 Enums
 
-`NameKind`, `EventType`, `Calendar`, `DateQualifier`, `ParentKind`, as listed
-above.
+`NameKind`, `EventType`, `Calendar`, `DateQualifier`, `ParentKind`,
+`ParentCertainty`, `MarriageStatus`, as listed above and below.
+
+### 2.6 Marriage: status, notes and sources
+
+```prisma
+model Marriage {
+  // … existing fields, unchanged: spouseAId, spouseBId, startYear, endYear …
+  status MarriageStatus? // null: not recorded (today's meaning)
+  notes  String?
+  order  Int?            // this spouse's place among a person's marriages, when set by the family
+}
+enum MarriageStatus { MARRIED DIVORCED WIDOWED ANNULLED UNKNOWN }
+```
+
+- **Dates** are events (§2.2) of type `MARR` and `DIV` with a `marriageId`,
+  so they can be approximate, Hijri or partial. `startYear` / `endYear`
+  stay, filled only from unambiguous dates, as for people.
+- **Status is a record, not a deduction.** "Widowed" is not set because a
+  spouse has a death year; the family records it. The interface may
+  *suggest* it.
+- **Several marriages** of one person (in sequence or at once) each keep
+  their own status, dates, notes and sources. Hiding a marriage on one
+  poster (`settings.hiddenSpouses`, already in place) stays a poster
+  choice and never touches this record.
+- **Children** stay linked to their birth parents, never to a marriage
+  record: a child of an unrecorded marriage keeps both parents, and
+  removing a marriage never removes a parent.
 
 ## 3. Migration
 
 1. **One Prisma migration, additive only.**
    - It contains `CREATE TABLE` for `NameVariant`, `Event`, `ParentLink`,
      plus `ALTER TABLE … ADD COLUMN` for `Member.nameEn`,
-     `Member.biography`, `Citation.eventId`, and the `CREATE TYPE`
-     statements for the enums.
+     `Member.biography`, `Member.fatherCertainty`, `Member.motherCertainty`,
+     `Marriage.status`, `Marriage.notes`, `Marriage.order`,
+     `Citation.eventId`, `Citation.parentLinkId`, `Citation.marriageId`,
+     and the `CREATE TYPE` statements for the enums.
+   - Every new column is optional, and null means exactly what the data
+     means today.
    - No `DROP`, no `ALTER COLUMN`, no data rewritten.
 2. **Desktop.**
    - The app already applies migrations itself at start, inside a
@@ -219,3 +300,31 @@ above.
 - **Year columns:** filled only from unambiguous dates; never overwritten
   by a vague one.
 - **Merge and undo:** carry every new record.
+- **Lineage stays birth-only:** with adoptive, guardian, step and claimed
+  links present, every poster, nasab and generation number is identical
+  to the same family without them.
+- **Parentage is never changed by a link:** adding, editing or removing
+  any link, certainty or marriage status leaves every `fatherId` /
+  `motherId` as it was.
+- **Marriages:** several marriages of one person, each with its status
+  and sources; a marriage removed keeps its children's parents.
+
+## 6. Questions for the review
+
+1. **Kinds of parent link:** are `ADOPTIVE`, `STEP`, `GUARDIAN` (kafala),
+   `FOSTER` and `CLAIMED` the right set, and their Arabic names (تبنٍّ،
+   زوج الأم / زوجة الأب، كفالة، رعاية، نسب مُدّعى)?
+2. **Step-parents:** derived from marriages by default (no record), with
+   an explicit link only when the family wants one. Agreed?
+3. **Disputed parentage:** the recorded parent is the accepted one, with a
+   certainty, and other claims listed beside it. Agreed? And should the
+   poster ever mark a disputed link, or only the person's panel?
+4. **Adopted and cared-for children's generation:** proposed to follow
+   their birth parents when known, and none otherwise (they appear in the
+   panel and register, not numbered). Agreed? (This is the open "adopted
+   children" item.)
+5. **Marriage status values:** married, divorced, widowed, annulled,
+   unknown. Anything missing (for example *khul'*, recorded as divorced
+   with a note)?
+6. **Marriage order:** keep today's order (by start year, then as entered)
+   unless the family sets `order`. Agreed?
