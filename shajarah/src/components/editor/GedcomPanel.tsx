@@ -7,6 +7,7 @@ import type { TreeDTO } from "@/lib/types";
 import { previewGedcom, type GedcomPreview } from "./gedcomPreview";
 import { PROJECT_EXTENSION } from "@/lib/project";
 import { saveProjectFile } from "../projectFiles";
+import { useLanguage } from "@/lib/i18n";
 
 interface Props {
   tree: TreeDTO;
@@ -58,6 +59,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
   };
   const [file, setFile] = useState<{ name: string; size: number; bytes: ArrayBuffer } | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const { t, n } = useLanguage();
   const [inputKey, setInputKey] = useState(0);
   const worker = useRef<Worker | null>(null);
   const request = useRef(0);
@@ -133,90 +135,77 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
   return (
     <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4 text-sm">
       <div className="flex items-center gap-2">
-        <button type="button" className="btn-ghost px-2" onClick={onCancel}>← All</button>
-        <h2 className="text-base font-semibold text-bark-900">Files</h2>
+        <button type="button" className="btn-ghost px-2" onClick={onCancel}>{t("nav.all")}</button>
+        <h2 className="text-base font-semibold text-bark-900">{t("files.title")}</h2>
       </div>
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">Project file</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">{t("files.project")}</h2>
         <p className="text-gray-600">
-          The whole family in one <code>{PROJECT_EXTENSION}</code> file: everyone, the poster settings, sources and
-          photos. Keep it as a copy, open it on another computer, or send it to someone.
+          {(() => { const [before, after] = t("files.projectNote").split("{ext}"); return <>{before}<code>{PROJECT_EXTENSION}</code>{after}</>; })()}
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn-primary" disabled={busy || saving} onClick={() => void saveProject()}>
-            {saving ? "Saving…" : "Save project file"}
+            {saving ? t("files.saving") : t("files.save")}
           </button>
           <button type="button" className="btn-outline" disabled={busy} onClick={() => projectInput.current?.click()}>
-            Open project file…
+            {t("files.open")}
           </button>
           <input ref={projectInput} type="file" accept={`${PROJECT_EXTENSION},application/json`} className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onOpenProject(f); }} />
         </div>
         <p className="text-xs text-gray-500">
-          {opensAsNew ? "A project you open becomes a new family; this one stays as it is." : "In the demo, an opened project replaces this family (Undo brings it back)."}
+          {t(opensAsNew ? "files.opensAsNew" : "files.opensDemo")}
         </p>
         {saveError && <p className="text-red-700">{saveError}</p>}
       </section>
 
       <section className="space-y-3 border-t border-parchment-200 pt-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">Import a GEDCOM file or family outline</h2>
-        <p className="text-gray-600">
-          GEDCOM (.ged) is the file other genealogy programs export: Ancestry, MyHeritage, FamilySearch,
-          Gramps, MacFamilyTree… A family outline (.txt) is plain text, one name per line, indented under the
-          parent (see below). People already in this tree are matched by name and line and reused. Nothing is
-          saved until you press Import.
-        </p>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">{t("files.importTitle")}</h2>
+        <p className="text-gray-600">{t("files.importNote")}</p>
         <input
           key={inputKey}
           type="file"
           accept=".ged,.gedcom,.txt,text/plain"
-          aria-label="GEDCOM file or family outline"
+          aria-label={t("files.fileLabel")}
           className="block w-full text-xs file:me-3 file:rounded-md file:border file:border-parchment-300 file:bg-parchment-50 file:px-3 file:py-1.5"
           onChange={(e) => void choose(e.target.files?.[0])}
         />
         {status.kind === "reading" && (
           <p className="flex items-center gap-2 text-gray-600" role="status">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-bark-300 border-t-bark-700" aria-hidden />
-            Reading {file ? `${file.name} (${formatSize(file.size)})` : "the file"} and matching it against this tree…
+            {t("files.reading", { file: file ? `${file.name} (${formatSize(file.size)})` : t("files.theFile") })}
           </p>
         )}
-        {status.kind === "error" && <p className="text-red-700">Could not import this file: {status.message}</p>}
+        {status.kind === "error" && <p className="text-red-700">{t("files.couldNot", { message: status.message })}</p>}
 
         {p && file && (
           <div className="space-y-2 rounded-md border border-parchment-200 bg-parchment-50 p-3" data-testid="gedcom-preview">
             <p className="text-xs text-gray-500">
               {file.name} · {formatSize(file.size)}
-              {p.source && ` · from ${p.source}`} · {p.people.toLocaleString("en")} people, {p.families.toLocaleString("en")} families
+              {p.source && t("files.from", { source: p.source })} · {t("files.counts", { people: n(p.people), families: n(p.families) })}
             </p>
-            {p.blocked && <p className="font-semibold text-red-700">{p.blocked} Split it, or export one branch from your genealogy program.</p>}
+            {p.blocked && <p className="font-semibold text-red-700">{p.blocked} {t("files.split")}</p>}
             {p.people > 0 && !p.blocked && (
               <ul className="space-y-0.5">
-                <li><b>{p.newMembers}</b> new {p.newMembers === 1 ? "member" : "members"}</li>
-                <li><b>{p.reused}</b> already in this tree (reused, not changed)</li>
-                {p.newMarriages > 0 && <li><b>{p.newMarriages}</b> new {p.newMarriages === 1 ? "marriage" : "marriages"}</li>}
+                <li>{t("files.newMembers", { n: n(p.newMembers) })}</li>
+                <li>{t("files.reused", { n: n(p.reused) })}</li>
+                {p.newMarriages > 0 && <li>{t("files.newMarriages", { n: n(p.newMarriages) })}</li>}
                 {(p.newSources > 0 || p.newCitations > 0 || p.newMedia > 0) && (
-                  <li>
-                    Importing <b>{p.newSources}</b> {p.newSources === 1 ? "source" : "sources"}
-                    {p.reusedSources > 0 && ` (${p.reusedSources} already here)`}, <b>{p.newCitations}</b>{" "}
-                    {p.newCitations === 1 ? "citation" : "citations"} and <b>{p.newMedia}</b> media {p.newMedia === 1 ? "link" : "links"}
-                  </li>
+                  <li>{t("files.sources", { sources: n(p.newSources), reused: n(p.reusedSources), citations: n(p.newCitations), media: n(p.newMedia) })}</li>
                 )}
                 {p.newMedia > 0 && (
-                  <li className="text-xs text-gray-600">
-                    A GEDCOM file names its photos and documents but does not contain them: upload each file on the
-                    person to show it.
-                  </li>
+                  <li className="text-xs text-gray-600">{t("files.mediaNote")}</li>
                 )}
                 {p.relinks > 0 && (
-                  <li><b>{p.relinks}</b> {p.relinks === 1 ? "member gets a parent" : "members get parents"} they did not have</li>
+                  <li>{t("files.relinks", { n: n(p.relinks) })}</li>
                 )}
                 {p.ambiguous > 0 && (
                   <li className="text-amber-800">
-                    <b>{p.ambiguous}</b> matched more than one person here, so {p.ambiguous === 1 ? "was" : "were"} added as new: check for duplicates
+                    {t("files.ambiguous", { n: n(p.ambiguous) })}
                   </li>
                 )}
                 {p.newRootName && (
-                  <li>The trunk will start at <b dir="auto">{p.newRootName}</b></li>
+                  <li>{(() => { const [before, after] = t("files.newRoot").split("{name}"); return <>{before}<b dir="auto">{p.newRootName}</b>{after}</>; })()}</li>
                 )}
               </ul>
             )}
@@ -234,37 +223,30 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
             disabled={busy || !p || !file || p.people === 0 || !!p.blocked}
             onClick={() => p && file && onImport(p.text, file.name)}
           >
-            {busy ? "Importing…" : p && !p.blocked ? `Import ${p.newMembers} ${p.newMembers === 1 ? "person" : "people"}` : "Import"}
+            {busy ? t("files.importing") : p && !p.blocked ? t("files.importN", { n: n(p.newMembers) }) : t("files.import")}
           </button>
           {/* (clears the chosen file; ← All goes back to the family) */}
-          {file && <button type="button" className="btn-ghost" onClick={() => { setFile(null); setStatus({ kind: "idle" }); setInputKey((k) => k + 1); }}>Cancel</button>}
+          {file && <button type="button" className="btn-ghost" onClick={() => { setFile(null); setStatus({ kind: "idle" }); setInputKey((k) => k + 1); }}>{t("files.cancel")}</button>}
         </div>
       </section>
 
       <section className="space-y-2 border-t border-parchment-200 pt-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">Export GEDCOM</h2>
-        <p className="text-gray-600">
-          Download this family as a GEDCOM 5.5.1 file (UTF-8) to open it in any genealogy program,
-          or to keep a copy.
-        </p>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">{t("files.exportTitle")}</h2>
+        <p className="text-gray-600">{t("files.exportNote")}</p>
         <button type="button" className="btn-outline" disabled={tree.members.length === 0} onClick={download}>
-          Download GEDCOM ({tree.members.length} {tree.members.length === 1 ? "person" : "people"})
+          {t("files.download", { n: n(tree.members.length) })}
         </button>
       </section>
 
       <section className="space-y-2 border-t border-parchment-200 pt-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">Family outline (.txt)</h2>
-        <p className="text-gray-600">
-          The whole family as plain text: one person per line, indented under their parent, with wives, mothers,
-          years and laqab after a <code>|</code>. Easy to read, check, correct or send in a message, and it can be
-          imported back (above), here or into a new family.
-        </p>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-bark-500">{t("files.outlineTitle")}</h2>
+        <p className="text-gray-600">{t("files.outlineNote")}</p>
         <pre className="overflow-x-auto rounded-md bg-parchment-50 p-2 text-xs leading-relaxed" dir="rtl">{`عبدالله | زوجة: نورة بنت سعد
   محمد | أم: نورة بنت سعد | مواليد: 1950
   سارة (بنت) | زوج: فهد الشمري
     سلمان | أب: فهد الشمري`}</pre>
         <button type="button" className="btn-outline" disabled={tree.members.length === 0} onClick={downloadOutline}>
-          Download family outline (.txt)
+          {t("files.downloadOutline")}
         </button>
       </section>
     </div>

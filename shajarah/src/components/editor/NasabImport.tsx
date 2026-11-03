@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { applyNasabLines } from "@/lib/nasab";
 import type { TreeDTO } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n";
 
 interface Props {
   tree: TreeDTO;
@@ -14,6 +15,7 @@ interface Props {
 /** Paste "خالد بن سعد بن …" lines; shows what will be reused vs created. */
 export function NasabImport({ tree, busy, onImport, onCancel }: Props) {
   const [text, setText] = useState("");
+  const { t, n } = useLanguage();
   // Simulate the lines in order, so later lines see people added by earlier ones.
   const preview = useMemo(() => {
     let n = 0;
@@ -23,13 +25,10 @@ export function NasabImport({ tree, busy, onImport, onCancel }: Props) {
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
       <div className="flex items-center gap-2">
-        <button type="button" className="btn-ghost px-2" onClick={onCancel}>← All</button>
-        <h2 className="text-base font-semibold text-bark-900">Paste a nasab</h2>
+        <button type="button" className="btn-ghost px-2" onClick={onCancel}>{t("nav.all")}</button>
+        <h2 className="text-base font-semibold text-bark-900">{t("nasab.title")}</h2>
       </div>
-      <p className="text-sm text-gray-600">
-        Paste one lineage per line, newest name first. Names already in the tree are reused, so you
-        can paste each family member&apos;s nasab and they join up automatically.
-      </p>
+      <p className="text-sm text-gray-600">{t("nasab.note")}</p>
       <textarea
         className="input min-h-[220px] font-naskh text-base leading-relaxed"
         dir="rtl"
@@ -43,11 +42,11 @@ export function NasabImport({ tree, busy, onImport, onCancel }: Props) {
             <li key={i} className="rounded-md bg-parchment-50 px-2 py-1">
               <span className="font-naskh" dir="rtl">{p.newest} … {p.oldest}</span>
               <span className="ms-2 text-xs text-gray-600">
-                {p.total} names · {p.reused} already in tree · <b>{p.created} new</b>
+                {t("nasab.counts", { total: n(p.total), reused: n(p.reused) })}<b>{t("nasab.new", { n: n(p.created) })}</b>
               </span>
               {p.ambiguous && (
                 <span className="block text-xs text-amber-700">
-                  This matches more than one place in the tree; add more ancestors to the line to be sure.
+                  {t("nasab.ambiguous")}
                 </span>
               )}
             </li>
@@ -56,9 +55,9 @@ export function NasabImport({ tree, busy, onImport, onCancel }: Props) {
       )}
       <div className="flex gap-2">
         <button type="button" className="btn-primary" disabled={busy || preview.length === 0} onClick={() => onImport(text)}>
-          {busy ? "Importing…" : "Import"}
+          {busy ? t("files.importing") : t("files.import")}
         </button>
-        <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn-ghost" onClick={onCancel}>{t("files.cancel")}</button>
       </div>
     </div>
   );
