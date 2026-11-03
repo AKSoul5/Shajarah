@@ -36,7 +36,7 @@ describe("the interface's languages", () => {
 
   const tree = QA_FIXTURES.B();
   const ix = buildFamilyIndex(tree);
-  const inArabic = (el: React.ReactElement) => renderToStaticMarkup(React.createElement(LanguageProvider, { initial: "ar" }, el));
+  const inArabic = (el: React.ReactElement) => renderToStaticMarkup(React.createElement(LanguageProvider, { initial: "ar", children: el }));
 
   it("the profile, the filters and the records view are drawn in Arabic", () => {
     const m = tree.members.find((x) => x.fatherId && x.motherId)!;
