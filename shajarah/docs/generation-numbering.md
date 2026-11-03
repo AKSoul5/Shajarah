@@ -1,6 +1,8 @@
-# Generation numbering: proposed model (revision 2)
+# Generation numbering: proposed model (revision 3)
 
-Status: proposal, awaiting approval. Nothing here is implemented yet.
+Status: implemented on the `generation-numbering` branch (not merged), for
+review. Revision 3 records two corrections found while implementing it
+(§3, marked).
 
 Revision 2 adds:
 - how the reference person is chosen;
@@ -53,8 +55,7 @@ The input is people and their birth parents (`fatherId`, `motherId`, either
 possibly unknown). The output is, for each person, one of:
 - a level (an integer);
 - *spouse only*;
-- *not related by blood*;
-- *ambiguous*, with the paths found.
+- *not related by blood*.
 
 1. **The traced parent.**
    - In a paternal tree it is the father; in a maternal tree, the mother.
@@ -71,23 +72,25 @@ possibly unknown). The output is, for each person, one of:
    - Otherwise, a child whose other parent has a level gets that level + 1.
      This is how a daughter's children, whose father is from another family
      or unknown, follow their mother.
-4. **Ascent, for the other side of the family.**
-   - Some untraced ancestors of an already-numbered person are still
-     unnumbered: the reference person's mother's parents, for instance.
-   - Each such parent gets their child's level − 1.
-   - Their own descendants are then numbered by step 3, and the process
-     repeats until nothing changes.
-   - This places the mother's side, and the cousins through it, at the
-     right levels.
+4. **The reference person's own ancestors, on both sides.** *(Corrected
+   in revision 3.)*
+   - Every ancestor of the reference person, through fathers and
+     mothers, gets the reference level minus their distance (the nearest
+     path; the traced parent's first when two are as near). Step 3 then
+     numbers their other descendants: uncles, aunts and cousins on the
+     mother's side too.
+   - Revision 2 numbered the parents of *any* numbered person this way.
+     That would have given every wife who married in a number (she is the
+     mother of numbered children), contradicting step 6. Only the reference
+     person's ancestors are numbered from below.
 5. **People reached two ways.**
-   - Someone can be reached by two paths, as in a marriage between relatives
-     of different generations.
    - The number from the traced parent wins. The other path is kept and
      shown on the profile: "Generation 5 through his father; 6 through his
      mother".
-   - A person whose traced parent is unnumbered while both other routes
-     disagree is marked *ambiguous*. They get no number, and the profile
-     lists both paths.
+   - *(Corrected in revision 3.)* Revision 2 described an *ambiguous* case,
+     with no number. It cannot arise under these rules: a child has one
+     parent besides the traced one, so there is never more than one other
+     path to choose from.
 6. **Spouses.**
    - A person with no blood link who is married to a numbered person is
      *spouse only*: "wife of a Generation 4 member".
@@ -110,7 +113,7 @@ second for 10,000 people; a test measures it.
 | Adoptive and step-parents | Not counted: see §5. |
 | Unknown parents | A child with an unknown father and a known mother is numbered through her. A person with no recorded parents is numbered only if a numbered person is recorded as their child (step 4); otherwise *not related by blood* (or *spouse only*). Nobody is given a parent's level by guessing. |
 | Large trees, many branches | One linear pass; every branch numbered from the same reference; tested on 10,000 people. |
-| Several relationships at once | One number by the traced-parent rule; the other path shown; *ambiguous* (no number) only where no rule decides. |
+| Several relationships at once | One number by the traced-parent rule; the other path shown. |
 | The same person drawn twice (a daughter married to a cousin) | One number, wherever she is drawn. |
 
 ## 5. Adoptive, step and foster links
@@ -168,8 +171,7 @@ of those:
   half-siblings.
 - **Cousins:** through brothers, through a brother and a sister, through two
   sisters, and second cousins.
-- **People reached two ways:** cousins marrying across generations, and
-  the *ambiguous* case.
+- **People reached two ways:** cousins marrying across generations.
 - **Unknown parents:** at every position.
 - **Maternal trees:** a matrilineal tree.
 - **Stability:**
