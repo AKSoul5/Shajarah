@@ -16,14 +16,14 @@
 import { computeGenerations } from "../genealogy";
 import type { Gender, MarriageDTO, MemberDTO, TreeDTO } from "../types";
 
-const AR = {
+export const AR = {
   m: ["محمد", "عبد الله", "سالم", "خالد", "عمر", "علي", "فهد", "سعد", "ناصر", "حمد", "يوسف", "إبراهيم", "سليمان", "عبد الرحمن", "حسن", "زيد", "طلال", "منصور", "راشد", "بدر"],
   f: ["نورة", "سارة", "هند", "مريم", "فاطمة", "عائشة", "لطيفة", "منيرة", "حصة", "رقية"],
   long: ["عبد الرحمن الأكبر", "عبد العزيز ذو النورين", "عبد الملك الملقب بالأمين", "سليمان بن عبد الكريم", "عبد الله الشيخ"],
   laqab: ["الأكبر", "الأوسط", "الأصغر", "الشيخ"],
   outside: ["آل نصار", "آل حمدان", "آل سعيد", "آل مبارك"],
 };
-const EN = {
+export const EN = {
   m: ["Muhammad", "Abdullah", "Salim", "Khalid", "Umar", "Ali", "Fahd", "Saad", "Nasir", "Hamad", "Yusuf", "Ibrahim", "Sulayman", "Abd al-Rahman", "Hasan", "Zayd", "Talal", "Mansur", "Rashid", "Badr"],
   f: ["Noura", "Sarah", "Hind", "Maryam", "Fatima", "Aisha", "Latifa", "Munira", "Hessa", "Ruqayya"],
   long: ["Abd al-Rahman the Elder", "Abd al-Aziz Dhu al-Nurayn", "Abd al-Malik known as al-Amin", "Sulayman ibn Abd al-Karim", "Abdullah the Sheikh"],
@@ -43,7 +43,7 @@ function seeded(seed: number) {
   };
 }
 
-class Builder {
+export class Builder {
   members: MemberDTO[] = [];
   marriages: MarriageDTO[] = [];
   private n = 0;

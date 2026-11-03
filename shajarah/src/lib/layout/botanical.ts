@@ -43,7 +43,7 @@
  * ISO-216 aspect ratio), so the same layout scales to any A-size paper.
  */
 import { hierarchy, type HierarchyNode } from "d3-hierarchy";
-import { childrenIndex, hiddenFromPoster, lineagePath, withAncestors } from "../genealogy";
+import { childrenIndex, hiddenFromPoster, lineagePath, lineIds, withAncestors } from "../genealogy";
 import { givenAndFamilyName, nameLines } from "../nasab";
 import type { MemberDTO, TreeDTO } from "../types";
 import {
@@ -249,6 +249,13 @@ export interface SpouseHolder {
    * would be), instead of all running out of her side by side.
    */
   knot?: boolean;
+  /**
+   * The spouse is also drawn as a name in their own right elsewhere on the
+   * poster (a cousin married within the family): the same person, shown
+   * here again only as this one's spouse. Marked as such on the poster and
+   * in its key.
+   */
+  elsewhere?: boolean;
 }
 
 export interface TrunkLabel {
@@ -324,6 +331,12 @@ export interface PosterLayout {
   focus: { id: string; label: string } | null;
   /** People whose children are drawn from them on dotted lines (see LayoutOptions.familiesThrough). */
   familiesThrough: string[];
+  /**
+   * The people of the line drawn (genealogy's lineIds, from the poster's
+   * root): a child whose parent of the line is among them is drawn from that
+   * parent even when the other parent's family is shown through her.
+   */
+  lineIds?: string[];
   /** Oldest generation drawn on the canopy and its side branches; legend numbering and colours start here. */
   generationOffset: number;
   /** Generations present on crown / side-branch tags (for the legend). */
@@ -1104,7 +1117,25 @@ function layoutAttempt(
   if (visible.length === 0) return empty;
 
   // ── 1. Lineage hierarchy ──────────────────────────────────────────────
-  const index = childrenIndex(visible, tree.lineage, through);
+  // The line first (the root and their descendants through the lineage
+  // parent), so a child of a cousin marriage stays with their parent of
+  // the line, never drawn as an outsider through their mother.
+  const lineRootId = (() => {
+    if (visible.some((m) => m.id === tree.rootMemberId)) return tree.rootMemberId;
+    const plain = childrenIndex(visible, tree.lineage);
+    // (each counted once: a cycle in bad data cannot loop)
+    const memo = new Map<string, number>();
+    const size = (id: string): number => {
+      if (memo.has(id)) return memo.get(id)!;
+      memo.set(id, 0);
+      const n = 1 + (plain.get(id) ?? []).reduce((a, c) => a + size(c.id), 0);
+      memo.set(id, n);
+      return n;
+    };
+    return [...(plain.get(null) ?? [])].sort((a, b) => size(b.id) - size(a.id))[0]?.id ?? null;
+  })();
+  const line = lineIds(visible, tree.lineage, lineRootId);
+  const index = childrenIndex(visible, tree.lineage, through, line);
   const seen = new Set<string>();
   const build = (m: MemberDTO): TNode => {
     seen.add(m.id); // guards against cycles
@@ -2446,6 +2477,9 @@ function layoutAttempt(
       const pid = parentIdOf(n);
       if (n.parentId && pid) kidsOf.set(pid, [...(kidsOf.get(pid) ?? []), n]);
     }
+    // everyone drawn as a name in their own right: a spouse among them is
+    // shown again beside the partner only as a marked reference
+    const onPoster = new Set([...nodes.map((n) => n.id), ...(base.data.member ? [base.data.member.id] : [])]);
     // everyone whose children (in the line) have a recorded other parent
     const partners = new Map<string, Set<string>>();
     for (const c of tree.members) {
@@ -2478,8 +2512,10 @@ function layoutAttempt(
           dotted: throughHer || group.every((k) => dotted.has(k.member.id)),
           lineage: lineages.size === 1 ? [...lineages][0] : null,
           anchorOf: group[0], kids: group, dir: UP, clear: true,
+          elsewhere: onPoster.has(sid),
         };
-        h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * 2;
+        // (room for the mark of a spouse drawn elsewhere too)
+        h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * (h.elsewhere ? 2.7 : 2);
         h.h = fs * (1.6 + 1.05 * (h.lines.length - 1));
         holders.push(h);
         for (const k of group) holderOf.set(k.id, h);
@@ -2502,16 +2538,18 @@ function layoutAttempt(
     }
     // Every other recorded spouse of someone on the poster (a wife with no
     // children yet, a daughter's husband) on a short line from them, when
-    // spouses are shown. (Not one who is on the poster in her own right.)
+    // spouses are shown. A spouse who is on the poster in her own right (a
+    // cousin) is shown once more, marked, beside the partner of the line
+    // only (never from both sides).
     if (opts.motherNames) {
-      const onPoster = new Set([...nodes.map((n) => n.id), ...(base.data.member ? [base.data.member.id] : [])]);
       for (const p of growingNodes) {
         const married = tree.marriages
           .filter((x) => x.spouseAId === p.id || x.spouseBId === p.id)
           .map((x) => (x.spouseAId === p.id ? x.spouseBId : x.spouseAId));
         for (const sid of new Set(married)) {
           const spouse = byMemberId.get(sid);
-          if (!spouse || onPoster.has(sid) || holders.some((h) => h.partnerId === p.id && h.member.id === sid)) continue;
+          if (!spouse || holders.some((h) => h.partnerId === p.id && h.member.id === sid)) continue;
+          if (onPoster.has(sid) && p.member.gender !== (matri ? "FEMALE" : "MALE")) continue;
           const label = givenAndFamilyName(spouse.name);
           const fs = Math.max(floorFor(fl), p.fontSize * 0.85);
           // (a daughter's husband is of another family: a dotted line)
@@ -2520,9 +2558,11 @@ function layoutAttempt(
             id: `spouse:${p.id}:${sid}`, member: spouse, partnerId: p.id, childIds: [],
             label, lines: nameLines(label), fontSize: fs, w: 0, h: 0, x: 0, y: 0,
             dotted: outside, lineage: p.lineage ?? null,
-            anchorOf: p, kids: [], dir: UP, clear: true, lone: true,
+            anchorOf: p, kids: [], dir: UP, clear: true, lone: true, elsewhere: onPoster.has(sid),
           };
-          h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * 2;
+          // (a lone spouse is dotted when of another family, never when of the line)
+          if (onPoster.has(sid)) h.dotted = false;
+          h.w = Math.max(...h.lines.map((t) => textWidth(t, fs))) + fs * (h.elsewhere ? 2.7 : 2);
           h.h = fs * (1.6 + 1.05 * (h.lines.length - 1));
           holders.push(h);
         }
@@ -3253,7 +3293,7 @@ function layoutAttempt(
       ];
       const provisional = {
         nodes: growingNodes, stubs, base: baseBox, trunkLabels, edges: drawnEdges, origin, trunkWidth, spouses: holders,
-        familiesThrough: [...through],
+        familiesThrough: [...through], lineIds: [...line],
       } as unknown as PosterLayout;
       lastReport = validateRelationships(provisional, tree);
       return lastReport.issues;
@@ -3706,6 +3746,10 @@ function layoutAttempt(
   };
 
   const strip = ({ tx: _tx, ty: _ty, mass: _m, region: _r, side: _s, ...rest }: LiveNode): PosterNode => rest;
+  // (everyone drawn as a name in their own right)
+  const drawnIds = new Set<string>([
+    ...growing.map((n) => n.id), ...stubs.map((n) => n.id), ...trunkLabels.map((t) => t.member.id), ...(baseNode ? [baseNode.id] : []),
+  ]);
   return {
     ...empty,
     // geometry may have switched to the tall-base variant
@@ -3726,7 +3770,10 @@ function layoutAttempt(
     base: baseNode,
     stubs: stubs.map((s) => strip(s as LiveNode)),
     nodes: growing.map(strip),
-    spouses: holders.map(({ anchorOf: _a, kids: _k, dir: _d, clear: _c, lone: _l, ...h }) => h),
+    spouses: holders.map(({ anchorOf: _a, kids: _k, dir: _d, clear: _c, lone: _l, ...h }) => (
+      // (marked when the spouse is also drawn as a name in their own right)
+      !h.knot && drawnIds.has(h.member.id) ? { ...h, elsewhere: true } : h
+    )),
     branches,
     edges,
     canopy,
@@ -3746,6 +3793,7 @@ function layoutAttempt(
     clarity: { ok: true, expected: 0, drawn: 0, clearCrossings: 0, issues: [] },
     ringLoad,
     familiesThrough: [...through],
+    lineIds: [...line],
     focus: focusMember
       ? {
         id: focusMember.id,

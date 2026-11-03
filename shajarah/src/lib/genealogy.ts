@@ -19,20 +19,51 @@ export function posterParentId(
   m: Pick<MemberDTO, "fatherId" | "motherId">,
   lineage: Lineage,
   through?: ReadonlySet<string>,
+  /**
+   * The people of the line (lineIds): a child whose parent of the line is
+   * one of them stays with that parent even when the other parent's family
+   * is shown through her. That is the child of a cousin marriage: of the
+   * line through the father, so never drawn as an outsider from the mother.
+   */
+  line?: ReadonlySet<string>,
 ): string | null {
   if (through?.size) {
     const other = lineage === "MATRILINEAL" ? m.fatherId : m.motherId;
-    if (other && through.has(other)) return other;
+    const own = lineageParentId(m, lineage);
+    if (other && through.has(other) && !(own && line?.has(own))) return other;
   }
   return lineageParentId(m, lineage);
 }
 
+/**
+ * The people of the line: the root and everyone descended from them through
+ * the lineage parent (fathers, or mothers in a maternal tree), each once
+ * however many ways they are related.
+ */
+export function lineIds(members: readonly MemberDTO[], lineage: Lineage, rootId: string | null | undefined): Set<string> {
+  const ids = new Set(members.map((m) => m.id));
+  const kids = new Map<string, string[]>();
+  for (const m of members) {
+    const p = lineageParentId(m, lineage);
+    if (p && ids.has(p)) kids.set(p, [...(kids.get(p) ?? []), m.id]);
+  }
+  const out = new Set<string>();
+  const stack = rootId && ids.has(rootId) ? [rootId] : [];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (out.has(id)) continue;
+    out.add(id);
+    stack.push(...(kids.get(id) ?? []));
+  }
+  return out;
+}
+
 /** Map of parentId → children, ordered by birthOrder then birthYear. */
-export function childrenIndex(members: MemberDTO[], lineage: Lineage, through?: ReadonlySet<string>) {
+export function childrenIndex(members: MemberDTO[], lineage: Lineage, through?: ReadonlySet<string>, line?: ReadonlySet<string>) {
   const ids = new Set(members.map((m) => m.id));
   const index = new Map<string | null, MemberDTO[]>();
   for (const m of members) {
-    let p = posterParentId(m, lineage, through);
+    let p = posterParentId(m, lineage, through, line);
     if (p && !ids.has(p)) p = null;
     const list = index.get(p) ?? [];
     list.push(m);
@@ -229,19 +260,19 @@ export function nasab(members: MemberDTO[], id: string, depth = 4): string {
  * the root) and every descendant (through the lineage). Siblings, cousins
  * and half-siblings are not on it. Used to highlight a person's line.
  */
-export function lineagePath(members: MemberDTO[], lineage: Lineage, memberId: string, through?: ReadonlySet<string>) {
+export function lineagePath(members: MemberDTO[], lineage: Lineage, memberId: string, through?: ReadonlySet<string>, line?: ReadonlySet<string>) {
   const byId = new Map(members.map((m) => [m.id, m]));
   const ancestors: string[] = [];
   const seen = new Set<string>([memberId]);
   let cur = byId.get(memberId);
   while (cur) {
-    const p = posterParentId(cur, lineage, through);
+    const p = posterParentId(cur, lineage, through, line);
     if (!p || seen.has(p)) break;
     ancestors.push(p);
     seen.add(p);
     cur = byId.get(p);
   }
-  const index = childrenIndex(members, lineage, through);
+  const index = childrenIndex(members, lineage, through, line);
   const descendants: string[] = [];
   const stack = [...(index.get(memberId) ?? [])];
   while (stack.length) {
@@ -252,4 +283,36 @@ export function lineagePath(members: MemberDTO[], lineage: Lineage, memberId: st
     stack.push(...(index.get(c.id) ?? []));
   }
   return { ancestors, descendants };
+}
+
+/**
+ * Pedigree collapse: each of a person's ancestors (through fathers and
+ * mothers) with the number of distinct lines from the person up to them.
+ * More than one is legitimate genealogy (parents who were cousins share
+ * grandparents), never a duplicate: the ancestor is one person, reached by
+ * several paths.
+ */
+export function ancestorPaths(members: readonly Pick<MemberDTO, "id" | "fatherId" | "motherId">[], id: string): Map<string, number> {
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const paths = new Map<string, number>();
+  // (memoised per person: how many lines from them reach each ancestor)
+  const memo = new Map<string, Map<string, number>>();
+  const visiting = new Set<string>();
+  const up = (pid: string): Map<string, number> => {
+    if (memo.has(pid)) return memo.get(pid)!;
+    const out = new Map<string, number>();
+    if (visiting.has(pid)) return out; // (a cycle in bad data)
+    visiting.add(pid);
+    const p = byId.get(pid);
+    for (const parent of [p?.fatherId, p?.motherId]) {
+      if (!parent || !byId.has(parent)) continue;
+      out.set(parent, (out.get(parent) ?? 0) + 1);
+      for (const [a, n] of up(parent)) out.set(a, (out.get(a) ?? 0) + n);
+    }
+    visiting.delete(pid);
+    memo.set(pid, out);
+    return out;
+  };
+  for (const [a, n] of up(id)) paths.set(a, n);
+  return paths;
 }
