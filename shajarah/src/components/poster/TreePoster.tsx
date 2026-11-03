@@ -715,7 +715,9 @@ function PersonNode({
         body = (
           <>
             <path d={designPath(node.shape, node.w, node.h, fs)} fill={fill} stroke={border} strokeWidth={sw} strokeLinejoin="round" />
-            {orn && <path d={orn} fill={border} opacity={0.7} />}
+            {/* (in the name's own colour, chosen to read on its fill: the detail
+                shows the same on light and dark names) */}
+            {orn && <path d={orn} fill={text} opacity={0.55} />}
           </>
         );
         break;

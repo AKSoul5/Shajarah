@@ -357,7 +357,7 @@ type HNode = HierarchyNode<TNode> & { u?: number; u0?: number; u1?: number };
 type Region = "crown" | "side" | "fixed";
 type LiveNode = PosterNode & {
   tx: number; ty: number; mass: number; region: Region; side: number;
-  /** Drawn past the box on every side (nodeGeometry's decorOutset), kept clear in relaxation. */
+  /** Kept clear around the box: what is drawn past it and half the clearance (nodeGeometry's layoutPad). */
   pad?: number;
   /** Crown nodes: the angular sector (around the crown base) of their sub-branch. */
   sector?: [number, number];
@@ -379,11 +379,11 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
   const layout = withBoxRoom(tree, opts);
   // The clearance between names gives way to legibility: a poster whose
-  // names fall just short of the legible size with it is laid out again
-  // without it (what each name draws past its box is still kept clear), and
-  // that one is kept when it is legible and as clean. (Only when just short:
-  // a poster far too dense for its paper is not laid out twice.)
-  if (opts.clearance === undefined && !layout.legibility.ok && layout.legibility.smallestTextMm >= layout.legibility.minTextMm * 0.9) {
+  // names fall short of the legible size with it (by at most a fifth) is
+  // laid out again without it (what each name draws past its box is still
+  // kept clear), and that one is kept when it is legible and as clean. A
+  // poster far too dense for its paper is not laid out twice.
+  if (opts.clearance === undefined && !layout.legibility.ok && layout.legibility.smallestTextMm >= layout.legibility.minTextMm * 0.8) {
     const tight = withBoxRoom(tree, { ...opts, clearance: 0 });
     if (tight.legibility.ok && (!isCleanPoster(layout) || isCleanPoster(tight))) return tight;
   }
