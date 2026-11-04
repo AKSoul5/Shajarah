@@ -1450,8 +1450,13 @@ function layoutAttempt(
     }
     return v;
   };
+  // When the canopy's names are set smaller (a retry, fontScale < 1), the
+  // trunk's names and the foundation follow them, never below the legible
+  // size: they no longer stand two or three times larger than the family
+  // above, and the height they give back goes to the canopy.
+  const lowerF = (f: number) => (fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
   const trunkFontFor = (f: number) =>
-    Math.max(floorFor(f), Math.min(f * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity));
+    Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity));
   const stepFor = (f: number) => trunkFontFor(f) * 1.75;
   const trunkSection = (count: number, f: number) => {
     // a bare trunk (no ancestors above the canopy base) still stands tall
@@ -1476,7 +1481,7 @@ function layoutAttempt(
     text: soilTextFor(p.onTrunk, p.soil),
     custom: !!customSoil,
     trunkName: p.onTrunk[0]?.data.member?.name ?? null,
-    rtl, joiner, f, nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
+    rtl, joiner, f: lowerF(f), nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
   });
 
   type Plan = { onTrunk: HNode[]; soil: HNode[] };
@@ -2616,6 +2621,18 @@ function layoutAttempt(
           holders.push(h);
         }
       }
+    }
+  }
+  // Every spouse's frame alike, so a spouse is always recognised as one: a
+  // wife and a husband, a name alone and a name with its family name, a
+  // cousin shown here again. All as tall as the tallest name needs (a single
+  // name centred in it), none narrower than a short name's frame.
+  {
+    const named = holders.filter((h) => !h.knot);
+    const rows = Math.max(1, ...named.map((h) => h.lines.length));
+    for (const h of named) {
+      h.h = h.fontSize * (1.6 + 1.05 * (rows - 1));
+      h.w = Math.max(h.w, h.fontSize * 3.6);
     }
   }
   // The width of each drawn line at its start and end, as section 6 draws

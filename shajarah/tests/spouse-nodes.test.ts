@@ -133,12 +133,21 @@ describe("the key's spouse", () => {
     }
   });
 
-  it("is dashed when every spouse drawn is a daughter's husband on her dotted line", () => {
+  it("is the same frame for every spouse: a daughter's husband is solid too (her family is told by its dotted lines)", () => {
     const { layout, svg } = draw(complex, { showFemales: true, through: true });
     expect(holders(layout).length).toBeGreaterThan(0);
     expect(holders(layout).every((s) => s.dotted)).toBe(true);
-    expect(frameAfter(svg, legendEntry(svg, "spouse")!.at).dashed).toBe(true);
-    expect(frameAfter(svg, groupsWith(svg, 'data-kind="spouse"')[0].at).dashed).toBe(true);
+    expect(frameAfter(svg, legendEntry(svg, "spouse")!.at).dashed).toBe(false);
+    for (const g of groupsWith(svg, 'data-kind="spouse"')) expect(frameAfter(svg, g.at).dashed).toBe(false);
+  });
+
+  it("is as tall for a wife with one name as for a husband with a family name", () => {
+    const wives = draw(complex, { showFemales: true, through: true, motherNames: true });
+    const named = holders(wives.layout).filter((s) => !s.knot);
+    const genders = new Set(named.map((s) => s.member.gender));
+    expect(genders.size).toBe(2);
+    const rows = Math.max(...named.map((s) => s.lines.length));
+    for (const s of named) expect(s.h / s.fontSize, s.member.name).toBeCloseTo(1.6 + 1.05 * (rows - 1), 5);
   });
 
   it("is absent when no spouse is drawn, and follows the display mode as it changes", () => {

@@ -578,8 +578,9 @@ const lozengePath = (x: number, y: number, s: number) =>
 /**
  * The frame of a spouse's name, in one of three designs (theme.spouseStyle),
  * centred on 0, 0: drawn on the branches and, smaller, in the key, so the
- * key's spouse is the poster's spouse. A daughter's husband (a family shown
- * through her) has a dashed rule. Every design carries a cue that is not
+ * key's spouse is the poster's spouse. Every spouse has the same frame (a
+ * daughter's husband too: her family is told by its dotted lines). Every
+ * design carries a cue that is not
  * colour (pointed ends, a lozenge at each end, or a ruled inscription with
  * no box), so a spouse is never told from a person by colour alone.
  */
@@ -597,14 +598,13 @@ export function ElsewhereMark({ fs, pal, x = 0, y = 0 }: { fs: number; pal: Pale
   );
 }
 
-export function SpouseFrame({ style, w, h, fs, pal, dotted, elsewhere = false }: { style: PosterTheme["spouseStyle"]; w: number; h: number; fs: number; pal: Palette; dotted: boolean; elsewhere?: boolean }) {
-  const dash = dotted ? `${(fs * 0.25).toFixed(1)} ${(fs * 0.18).toFixed(1)}` : undefined;
+export function SpouseFrame({ style, w, h, fs, pal, elsewhere = false }: { style: PosterTheme["spouseStyle"]; w: number; h: number; fs: number; pal: Palette; elsewhere?: boolean }) {
   const rule = pal.rule;
   if (style === "capsule") {
     const mark = h * 0.42;
     return (
       <g data-spouse-frame="capsule">
-        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} fill={pal.spouseFill} stroke={pal.spouseRim} strokeWidth={fs * 0.05} strokeDasharray={dash} />
+        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} fill={pal.spouseFill} stroke={pal.spouseRim} strokeWidth={fs * 0.05} />
         <path d={(elsewhere ? "" : lozengePath(-w / 2 + mark, 0, fs * 0.09)) + lozengePath(w / 2 - mark, 0, fs * 0.09)} fill={pal.mono ? rule : pal.spouseRim} opacity={0.85} />
         {elsewhere && <ElsewhereMark fs={fs} pal={pal} x={-w / 2 + mark} />}
       </g>
@@ -616,7 +616,7 @@ export function SpouseFrame({ style, w, h, fs, pal, dotted, elsewhere = false }:
     return (
       <g data-spouse-frame="inscribed">
         <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={fs * 0.5} fill={pal.paper} />
-        <path d={`M${(-half).toFixed(1)} ${y.toFixed(1)}H${(-fs * 0.3).toFixed(1)}M${(fs * 0.3).toFixed(1)} ${y.toFixed(1)}H${half.toFixed(1)}`} stroke={rule} strokeWidth={fs * 0.045} strokeDasharray={dash} strokeLinecap="round" />
+        <path d={`M${(-half).toFixed(1)} ${y.toFixed(1)}H${(-fs * 0.3).toFixed(1)}M${(fs * 0.3).toFixed(1)} ${y.toFixed(1)}H${half.toFixed(1)}`} stroke={rule} strokeWidth={fs * 0.045} strokeLinecap="round" />
         <path d={lozengePath(0, y, fs * 0.13)} fill={rule} />
         {elsewhere && <ElsewhereMark fs={fs} pal={pal} x={-w / 2 + fs * 0.45} />}
       </g>
@@ -625,7 +625,7 @@ export function SpouseFrame({ style, w, h, fs, pal, dotted, elsewhere = false }:
   const tip = Math.min(fs * 0.85, h * 0.55);
   return (
     <g data-spouse-frame="manuscript">
-      <path d={manuscriptPath(w, h, tip)} fill={pal.ivory} stroke={rule} strokeWidth={fs * 0.06} strokeDasharray={dash} />
+      <path d={manuscriptPath(w, h, tip)} fill={pal.ivory} stroke={rule} strokeWidth={fs * 0.06} />
       {!pal.mono && <path d={(elsewhere ? "" : lozengePath(-w / 2 + tip * 0.42, 0, fs * 0.09)) + lozengePath(w / 2 - tip * 0.42, 0, fs * 0.09)} fill={pal.spouseRim} opacity={0.8} />}
       {elsewhere && <ElsewhereMark fs={fs} pal={pal} x={-w / 2 + Math.max(tip * 0.55, fs * 0.5)} />}
     </g>
@@ -655,7 +655,7 @@ function Cartouche({ holder: s, pal, style, onClick }: { holder: SpouseHolder; p
     <text key={i} x={s.elsewhere ? fs * 0.35 : 0} y={(i - (s.lines.length - 1) / 2) * fs * 1.05 - (style === "inscribed" ? fs * 0.12 : 0)} textAnchor="middle" dominantBaseline="central"
       fontSize={fs} fill={style === "inscribed" ? ink : pal.ink}>{line}</text>
   ));
-  const frame = <SpouseFrame style={style} w={s.w} h={s.h} fs={fs} pal={pal} dotted={s.dotted} elsewhere={!!s.elsewhere} />;
+  const frame = <SpouseFrame style={style} w={s.w} h={s.h} fs={fs} pal={pal} elsewhere={!!s.elsewhere} />;
   return (
     <g transform={`translate(${s.x.toFixed(1)} ${s.y.toFixed(1)})`} {...onClick} data-kind="spouse" data-spouse-of={s.partnerId} data-spouse-member={s.member.id} data-elsewhere={s.elsewhere ? "true" : undefined}>
       <title>{s.member.name}</title>
@@ -1109,11 +1109,10 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
     items.push({
       key: "spouse",
       label: spouseLabel(drawnSpouses.map((s) => s.member.gender), rtl),
-      // (the poster's own frame, at the key's size; dashed when every spouse
-      // drawn is a daughter's husband on her dotted line)
+      // (the poster's own frame, at the key's size)
       swatch: (x) => (
         <g transform={`translate(${x + sw / 2} ${y})`}>
-          <SpouseFrame style={theme.spouseStyle ?? "manuscript"} w={sw} h={fs * 0.95} fs={fs} pal={pal} dotted={drawnSpouses.every((s) => s.dotted)} />
+          <SpouseFrame style={theme.spouseStyle ?? "manuscript"} w={sw} h={fs * 0.95} fs={fs} pal={pal} />
         </g>
       ),
     });
