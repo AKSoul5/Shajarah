@@ -37,6 +37,12 @@ Each branch contains the ones above it.
 | `node-designs` | `7d57b1f` | **Geometry contract** (`nodeGeometry.ts`): one definition per design, shared by the layout, the renderer and the QA, which reports drawn shapes that touch. **Seven new designs:** soft rectangle, classic cartouche, octagonal seal, heraldic shield, hexagon, cameo, scalloped medallion (now a fine engraved rosette); on their posters every name's ring and stroke is kept clear. **Node Design Lab** (`/lab/nodes`); the Style menu lists every design, suggested ones first. Contact sheets at A2 and A1 (300 dpi), with PDF exports. Report: `docs/node-designs.md` | node-design tests 8 new; QA 448 (322 + 133 design cases) pass |
 | `cousin-marriages` | `c85562e` | Cousin marriages, complex families, the branch deciding a child's place, a marriage hidden on the poster (`docs/complex-families.md`). **Fixed:** children of a cousin marriage were drawn as outsiders on the mother's dotted line when her family was shown; they now stay in their father's line. A spouse also drawn in their own branch is marked (ring, plus a key entry). A childless cousin marriage is shown once. Eight cousin fixtures, seven complex-family fixtures; pedigree-collapse helper. **Fixed:** a branch poster lost the couple's children when the mother's family was shown | 53 + 27 new; the children test fails without the fix |
 
+## Posters after 1.0.50 (awaiting review)
+
+| Branch | Tip | What | Tests |
+| --- | --- | --- | --- |
+| `poster-room` | `873ef75` | **Room for the tree on small paper.** When a dense family's names are set smaller to fit, the foundation (and the trunk's names) no longer stay two to three times larger: the poster is laid out again with them following the names, and that is used only when it is as clean and as legible. On a 248-person branch poster on A1 the ground line moves from 73% to 83% of the page. **Every spouse's frame has a solid rule** (a daughter's husband is no longer dashed; her family keeps its dotted lines). Cost: a dense poster on small paper takes about twice as long to lay out | 1 new (fails without the fix); full suite 601 pass; QA 448 pass |
+
 ## Other branches (awaiting review)
 
 | Branch | Tip | What |
@@ -79,6 +85,8 @@ Still open: adopted children's numbering, the genogram and the
 relationship network, Git history clean-up.
 
 ## Remaining
+
+- **Whole-family poster with two wives of one man in the canopy:** his children's lines from a wife's frame cross his other children's lines (seen on a real family after adding spouses; the branch poster is clean).
 
 - **Database additions** (after approval), then English names, places
   (map, residence filter), full and Hijri dates, biographies, typed
