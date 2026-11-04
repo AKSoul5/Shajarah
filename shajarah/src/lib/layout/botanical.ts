@@ -413,7 +413,7 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
   // times larger and taking height the tree needed. Laid out again with
   // them following the names (LayoutOptions.compactLower); that poster is
   // used when it is as clean and as legible, its names no smaller.
-  if (opts.compactLower === undefined && process.env.MODE !== "soil" && process.env.MODE !== "base" && oversizedLower(layout)) {
+  if (opts.compactLower === undefined && oversizedLower(layout)) {
     const compact = withBoxRoom(tree, { ...opts, compactLower: true });
     const asGood = (isCleanPoster(compact) || !isCleanPoster(layout))
       && (compact.legibility.ok || !layout.legibility.ok)
@@ -1484,7 +1484,6 @@ function layoutAttempt(
   };
   // (see LayoutOptions.compactLower)
   const lowerF = (f: number) => (opts.compactLower && fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
-  const soilF = (f: number) => ((opts.compactLower || process.env.MODE === "soil") && fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
   const trunkFontFor = (f: number) =>
     Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity));
   const stepFor = (f: number) => trunkFontFor(f) * 1.75;
@@ -1511,7 +1510,7 @@ function layoutAttempt(
     text: soilTextFor(p.onTrunk, p.soil),
     custom: !!customSoil,
     trunkName: p.onTrunk[0]?.data.member?.name ?? null,
-    rtl, joiner, f: soilF(f), nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
+    rtl, joiner, f: lowerF(f), nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
   });
 
   type Plan = { onTrunk: HNode[]; soil: HNode[] };

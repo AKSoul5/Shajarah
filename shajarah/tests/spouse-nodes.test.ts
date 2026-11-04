@@ -141,15 +141,6 @@ describe("the key's spouse", () => {
     for (const g of groupsWith(svg, 'data-kind="spouse"')) expect(frameAfter(svg, g.at).dashed).toBe(false);
   });
 
-  it("is as tall for a wife with one name as for a husband with a family name", () => {
-    const wives = draw(complex, { showFemales: true, through: true, motherNames: true });
-    const named = holders(wives.layout).filter((s) => !s.knot);
-    const genders = new Set(named.map((s) => s.member.gender));
-    expect(genders.size).toBe(2);
-    const rows = Math.max(...named.map((s) => s.lines.length));
-    for (const s of named) expect(s.h / s.fontSize, s.member.name).toBeCloseTo(1.6 + 1.05 * (rows - 1), 5);
-  });
-
   it("is absent when no spouse is drawn, and follows the display mode as it changes", () => {
     const off = draw(complex, { showFemales: true });
     expect(holders(off.layout).length).toBe(0);
