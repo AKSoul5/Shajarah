@@ -127,6 +127,15 @@ export interface LayoutOptions {
    */
   cleanFirst?: boolean;
   /**
+   * The trunk's names and the foundation follow the canopy's names when
+   * those are set smaller (a retry, fontScale < 1), never below the legible
+   * size, so they do not stand two or three times larger than the family
+   * and the height they give back goes to the canopy. Tried by
+   * computePosterLayout when a poster's foundation came out much larger
+   * than its names, and kept only when at least as good.
+   */
+  compactLower?: boolean;
+  /**
    * Room between generations for spouses' boxes, everywhere: a child set
    * at least a box's extent further out than his mother when his father's
    * box is drawn between them. (Tried when a poster laid out without it has
@@ -398,7 +407,30 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
-  return withBoxRoom(tree, opts);
+  const layout = withBoxRoom(tree, opts);
+  // A dense family on small paper: its names set smaller to fit, while the
+  // foundation (and the trunk) kept the full size, standing two or three
+  // times larger and taking height the tree needed. Laid out again with
+  // them following the names (LayoutOptions.compactLower); that poster is
+  // used when it is as clean and as legible, its names no smaller.
+  if (opts.compactLower === undefined && process.env.MODE !== "soil" && process.env.MODE !== "base" && oversizedLower(layout)) {
+    const compact = withBoxRoom(tree, { ...opts, compactLower: true });
+    const asGood = (isCleanPoster(compact) || !isCleanPoster(layout))
+      && (compact.legibility.ok || !layout.legibility.ok)
+      && compact.overlaps <= layout.overlaps
+      && compact.clarity.issues.length <= layout.clarity.issues.length
+      && compact.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.97;
+    if (asGood) return compact;
+  }
+  return layout;
+}
+
+/** The foundation's text more than LOWER_RATIO times the canopy's typical name. */
+const LOWER_RATIO = 2;
+function oversizedLower(l: PosterLayout): boolean {
+  if (!l.soil || !l.nodes.length) return false;
+  const sizes = l.nodes.map((n) => n.fontSize).sort((a, b) => a - b);
+  return l.soil.fontSize > LOWER_RATIO * sizes[sizes.length >> 1];
 }
 
 function withBoxRoom(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
@@ -1450,11 +1482,9 @@ function layoutAttempt(
     }
     return v;
   };
-  // When the canopy's names are set smaller (a retry, fontScale < 1), the
-  // trunk's names and the foundation follow them, never below the legible
-  // size: they no longer stand two or three times larger than the family
-  // above, and the height they give back goes to the canopy.
-  const lowerF = (f: number) => (fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
+  // (see LayoutOptions.compactLower)
+  const lowerF = (f: number) => (opts.compactLower && fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
+  const soilF = (f: number) => ((opts.compactLower || process.env.MODE === "soil") && fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
   const trunkFontFor = (f: number) =>
     Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity));
   const stepFor = (f: number) => trunkFontFor(f) * 1.75;
@@ -1481,7 +1511,7 @@ function layoutAttempt(
     text: soilTextFor(p.onTrunk, p.soil),
     custom: !!customSoil,
     trunkName: p.onTrunk[0]?.data.member?.name ?? null,
-    rtl, joiner, f: lowerF(f), nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
+    rtl, joiner, f: soilF(f), nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
   });
 
   type Plan = { onTrunk: HNode[]; soil: HNode[] };
@@ -2621,18 +2651,6 @@ function layoutAttempt(
           holders.push(h);
         }
       }
-    }
-  }
-  // Every spouse's frame alike, so a spouse is always recognised as one: a
-  // wife and a husband, a name alone and a name with its family name, a
-  // cousin shown here again. All as tall as the tallest name needs (a single
-  // name centred in it), none narrower than a short name's frame.
-  {
-    const named = holders.filter((h) => !h.knot);
-    const rows = Math.max(1, ...named.map((h) => h.lines.length));
-    for (const h of named) {
-      h.h = h.fontSize * (1.6 + 1.05 * (rows - 1));
-      h.w = Math.max(h.w, h.fontSize * 3.6);
     }
   }
   // The width of each drawn line at its start and end, as section 6 draws
