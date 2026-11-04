@@ -136,6 +136,14 @@ export interface LayoutOptions {
    */
   compactLower?: boolean;
   /**
+   * Internal (see computePosterLayout): partners whose spouses are drawn
+   * beside them, each on a short line, with their children's lines from the
+   * partner directly, instead of growing from the spouse's frame. Used when
+   * a partner's children spread all round them and the frames found no clear
+   * place: their lines ran together at the partner.
+   */
+  spousesBeside?: string[];
+  /**
    * Room between generations for spouses' boxes, everywhere: a child set
    * at least a box's extent further out than his mother when his father's
    * box is drawn between them. (Tried when a poster laid out without it has
@@ -407,7 +415,7 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
-  const layout = withBoxRoom(tree, opts);
+  let layout = withBoxRoom(tree, opts);
   // A dense family on small paper: its names set smaller to fit, while the
   // foundation (and the trunk) kept the full size, standing two or three
   // times larger and taking height the tree needed. Laid out again with
@@ -420,9 +428,38 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
       && compact.overlaps <= layout.overlaps
       && compact.clarity.issues.length <= layout.clarity.issues.length
       && compact.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.97;
-    if (asGood) return compact;
+    if (asGood) layout = compact;
   }
-  return layout;
+  return withSpousesBeside(tree, opts, layout);
+}
+
+/**
+ * A poster left unclear by spouses' frames (their lines and a partner's
+ * running together where the frames found no clear place, as with a man
+ * whose children by two wives and by none spread all round him): laid out
+ * again with those partners' spouses beside them and the children's lines
+ * from the partner. Kept when it is cleaner and no less legible.
+ */
+function withSpousesBeside(tree: TreeDTO, opts: LayoutOptions, layout: PosterLayout): PosterLayout {
+  if (opts.spousesBeside !== undefined || isCleanPoster(layout)) return layout;
+  const ids = (e: unknown): string[] => (Array.isArray(e) ? e : typeof e === "string" ? [e] : []);
+  const partners = new Set<string>();
+  for (const i of layout.clarity.issues) {
+    for (const id of [...ids(i.edge), ...ids(i.other)]) {
+      const m = /^spouse:([^:]+):/.exec(id);
+      if (m) partners.add(m[1]);
+    }
+  }
+  // (only frames with children: a lone spouse's line is short and its own)
+  const withKids = new Set(layout.spouses.filter((h) => h.childIds.length && !h.knot).map((h) => h.partnerId));
+  const chosen = [...partners].filter((p) => withKids.has(p));
+  if (!chosen.length) return layout;
+  const again = computePosterLayout(tree, { ...opts, spousesBeside: chosen });
+  const better = again.overlaps <= layout.overlaps
+    && again.clarity.issues.length < layout.clarity.issues.length
+    && (again.legibility.ok || !layout.legibility.ok)
+    && again.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.97;
+  return better ? again : layout;
 }
 
 /** The foundation's text more than LOWER_RATIO times the canopy's typical name. */
@@ -2551,7 +2588,9 @@ function layoutAttempt(
       const lineParent = matri ? c.motherId : c.fatherId, other = matri ? c.fatherId : c.motherId;
       if (lineParent && other) partners.set(lineParent, (partners.get(lineParent) ?? new Set()).add(other));
     }
+    const beside = new Set(opts.spousesBeside ?? []);
     for (const [pid, kids] of kidsOf) {
+      if (beside.has(pid)) continue;
       const throughHer = through.has(pid);
       if (!throughHer && !(opts.motherNames && partners.has(pid))) continue;
       const groups = new Map<string, LiveNode[]>();
