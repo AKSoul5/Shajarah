@@ -143,6 +143,8 @@ export interface LayoutOptions {
    * place: their lines ran together at the partner.
    */
   spousesBeside?: string[];
+  /** Internal (tests): false leaves a partner's spouses where each found room, not brought onto one arc. */
+  levelSpouses?: boolean;
   /**
    * Room between generations for spouses' boxes, everywhere: a child set
    * at least a box's extent further out than his mother when his father's
@@ -577,6 +579,8 @@ const BALANCE_BUDGET_FACTOR = 2;
 const BALANCE_BUDGET_MAX_MS = 60_000;
 const BALANCES = [-0.04, 0.06, -0.02];
 const BALANCE_ISSUES = 15;
+/** Line checks a layout may spend levelling a partner's spouses (see layoutAttempt). */
+const LEVEL_CHECKS = 8;
 
 /** One layout of the poster (see computePosterLayout, which may lay it out again). */
 function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
@@ -3704,6 +3708,66 @@ function layoutAttempt(
           if (fixed) break;
         }
       }
+    }
+    // The spouses of one partner stand on one arc, as each generation does:
+    // each placed on its own (or moved by the untangling) found room at its
+    // own depth, and one stood lower than the others for no reason a reader
+    // can see. Their arc is a ring of the canopy's own fan (the same curve
+    // the generations follow: r0 + t·(reach − r0) round the canopy's
+    // centre, one t for all of them). Each keeps its own direction from the
+    // partner and slides along it onto the common ring (the outermost of
+    // theirs first), when the poster is as clear as it was and no frame is
+    // left without room.
+    // (its own few checks: the untangling may have used the budget up)
+    let levelChecks = opts.levelSpouses === false ? 0 : LEVEL_CHECKS;
+    const thetaOf = (p: Vec) => Math.atan2(-(p.y - origin.y), p.x - origin.x);
+    const ringOf = (p: Vec) => (len(sub(p, origin)) - r0) / Math.max(1, reach(thetaOf(p)) * 0.95 - r0);
+    for (const pid of new Set(holders.filter((h) => !h.knot && !h.lone).map((h) => h.partnerId))) {
+      const group = holders.filter((h) => h.partnerId === pid && !h.knot && !h.lone);
+      if (group.length < 2 || levelChecks < 2) continue;
+      const P = fromOf(group[0]);
+      const dirs = group.map((h) => norm(sub(h, P)));
+      const rings = group.map((h) => ringOf(h));
+      // (already on one arc, within a little of a name's height)
+      const span = Math.max(1, reach(thetaOf(P)) * 0.95 - r0);
+      const tol = group[0].fontSize * 0.6;
+      if ((Math.max(...rings) - Math.min(...rings)) * span <= tol) continue;
+      // (or already on an arc round the canopy's centre)
+      const radii = group.map((h) => len(sub(h, origin)));
+      if (Math.max(...radii) - Math.min(...radii) <= tol) continue;
+      if (!fresh) levelChecks--;
+      const now = fresh ? issues : check();
+      const saved = group.map((h) => h.pin);
+      let levelled = false;
+      for (const T of [...rings].sort((a, b) => b - a)) {
+        if (levelChecks < 2) break;
+        const pins = group.map((h, i) => {
+          const d = dirs[i];
+          // (never past a spouse's own nearest child)
+          const along = Math.min(...h.kids.map((k) => (k.x - P.x) * d.x + (k.y - P.y) * d.y)) - h.h;
+          if (along <= 0) return null;
+          let lo = 0, hi = along;
+          const at = (t: number) => ringOf(add(P, scale(d, t)));
+          if ((at(lo) - T) * (at(hi) - T) > 0) return null;
+          const rising = at(hi) > at(lo);
+          for (let k = 0; k < 24; k++) {
+            const mid = (lo + hi) / 2;
+            if ((at(mid) < T) === rising) lo = mid; else hi = mid;
+          }
+          return add(P, scale(d, (lo + hi) / 2));
+        });
+        if (pins.some((q) => !q)) continue;
+        group.forEach((h, i) => (h.pin = pins[i]!));
+        levelChecks--;
+        const next = check();
+        if (holders.every((x) => x.clear) && next.length <= now.length) {
+          issues = next;
+          levelled = true;
+          break;
+        }
+        group.forEach((h, i) => (h.pin = saved[i]));
+      }
+      if (!levelled) { levelChecks--; issues = check(); }
     }
     if (!fresh) check();
   }

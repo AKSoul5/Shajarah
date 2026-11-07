@@ -126,12 +126,14 @@ describe("complex families: the poster", () => {
     expect(JSON.stringify(c.tree)).toBe(before);
   });
 
-  it("children with no father recorded part from a filled bead, explained in the key", () => {
+  it("children with no father recorded part from a filled bead, which the key does not mention", () => {
     const c = COMPLEX_FIXTURES["one-parent"]();
     const { layout, svg } = draw(c.tree, { showFemales: true, through: [c.focus] });
     expect(layout.spouses.some((s) => s.partnerId === c.focus && s.knot && !s.collapsed)).toBe(true);
     expect(svg).toMatch(/data-knot="unrecorded"/);
-    expect(svg).toMatch(/data-legend="unrecorded"/);
+    // (a reader is not told that a parent is missing: no entry, no swatch)
+    expect(svg).not.toMatch(/data-legend="unrecorded"/);
+    expect(svg).not.toContain("الوالد الآخر غير مسجّل");
     // the child with neither parent is not placed anywhere by guess
     const orphan = c.families[1].children[0];
     expect(drawnNames(layout)).not.toContain(orphan);

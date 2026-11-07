@@ -148,7 +148,8 @@ describe("cousin marriages: the poster", () => {
     const svg = renderToStaticMarkup(React.createElement(TreePoster, { layout, meta: { title: c.tree.title, subtitle: null, name: c.tree.name }, theme: t }));
     expect(svg).toContain(`data-spouse-member="${w}" data-elsewhere="true"`);
     expect(svg).toMatch(/data-legend="elsewhere"/);
-    expect(svg).toContain("يظهر أيضًا في فرعه");
+    // (worded so it explains itself: the spouse is also in their own branch)
+    expect(svg).toContain("يظهر الزوج/الزوجة أيضاً في فرعه/فرعها من الشجرة");
     // with daughters hidden she is not drawn in her own branch: her frame is not marked
     const hidden = draw(c.tree, "spouses").layout;
     expect(hidden.spouses.find((s) => s.member.id === w)?.elsewhere ?? false).toBe(false);

@@ -1117,16 +1117,14 @@ function Footer({ layout, theme, pal, meta }: { layout: PosterLayout; theme: Pos
       ),
     });
   }
-  // the beads on dotted lines: children whose other parent is not recorded,
-  // and children of a marriage hidden on this poster
-  for (const [key, label, open] of [["unrecorded", LEGEND.unrecorded, false], ["hidden-spouse", LEGEND.hiddenSpouse, true]] as const) {
-    if (!layout.spouses.some((s) => s.knot && !!s.collapsed === open)) continue;
+  // the open bead on dotted lines: children of a marriage hidden on this
+  // poster. (The filled bead, where children whose other parent is not
+  // recorded part, is not in the key: see LEGEND.)
+  if (layout.spouses.some((s) => s.knot && s.collapsed)) {
     items.push({
-      key,
-      label: say(label, rtl),
-      swatch: (x) => open
-        ? <circle cx={x + sw / 2} cy={y} r={fs * 0.3} fill={pal.paper} stroke={pal.branch(null)} strokeWidth={fs * 0.11} />
-        : <circle cx={x + sw / 2} cy={y} r={fs * 0.3} fill={pal.branch(null)} />,
+      key: "hidden-spouse",
+      label: say(LEGEND.hiddenSpouse, rtl),
+      swatch: (x) => <circle cx={x + sw / 2} cy={y} r={fs * 0.3} fill={pal.paper} stroke={pal.branch(null)} strokeWidth={fs * 0.11} />,
     });
   }
   // a spouse drawn again beside their partner (also a name in their own right elsewhere)

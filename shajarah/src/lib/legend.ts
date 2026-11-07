@@ -17,9 +17,10 @@ export const LEGEND = {
   throughDaughters: { ar: "امتداد الأسرة عبر البنات", en: "Family branches through daughters" },
   generations: { ar: "الأجيال", en: "Generations" },
   /** The ring on a spouse's frame: the same person is drawn in their own right elsewhere (a cousin). */
-  elsewhere: { ar: "يظهر أيضًا في فرعه", en: "Also shown in their own branch" },
-  /** A filled bead on a dotted line: children whose other parent is not recorded part there. */
-  unrecorded: { ar: "الوالد الآخر غير مسجّل", en: "Other parent not recorded" },
+  elsewhere: { ar: "يظهر الزوج/الزوجة أيضاً في فرعه/فرعها من الشجرة", en: "Spouse also shown in their own branch of the tree" },
+  // (A filled bead on a dotted line, where children whose other parent is
+  // not recorded part, has no entry in the key: a reader does not need to be
+  // told that a parent is missing. The records are unchanged.)
   /** An open bead: children of a marriage not drawn on this poster (recorded, hidden from it). */
   hiddenSpouse: { ar: "زوج غير معروض في هذا الملصق", en: "Spouse not shown on this poster" },
 } as const;
