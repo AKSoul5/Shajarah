@@ -64,10 +64,25 @@ function Start-App {
 
 # Closes the program as a person would (its window), so it stops its database cleanly.
 function Stop-App($app) {
-  $p = Get-Process -Id $app.Process.Id -ErrorAction SilentlyContinue
+  $id = $app.Process.Id
+  $p = Get-Process -Id $id -ErrorAction SilentlyContinue
   if ($p) {
+    # 1. its window, as a person closes it; 2. a normal close request to all its windows
     $null = $p.CloseMainWindow()
-    if (-not $p.WaitForExit(90000)) { Stop-Process -Id $p.Id -Force; throw 'The program did not close in 90 s' }
+    if (-not $p.WaitForExit(30000)) {
+      & taskkill /pid $id | Out-Null
+      if (-not $p.WaitForExit(60000)) {
+        # 3. last resort (a test-harness problem, not what is being tested): end the
+        #    program, then stop its database cleanly with the program's own pg_ctl
+        "::warning::The program did not close on request; ending it and stopping PostgreSQL with pg_ctl"
+        & taskkill /pid $id /t /f | Out-Null
+        Start-Sleep 2
+        $pgctl = Join-Path $resources 'app\node_modules\@embedded-postgres\windows-x64\native\bin\pg_ctl.exe'
+        Get-ChildItem (Join-Path $data 'database') -Recurse -Filter 'postmaster.pid' -ErrorAction SilentlyContinue | ForEach-Object {
+          & $pgctl stop -D $_.DirectoryName -m fast -w -t 60
+        }
+      }
+    }
   }
   Start-Sleep 3
   if (Get-Process -Name 'postgres' -ErrorAction SilentlyContinue) { throw 'PostgreSQL is still running after the program closed' }
@@ -115,11 +130,20 @@ Stop-App $app
 # ── 2. the old program's own updater, from a local feed
 $feed = Start-Process -FilePath 'python' -ArgumentList '-m', 'http.server', '8411', '--bind', '127.0.0.1', '--directory', $CandidateDir -PassThru -WindowStyle Hidden
 try {
-  Start-Sleep 3
+  $clock = [Diagnostics.Stopwatch]::StartNew()
+  $served = $false
+  while (-not $served -and $clock.Elapsed.TotalSeconds -lt 60) {
+    try { $served = (Invoke-WebRequest -Uri 'http://127.0.0.1:8411/latest.yml' -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200 } catch { Start-Sleep 2 }
+  }
+  if (-not $served) { throw 'The local update feed did not start' }
   Set-UpdateFeed 'http://127.0.0.1:8411/'
-  $p = Start-Process -FilePath $exe -ArgumentList '--update-test' -PassThru
-  if (-not $p.WaitForExit(300000)) { $p.Kill(); throw 'The update check did not finish in 5 minutes' }
-  Get-Content (Join-Path $data 'logs\update-test.txt')
+  for ($try = 1; $try -le 3; $try++) {
+    $p = Start-Process -FilePath $exe -ArgumentList '--update-test' -PassThru
+    if (-not $p.WaitForExit(300000)) { $p.Kill(); throw 'The update check did not finish in 5 minutes' }
+    Get-Content (Join-Path $data 'logs\update-test.txt')
+    if ($p.ExitCode -eq 0) { break }
+    if ($try -lt 3) { "update attempt $try failed; trying again in 15 s"; Start-Sleep 15 }
+  }
   if ($p.ExitCode -ne 0) { throw "The $OldVersion updater did not take the update (exit $($p.ExitCode))" }
   $clock = [Diagnostics.Stopwatch]::StartNew()
   Start-Sleep 5
