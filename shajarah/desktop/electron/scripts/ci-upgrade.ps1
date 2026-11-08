@@ -32,7 +32,16 @@ function Installed { if (Test-Path $exe) { "$((Get-Item $exe).VersionInfo.Produc
 function Install-Release([string] $installer, [string] $version) {
   Start-Process -FilePath $installer -ArgumentList '/S' -Wait
   if (-not (Installed).StartsWith($version)) { throw "Installing $version failed (installed: '$(Installed)')" }
+  # No update in the background while this test drives the program: an older
+  # release would otherwise download the published latest and install it on
+  # quit. (Step 2 points it at the candidate's local feed on purpose.)
+  Set-UpdateFeed 'http://127.0.0.1:9/'
   "installed $version"
+}
+
+function Set-UpdateFeed([string] $url) {
+  Set-Content -Path (Join-Path $resources 'app-update.yml') -Encoding utf8 `
+    -Value "provider: generic`nurl: $url`nupdaterCacheDirName: shajarah-desktop-updater"
 }
 
 # Starts the installed program normally and returns its process and address.
@@ -107,9 +116,7 @@ Stop-App $app
 $feed = Start-Process -FilePath 'python' -ArgumentList '-m', 'http.server', '8411', '--bind', '127.0.0.1', '--directory', $CandidateDir -PassThru -WindowStyle Hidden
 try {
   Start-Sleep 3
-  $yml = Join-Path $resources 'app-update.yml'
-  "app-update.yml was:"; Get-Content $yml
-  Set-Content -Path $yml -Value "provider: generic`nurl: http://127.0.0.1:8411/`nupdaterCacheDirName: shajarah-desktop-updater" -Encoding utf8
+  Set-UpdateFeed 'http://127.0.0.1:8411/'
   $p = Start-Process -FilePath $exe -ArgumentList '--update-test' -PassThru
   if (-not $p.WaitForExit(300000)) { $p.Kill(); throw 'The update check did not finish in 5 minutes' }
   Get-Content (Join-Path $data 'logs\update-test.txt')
@@ -158,7 +165,7 @@ if ($DownAndUp) {
   $back = Describe-Family (Api $app GET "/api/trees/$id")
   Stop-App $app
   if ($back -ne $before) { throw "$OldVersion no longer opens the family after the upgrade" }
-  "reinstalled $OldVersion over $NewVersion: the family opens unchanged"
+  "reinstalled ${OldVersion} over ${NewVersion}: the family opens unchanged"
   Install-Release (Get-ChildItem $CandidateDir -Filter 'Shajarah-Setup-*.exe' | Select-Object -First 1).FullName $NewVersion
   $app = Start-App
   $again = Describe-Family (Api $app GET "/api/trees/$id")
