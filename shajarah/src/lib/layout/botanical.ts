@@ -1961,7 +1961,13 @@ function layoutAttempt(
         // (only where mothers' boxes are drawn: spouses shown, or a
         // daughter's family through her)
         const boxesDrawn = !!opts.motherNames || through.has(node.data.member?.id ?? "");
-        const splitsMother = (k: number) => k > 0 && k < others.length && motherOf(k - 1) !== null && motherOf(k - 1) === motherOf(k);
+        // (her own son centred, her box stands in the middle among her
+        // children, and they may go to either side: with one wife, every
+        // split parted her children and all his brothers went to one side,
+        // the whole canopy swinging off the trunk)
+        const cm = kids[c].data.member;
+        const centredMother = cm ? (cm.fatherId === node.data.member?.id ? cm.motherId : cm.fatherId) ?? null : null;
+        const splitsMother = (k: number) => k > 0 && k < others.length && motherOf(k - 1) !== null && motherOf(k - 1) === motherOf(k) && motherOf(k) !== centredMother;
         let best = Infinity, acc = 0;
         for (let k = 0; k <= others.length; k++) {
           const diff = Math.abs(sideL + sideR - 2 * acc);
@@ -2769,6 +2775,11 @@ function layoutAttempt(
       const lone = !!group[0].lone;
       const P = fromOf(group[0]);
       const partnerBox = obstacles.find((o) => o.id === group[0].partnerId) ?? { x: P.x, y: P.y, w: 0, h: 0 };
+      // (the canopy base is also among the names as its medallion's
+      // obstacle: the partner's own, which their line to a spouse leaves
+      // through. Counted as another name, it ruled out every spot straight
+      // above the base, and a sole wife's box went off to one side.)
+      const ownMedallion = group[0].partnerId === base.data.member?.id ? obstacles.find((o) => o.id === "base:obstacle") : undefined;
       for (const h of group) {
         if (lone) {
           // outwards, the way the partner's own branch grows
@@ -2816,7 +2827,7 @@ function layoutAttempt(
             && d.pts.some((p, i, a) => i > 0 && i < a.length - 1 && within(p, me)));
         }
         // the partner's line to it, and its lines to the children
-        if (others.some((o) => o !== partnerBox && lineHits(P, J, o, [partnerBox, me]))) return false;
+        if (others.some((o) => o !== partnerBox && o !== ownMedallion && lineHits(P, J, o, [partnerBox, ...(ownMedallion ? [ownMedallion] : []), me]))) return false;
         for (const k of h.kids) if (others.some((o) => o !== k && lineHits(J, k, o, [me, k]))) return false;
         // and no line already drawn to another holder runs under it, nor any
         // other line (as drawn last time round)

@@ -156,3 +156,46 @@ export function brothersCase(variant: "test" | "control", lang: "ar" | "en" = "a
   }
   return f.tree(ar ? "شجرة العائلة" : "Family Tree", head);
 }
+
+export type TrunkVariant = "none" | "w1" | "w2" | "w3" | "son2" | "dau2";
+const NAMES = {
+  ar: { line: ["عبدالله", "سليمان", "محمد"], wives: ["نورة", "هند", "سارة"], kids: ["علي", "عمر", "زيد", "خالد", "فهد", "منى"], sonWives: ["لطيفة", "حصة"], grand: ["يوسف", "حمد", "راشد", "صالح"], husbands: ["سعد", "بدر"], hers: ["ريم", "طلال"] },
+  en: { line: ["Abdullah", "Sulaiman", "Muhammad"], wives: ["Noura", "Hind", "Sarah"], kids: ["Ali", "Omar", "Zaid", "Khalid", "Fahd", "Mona"], sonWives: ["Latifa", "Hessa"], grand: ["Yusuf", "Hamad", "Rashid", "Salih"], husbands: ["Saad", "Badr"], hers: ["Reem", "Talal"] },
+};
+
+/** For tests/trunk-upright-with-spouses: three generations of trunk, then the canopy base's six children (branches of 1, 4, 2, 0, 3 children and a daughter), with spouses as the variant says. */
+export function trunkFamily(v: TrunkVariant, lang: "ar" | "en"): TreeDTO {
+  const N = NAMES[lang];
+  const members: MemberDTO[] = [];
+  const marriages: MarriageDTO[] = [];
+  const add = (name: string, gender: Gender, father: MemberDTO | null, mother: MemberDTO | null = null) => {
+    const m: MemberDTO = {
+      id: `tu-${v}-${lang}-${members.length}`, name, laqab: null, gender, birthYear: null, deathYear: null, isDeceased: false,
+      birthOrder: members.filter((x) => father && x.fatherId === father.id).length, generation: 0, notes: null,
+      fatherId: father?.id ?? null, motherId: mother?.id ?? null,
+    };
+    members.push(m);
+    return m;
+  };
+  const marry = (h: MemberDTO, w: MemberDTO) => marriages.push({ id: `tu-${v}-${lang}-mar${marriages.length}`, spouseAId: h.id, spouseBId: w.id, startYear: null, endYear: null });
+  const a = add(N.line[0], M, null), b = add(N.line[1], M, a), head = add(N.line[2], M, b);
+  const nW = v === "w1" ? 1 : v === "w2" ? 2 : v === "w3" ? 3 : 0;
+  const wives = N.wives.slice(0, nW).map((name) => { const w = add(name, F, null); marry(head, w); return w; });
+  const sizes = [1, 4, 2, 0, 3, 2];
+  const kids = N.kids.map((name, i) => add(name, i === 5 ? F : M, head, nW ? wives[i % nW] : null));
+  kids.forEach((k, i) => {
+    if (k.gender === F) {
+      if (v === "dau2") N.husbands.forEach((hn, j) => { const h = add(hn, M, null); marry(h, k); add(N.hers[j], j ? M : F, h, k); });
+      return;
+    }
+    const sw = v === "son2" && i === 1 ? N.sonWives.map((w) => add(w, F, null)) : [];
+    sw.forEach((w) => marry(k, w));
+    for (let j = 0; j < sizes[i]; j++) add(N.grand[j], M, k, sw.length ? sw[j % 2] : null);
+  });
+  const gens = computeGenerations(members, "PATRILINEAL");
+  for (const m of members) m.generation = gens.get(m.id) ?? 0;
+  return {
+    id: `tu-${v}-${lang}`, name: "tu", title: lang === "ar" ? "شجرة العائلة" : "Family Tree", subtitle: null, lineage: "PATRILINEAL",
+    rootMemberId: a.id, crownBaseId: head.id, trunkStartId: null, soilText: null, settings: null, members, marriages, sources: [], citations: [], media: [],
+  };
+}
