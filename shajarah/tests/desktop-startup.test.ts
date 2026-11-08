@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readProjectFile, withNewIds } from "@/lib/project";
 import { snapshotError } from "@/lib/restore";
 
@@ -88,10 +88,10 @@ let port = 56400 + Math.floor(Math.random() * 500);
  * holding a seeded family, made once and copied for each test.
  */
 let template: string | null = null;
-async function legacyDataDir() {
+async function buildTemplate() {
   if (!template) {
-    template = tmp("template");
-    const dataDir = path.join(template, "database");
+    const dir = tmp("template");
+    const dataDir = path.join(dir, "database");
     fs.mkdirSync(dataDir, { recursive: true });
     const logs = tmp("logs");
     fs.writeFileSync(path.join(dataDir, "password"), "legacy-password-1051", { mode: 0o600 });
@@ -105,7 +105,11 @@ async function legacyDataDir() {
     } finally {
       await db.stop();
     }
+    template = dir; // only once it is complete: a half-built template is never copied
   }
+}
+async function legacyDataDir() {
+  if (!template) throw new Error("the 1.0.51 template database was not built");
   const copy = path.join(tmp("data"), "database");
   fs.cpSync(path.join(template, "database"), copy, { recursive: true });
   fs.chmodSync(path.join(copy, "cluster"), 0o700);
@@ -157,7 +161,12 @@ describe("classification reads the folder without changing it", () => {
   });
 });
 
-describe.skipIf(!hasPg)("start-up with real PostgreSQL 16 (the binaries the app ships)", () => {
+// Real PostgreSQL is slow on CI's Windows runners: a single start and stop can
+// take seconds. The template is built once, before the tests, under its own
+// limit, so no test is charged for it.
+describe.skipIf(!hasPg)("start-up with real PostgreSQL 16 (the binaries the app ships)", { timeout: 60_000 }, () => {
+  beforeAll(buildTemplate, 180_000);
+
   it("E1-T1 RED PROOF: 1.0.51 deletes a complete family database whose PG_VERSION is missing", async () => {
     const { dataDir, logs } = await legacyDataDir();
     fs.rmSync(path.join(dataDir, "cluster", "PG_VERSION"));
