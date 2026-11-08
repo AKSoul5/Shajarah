@@ -251,9 +251,14 @@ export function TitleRule({ x, y, w, pal, accent }: { x: number; y: number; w: n
  * Gold's cartouche, Ancestral Manuscript's panel. Centred on the title's
  * glyphs (cy) and as wide as the title (tw) and its type (fs) need.
  */
+/** The room a title's ground (cartouche, panel) keeps either side of the text together, in the title's font sizes. */
+export function titleGroundPad(pal: Pick<Pal, "titleStyle">): number {
+  return pal.titleStyle === "cartouche" ? 2.6 : pal.titleStyle === "panel" ? 1.8 : 0;
+}
+
 export function TitleGround({ cx, cy, tw, fs, W, pal, maxW }: { cx: number; cy: number; tw: number; fs: number; W: number; pal: Pal; maxW: number }): ReactNode {
   if (pal.titleStyle === "cartouche") {
-    const w = Math.min(tw + fs * 2.6, maxW), h = fs * 2.0, tip = fs * 0.9;
+    const w = Math.min(tw + fs * titleGroundPad(pal), maxW), h = fs * 2.0, tip = fs * 0.9;
     const p = (ww: number, hh: number, t: number) => {
       const x = ww / 2, y = hh / 2, b = x - t;
       return `M${f(cx - x)} ${f(cy)}Q${f(cx - x + t * 0.3)} ${f(cy - y)} ${f(cx - b)} ${f(cy - y)}H${f(cx + b)}Q${f(cx + x - t * 0.3)} ${f(cy - y)} ${f(cx + x)} ${f(cy)}`
@@ -268,7 +273,7 @@ export function TitleGround({ cx, cy, tw, fs, W, pal, maxW }: { cx: number; cy: 
     );
   }
   if (pal.titleStyle === "panel") {
-    const w = Math.min(tw + fs * 1.8, maxW), h = fs * 2.0, c = fs * 0.3;
+    const w = Math.min(tw + fs * titleGroundPad(pal), maxW), h = fs * 2.0, c = fs * 0.3;
     const x0 = cx - w / 2, x1 = cx + w / 2, y0 = cy - h / 2, y1 = cy + h / 2;
     const cut = (i: number) => `M${f(x0 + c + i)} ${f(y0 + i)}H${f(x1 - c - i)}L${f(x1 - i)} ${f(y0 + c + i)}V${f(y1 - c - i)}L${f(x1 - c - i)} ${f(y1 - i)}H${f(x0 + c + i)}L${f(x0 + i)} ${f(y1 - c - i)}V${f(y0 + c + i)}Z`;
     return (

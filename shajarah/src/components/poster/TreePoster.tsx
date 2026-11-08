@@ -4,11 +4,12 @@ import { forwardRef, memo, useEffect, useLayoutEffect, useMemo, useRef, useState
 import type { PosterLayout, PosterNode, SpouseHolder } from "@/lib/layout/botanical";
 import { soilStyle, type SoilContext, type SoilInk, type SoilStyleId } from "@/lib/layout/soil";
 import { textWidth } from "@/lib/layout/botanical";
+import { titleEms } from "@/lib/layout/textMetrics";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
 import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
-import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
+import { DesignFrame, TitleGround, TitleRule, soilOrnament, titleGroundPad } from "./frames";
 import type { PosterTheme } from "@/lib/types";
 import { LEGEND, NAMED_GENERATIONS, say, spouseLabel, statCards } from "@/lib/legend";
 import { DESIGNS, designPath, isDesignShape, leafPath, NODE_STROKE, RING_GAP, RING_STROKE } from "@/lib/layout/nodeGeometry";
@@ -928,15 +929,21 @@ function BranchTints({ layout, pal }: { layout: PosterLayout; pal: Palette }) {
   );
 }
 
+/** titleEms is at worst 5% short of the drawn width (Ruqaa ligatures it does not know): tests/title-width.test.ts. */
+const TITLE_EM_SAFE = 1.06;
+
 /** Basmala, the calligraphic title, subtitle and a fine divider. */
 function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: PosterMeta; theme: PosterTheme; pal: Palette }) {
   const { width: W, height: H, rtl } = layout;
   const hd = layout.frame.header;
   const avail = layout.medallions.length ? Math.min(hd.maxTitleWidth, W * 0.44) : hd.maxTitleWidth;
-  // Ruqaa runs a little wider than Amiri, which textWidth is tuned for;
-  // Kufi wider still
+  // The title as its font draws it (titleEms: Ruqaa or Kufi, Latin in
+  // Amiri), a little wider to be safe (the measure is at worst 5% short),
+  // set so that it and its ground's margins fit: sized on the text alone, a
+  // long title filled its cartouche to the tips and ran past them.
   const kufi = pal.titleFont === "kufi";
-  const titleFs = meta.title ? Math.min(W * (kufi ? 0.036 : 0.042), avail / ((textWidth(meta.title, 1) || 1) * (kufi ? 1.45 : 1.1))) : 0;
+  const titleEm = meta.title ? Math.max(titleEms(meta.title, kufi ? "kufi" : "ruqaa"), 1) * TITLE_EM_SAFE : 0;
+  const titleFs = meta.title ? Math.min(W * (kufi ? 0.036 : 0.042), avail / (titleEm + (pal.mono ? 0 : titleGroundPad(pal)))) : 0;
   // Under the basmala, the title keeps clear of its long lower stroke: the
   // glyph reaches 0.61 em below its baseline and Ruqaa capitals 1.23 em above.
   const basmalaFs = W * 0.024;
@@ -963,7 +970,7 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
         </text>
       )}
       {meta.title && !pal.mono && (
-        <TitleGround cx={W / 2} cy={titleY - titleFs * 0.38} tw={(textWidth(meta.title, 1) || 1) * titleFs * (kufi ? 1.45 : 1.1)} fs={titleFs} W={W} pal={pal} maxW={avail} />
+        <TitleGround cx={W / 2} cy={titleY - titleFs * 0.38} tw={titleEm * titleFs} fs={titleFs} W={W} pal={pal} maxW={avail} />
       )}
       {meta.title && (
         <text x={W / 2} y={titleY} textAnchor="middle" fontFamily={kufi ? KUFI : RUQAA} fontSize={titleFs} fontWeight={kufi ? 400 : 700}

@@ -2806,7 +2806,14 @@ function layoutAttempt(
         // fault left on a poster, and every name on it was set a quarter
         // smaller for it: tests/sisters-several-husbands.test.ts)
         if (linesToo === "group") {
-          return !also.some((q) => q.h.partnerId === h.partnerId && (lineHits(P, J, at(q), [partnerBox, me]) || lineHits(q.from, at(q), me, [at(q)])));
+          if (also.some((q) => q.h.partnerId === h.partnerId && (lineHits(P, J, at(q), [partnerBox, me]) || lineHits(q.from, at(q), me, [at(q)])))) return false;
+          // (nor under the partner's line to another spouse as it is
+          // actually drawn, bending out along the partner's growth: checked
+          // straight, a husband's box sat on his wife's curved line to her
+          // other husband)
+          const sibs = new Set(group.filter((g) => g !== h).flatMap((g) => [g.id, ...g.kids.map((k) => k.id)]));
+          return !drawn.some((d) => sibs.has(d.id) && !(d.bb[1] < me.x - me.w / 2 || d.bb[0] > me.x + me.w / 2 || d.bb[3] < me.y - me.h / 2 || d.bb[2] > me.y + me.h / 2)
+            && d.pts.some((p, i, a) => i > 0 && i < a.length - 1 && within(p, me)));
         }
         // the partner's line to it, and its lines to the children
         if (others.some((o) => o !== partnerBox && lineHits(P, J, o, [partnerBox, me]))) return false;
@@ -2831,7 +2838,9 @@ function layoutAttempt(
             // these: they may meet there, never cross further out, as a
             // wife's lines across her husband's line to another son did)
             if (own.has(d.id)) continue;
-            const sibling = byId.get(d.id)?.parentId === group[0].partnerId;
+            // (a child of another spouse's box: that line leaves the box,
+            // not the partner, and may not cross)
+            const sibling = byId.get(d.id)?.parentId === group[0].partnerId && !group.some((g) => g !== h && g.kids.some((k) => k.id === d.id));
             if (sibling && a === P) continue;
             if (d.bb[1] < x0 || d.bb[0] > x1 || d.bb[3] < y0 || d.bb[2] > y1) continue;
             for (let i = 1; i < d.pts.length; i++) if (crossesInside(a, b, d.pts[i - 1], d.pts[i])) return false;
@@ -3423,8 +3432,10 @@ function layoutAttempt(
   // placed again among the bent lines and everything is drawn again.
   const holderHit = () => holders.some((h) => {
     const box = { x: h.x, y: h.y, w: h.w, h: h.h };
-    for (const [id, c] of curveOf) {
-      if (h.childIds.includes(id)) continue;
+    // (the lines to the other spouses' boxes too: one passing under a box
+    // was never looked for, so the box was never placed again)
+    for (const [id, c] of [...curveOf, ...holderCurve]) {
+      if (id === h.id || h.childIds.includes(id)) continue;
       const xs = [c.p0.x, c.p1.x, c.c1.x, c.c2.x], ys = [c.p0.y, c.p1.y, c.c1.y, c.c2.y];
       if (Math.max(...xs) < box.x - box.w / 2 || Math.min(...xs) > box.x + box.w / 2 || Math.max(...ys) < box.y - box.h / 2 || Math.min(...ys) > box.y + box.h / 2) continue;
       if (sample(c, 20).some((p, i, a) => i > 0 && i < a.length - 1 && Math.abs(p.x - box.x) < box.w / 2 && Math.abs(p.y - box.y) < box.h / 2)) return true;
@@ -3506,6 +3517,21 @@ function layoutAttempt(
           refineLines(linesIn(validate()));
         }
         out = validate();
+      } else if (!out.length && holders.some((h) => !h.pin) && holderHit()) {
+        // (a clean drawing too: a line running just inside a spouse's box,
+        // within what the check lets pass, still ran over the box's rim, a
+        // husband's line to one wife through his other wife's box; placed
+        // again among the lines as drawn, kept only if still clean)
+        const saved = holders.map((h) => ({ at: { x: h.x, y: h.y }, pin: h.pin }));
+        buildCurves();
+        refineLines(linesIn(validate()));
+        const again = validate();
+        if (again.length) {
+          holders.forEach((h, i) => { h.pin = saved[i].at; });
+          buildCurves();
+          holders.forEach((h, i) => { h.pin = saved[i].pin; });
+          out = validate();
+        } else out = again;
       }
       return out;
     };
