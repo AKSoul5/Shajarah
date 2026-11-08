@@ -146,3 +146,16 @@ inspections, `quote/` quotation renders).
   combinations × 7 designs × frame on/off, exact sentence, fits between
   the medallions, legible).
 - Renders: `scratchpad/quote/basmala/basmala-sheet.png`.
+
+### 23:00 — Performance investigation (findings; decision H2 on hold)
+- **Measured on `main`'s engine** (`wt-quote`): the bench family (350,
+  A1) takes 12.0 s of CPU per layout. `npm run bench` fails two of three
+  budgets on `main` (while the matrix shared the machine).
+- **Time is in the layout:** 24 whole layouts per poster (CPU profile:
+  `scratchpad/perf/prof-main/`; attempt log via the bundled probe in
+  `scratchpad/perf/probe-count.mjs`). Not rendering, not the harness.
+- **Two avoidable parts:**
+  - the `keepGuarded` retry repeats the opening five layouts identically;
+  - the search bisects below the legible size.
+- Options and a recommendation are in ON-HOLD H2. No code change was made,
+  because each option changes posters or needs a decision.
