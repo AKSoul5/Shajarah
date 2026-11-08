@@ -15,7 +15,8 @@
 #             also the recovery test, reinstalling it, and the 1.0.51 defect
 #             reproduced (red proof)
 #   draft     every job above passed: the draft release (replaced while it is
-#             still a draft; a published version is never touched)
+#             still a draft; a published version is never touched: when the
+#             version is already published the job ends with a notice, green)
 name: Shajarah release pipeline
 
 on:
@@ -292,7 +293,13 @@ jobs:
         run: |
           tag="v$VERSION"
           if state=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
-            if [ "$state" != "true" ]; then echo "::error::$tag is already published; bump the version"; exit 1; fi
+            if [ "$state" != "true" ]; then
+              # Every check above has passed. A change that does not bump the
+              # version (docs, tests, work towards the next release) is not a
+              # release: the published version is left untouched.
+              echo "::notice::$tag is already published, so no draft was made. Bump desktop/electron/package.json to release this commit."
+              exit 0
+            fi
             gh release delete "$tag" --yes   # an older draft of the same version
           fi
           notes="shajarah/desktop/electron/release-notes/$VERSION.md"

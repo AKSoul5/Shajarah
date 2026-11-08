@@ -150,7 +150,8 @@ Arabic and English:
   with the start-up safety tests on real embedded PostgreSQL, layout QA,
   migrations over the previous release's schema, installer smoke test,
   upgrades from every earlier release whose installer is still on GitHub,
-  1.0.32 onwards) and only then creates a **draft**
+  1.0.32 onwards) and only then creates a **draft** (when the version is
+  already published, it skips the draft with a notice and stays green)
   release. A person publishes it on GitHub; `shajarah-release-verify.yml`
   then updates the previous release through the live feed and withdraws the
   new one if that fails.
