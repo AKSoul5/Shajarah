@@ -159,3 +159,38 @@ inspections, `quote/` quotation renders).
   - the search bisects below the legible size.
 - Options and a recommendation are in ON-HOLD H2. No code change was made,
   because each option changes posters or needs a decision.
+
+### 23:20 — B: trunk work committed `1f10f91`; integration analysis (no merges made)
+- **B `1f10f91` (pushed).** Canopy centred with one wife; sole wife's frame
+  on the axis. Related tests: 84 run, 82 passed. The 2 failures were
+  sister-case assertions that the trunk fix made out of date (C Arabic
+  control improved from 11.24 to 13.90 mm; B Arabic control now has a line
+  0.16 font sizes inside another sister's husband's frame).
+  - The floors were raised to the new measured values.
+  - The B control defect is a known failing check (`it.fails`), not
+    hidden. Final related run: 33 of 33.
+  - Tried and reverted: (a) the fallback tier avoiding every frame's line
+    (no effect); (b) a final re-placement after untangling (no effect on
+    B; cut English case E test from 3.20 to 2.49 mm).
+- **Ancestry.**
+  - A: 5 commits on `main`.
+  - B: 8 commits on `main`, containing A up to `600d9a0`; A's `aa98dc0` is
+    copied in B as `404c9ab`.
+  - C: 2 commits on `main`.
+  - None is behind `main`.
+- **Trial merges** (`git merge-tree`, in memory only):
+  - A into B: clean.
+  - B + C: 3 conflicts, all mechanical:
+    1. `TreePoster.tsx` imports (keep both sides' names);
+    2. the header's `avail` and title sizing (keep C's medallion-aware
+       `avail` and B's `titleEms`, `titleGroundPad` and `TITLE_EM_SAFE`);
+    3. `botanical.ts`, two adjacent constants (`HOLDER_TOUCH`,
+       `QUOTE_EN_SCALE`): keep both.
+- **Semantic dependency.** C's `textInCircle` and the English Basmala size
+  use `textWidth`, which B changes to glyph metrics. After combining B and
+  C, re-run `tests/quotation-language.test.ts` and re-check the
+  medallions. The Basmala allowance is safe: true width 25.8 em, ×1.05.
+- **Suggested order** (for the owner's approval, not done): PR #7 first
+  (H1); then A; then B (includes A); then C, resolving the three conflicts
+  above. Then full suite, `qa:layout` against the baseline, and PDF export
+  checks on the combined tree.
