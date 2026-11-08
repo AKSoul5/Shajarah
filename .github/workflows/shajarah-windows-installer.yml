@@ -219,15 +219,25 @@ jobs:
       matrix: ${{ steps.list.outputs.matrix }}
       newest: ${{ steps.list.outputs.newest }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: shajarah/desktop/electron/package.json
+          sparse-checkout-cone-mode: false
       - id: list
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          # every published release that still has its Windows installer
+          # every published release older than this build that still has its
+          # Windows installer (a release cannot update to its own version: a
+          # push that does not bump the version is tested against the
+          # releases before it)
+          version=$(jq -r .version shajarah/desktop/electron/package.json)
+          older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; }
           tags=$(gh release list -R "$REPO" --exclude-drafts --limit 100 --json tagName --jq '.[].tagName')
           found=()
           for t in $tags; do
+            if ! older "${t#v}" "$version"; then echo "not older than $version: $t"; continue; fi
             if gh release view "$t" -R "$REPO" --json assets --jq '.assets[].name' | grep -q '^Shajarah-Setup-.*\.exe$'; then found+=("$t"); fi
           done
           echo "releases with an installer: ${found[*]}"
