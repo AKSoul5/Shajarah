@@ -115,3 +115,10 @@ export const HADITH_EN: Quotation = {
 export function quotations(lang: "ar" | "en"): { verse: Quotation; hadith: Quotation } {
   return lang === "en" ? { verse: VERSE_EN, hadith: HADITH_EN } : { verse: VERSE, hadith: HADITH };
 }
+
+/**
+ * The basmala over the title, in the quotations' language: in Arabic the one
+ * calligraphic glyph Amiri draws for بسم الله الرحمن الرحيم (U+FDFD), in
+ * English the owner's translation, word for word.
+ */
+export const BASMALA = { ar: "\uFDFD", en: "In the name of Allah, the Most Gracious, the Most Merciful." } as const;

@@ -1,7 +1,8 @@
 // The medallions' quotations are in one language at a time: the original
 // Arabic with its Arabic references, or the owner's English translations with
 // their English references, both medallions together, never both languages
-// (PosterTheme.quoteLang: "auto" follows the poster's language).
+// (PosterTheme.quoteLang: "auto" follows the poster's language). The basmala
+// over the title follows the same choice.
 import { describe, expect, it } from "vitest";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,7 +10,8 @@ import { computePosterLayout } from "@/lib/layout/botanical";
 import { layoutOptionsFor, resolveTheme, THEME_PRESETS } from "@/lib/theme";
 import { PAPER_SIZES, type PaperSize } from "@/lib/paper";
 import { TreePoster } from "@/components/poster/TreePoster";
-import { HADITH, HADITH_EN, VERSE, VERSE_EN, textInCircle } from "@/components/poster/ornaments";
+import { BASMALA, HADITH, HADITH_EN, VERSE, VERSE_EN, textInCircle } from "@/components/poster/ornaments";
+import { textWidth } from "@/lib/layout/botanical";
 import type { MemberDTO, ThemePreset, TreeDTO } from "@/lib/types";
 
 (globalThis as unknown as { React: typeof React }).React = React;
@@ -66,6 +68,35 @@ describe("the quotations' language", () => {
       }
     });
   }
+
+  for (const [what, lang, quoteLang, want] of cases) {
+    it(`${what}: the basmala in ${want === "ar" ? "Arabic" : "English"}, and only that`, () => {
+      for (const preset of Object.keys(THEME_PRESETS) as ThemePreset[]) for (const frame of [true, false]) {
+        const { svg } = poster(lang, { preset, bismillah: true, verse: true, hadith: true, frame, ...(quoteLang ? { quoteLang } : {}) });
+        const shown = [...svg.matchAll(/<text[^>]*data-basmala="(ar|en)"[^>]*>([^<]*)<\/text>/g)];
+        expect(shown.map((m) => m[1]), preset).toEqual([want]);
+        expect(svg.includes(BASMALA.ar), `${preset}: Arabic basmala`).toBe(want === "ar");
+        expect(unescape(svg).includes(BASMALA.en), `${preset}: English basmala`).toBe(want === "en");
+      }
+    });
+  }
+
+  it("the English basmala word for word, on one line between the medallions, never cut", () => {
+    expect(BASMALA.en).toBe("In the name of Allah, the Most Gracious, the Most Merciful.");
+    expect(BASMALA.ar).toBe("\uFDFD");
+    for (const frame of [true, false]) for (const paper of ["A3", "A1", "4A0"] as PaperSize[]) for (const preset of Object.keys(THEME_PRESETS) as ThemePreset[]) {
+      const { svg, layout } = poster("en", { preset, bismillah: true, verse: true, hadith: true, frame }, paper);
+      const m = /<text([^>]*)data-basmala="en"[^>]*>([^<]*)<\/text>/.exec(svg)!;
+      expect(unescape(m[2])).toBe(BASMALA.en);
+      const fs = Number(/font-size="([\d.]+)"/.exec(m[1])![1]);
+      // (textWidth errs wide for this line: 28.3 em against 25.8 measured)
+      const half = (textWidth(BASMALA.en, 1) * fs) / 2;
+      for (const md of layout.medallions) expect(Math.abs(md.x - layout.width / 2) - md.r, `${preset} ${paper}`).toBeGreaterThan(half);
+      expect(half * 2).toBeLessThanOrEqual(layout.frame.header.maxTitleWidth);
+      // legible: at least the size of the names' smallest text
+      expect(fs * PAPER_SIZES[paper].w / layout.width).toBeGreaterThanOrEqual(layout.legibility.minTextMm);
+    }
+  });
 
   it("each of the four choices of medallions: only the chosen ones, in the one language", () => {
     for (const lang of ["ar", "en"] as const) for (const [verse, hadith] of [[false, false], [true, false], [false, true], [true, true]]) {

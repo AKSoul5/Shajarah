@@ -7,7 +7,7 @@ import { textWidth } from "@/lib/layout/botanical";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
 import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
-import { quotations, scallopPath, textInCircle, type Quotation } from "./ornaments";
+import { BASMALA, quotations, scallopPath, textInCircle, type Quotation } from "./ornaments";
 import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
 import type { PosterTheme } from "@/lib/types";
 import { LEGEND, NAMED_GENERATIONS, say, spouseLabel, statCards } from "@/lib/legend";
@@ -944,9 +944,15 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
   const titleFs = meta.title ? Math.min(W * (kufi ? 0.036 : 0.042), avail / ((textWidth(meta.title, 1) || 1) * (kufi ? 1.45 : 1.1))) : 0;
   // Under the basmala, the title keeps clear of its long lower stroke: the
   // glyph reaches 0.61 em below its baseline and Ruqaa capitals 1.23 em above.
+  // In English (the quotations' language, layout.quoteLang) the translation
+  // on one line, as large as fits between the medallions, never cut; a line
+  // of text reaches 0.3 em below its baseline.
   const basmalaFs = W * 0.024;
+  const basmalaEn = layout.quoteLang === "en";
+  const basmalaEnFs = Math.min(W * 0.0155, avail / (textWidth(BASMALA.en, 1) * 1.05));
+  const basmalaDepth = basmalaEn ? basmalaEnFs * 0.3 : basmalaFs * 0.61;
   const titleY = theme.bismillah
-    ? Math.max(hd.title, hd.basmala + basmalaFs * 0.61 + titleFs * 1.23 + W * 0.012)
+    ? Math.max(hd.title, hd.basmala + basmalaDepth + titleFs * 1.23 + W * 0.012)
     : layout.frame.framed ? hd.title : H * 0.052;
   // (a cartouche or panel round the title: what follows starts below it)
   const grounded = !pal.mono && (pal.titleStyle === "cartouche" || pal.titleStyle === "panel");
@@ -961,12 +967,16 @@ function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: Post
   const edition = theme.edition ? editionLine(meta.updated, rtl) : null;
   return (
     <g>
-      {theme.bismillah && (
-        // Amiri draws the basmala (U+FDFD) as one wide calligraphic glyph (~11 em)
-        <text x={W / 2} y={hd.basmala} textAnchor="middle" fontSize={basmalaFs} fill={pal.ink}>
-          ﷽
+      {theme.bismillah && (basmalaEn ? (
+        <text x={W / 2} y={hd.basmala} textAnchor="middle" fontSize={basmalaEnFs} fill={pal.ink} direction="ltr" lang="en" data-basmala="en">
+          {BASMALA.en}
         </text>
-      )}
+      ) : (
+        // Amiri draws the basmala (U+FDFD) as one wide calligraphic glyph (~11 em)
+        <text x={W / 2} y={hd.basmala} textAnchor="middle" fontSize={basmalaFs} fill={pal.ink} direction="rtl" lang="ar" data-basmala="ar">
+          {BASMALA.ar}
+        </text>
+      ))}
       {meta.title && !pal.mono && (
         <TitleGround cx={W / 2} cy={titleY - titleFs * 0.38} tw={(textWidth(meta.title, 1) || 1) * titleFs * (kufi ? 1.45 : 1.1)} fs={titleFs} W={W} pal={pal} maxW={avail} />
       )}

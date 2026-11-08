@@ -854,7 +854,8 @@ Ornaments are toggled under **Style → Ornaments**:
 
 - the Canva gold-foil frame;
 - daughters as gold capsules;
-- the basmala ﷽;
+- the basmala: ﷽, or in English "In the name of Allah, the Most Gracious,
+  the Most Merciful." (in the quotations' language, below);
 - a faint wash of each main branch's colour behind it (off unless chosen),
   so a whole lineage can be followed at a glance; it starts at the first
   generation and is blurred so it has no edge of its own;
@@ -864,8 +865,8 @@ Ornaments are toggled under **Style → Ornaments**:
   the family's last change, so each printing says when it was made;
 - Al-Hujurat 49:13;
 - the Tirmidhi hadith «تعلموا من أنسابكم ما تصلون به أرحامكم…»;
-- **Quotations in**: the poster's language (the default), Arabic, or
-  English. Both medallions switch together and the two languages are never
+- **Basmala and quotations in**: the poster's language (the default),
+  Arabic, or English. The basmala and both medallions switch together and the two languages are never
   shown at once: Arabic is the original with its Arabic references, English
   the translations with their references, exactly as given (Surah
   Al-Hujurat, Ayat 13; Jami` at-Tirmidhi 1979 (Book 27, Hadith 85)), set
@@ -874,7 +875,10 @@ Ornaments are toggled under **Style → Ornaments**:
   width in a frame, 0.113 without) and the text is set nearly as large as
   the Arabic: at A3 in a frame, 2.7 mm against 2.9 mm. The title keeps
   clear of the larger medallions. A quotation is always set whole: nothing
-  is left out to make it fit (tests/quotation-language.test.ts).
+  is left out to make it fit. The English basmala is one line between the
+  medallions, as large as fits there (0.0155 of the page's width at most:
+  4.1 mm at A3 with both medallions), never cut, the title lowered only by its own depth
+  (tests/quotation-language.test.ts).
 
 (The decorative leafy canopy was removed: its unnamed leaves hid the
 branches and made lines harder to follow. A saved setting for it is

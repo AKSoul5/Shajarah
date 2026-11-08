@@ -243,9 +243,9 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 {label}
               </label>
             ))}
-            {(theme.verse || theme.hadith) && (
-              <label className="flex items-center justify-between text-sm" title="Both medallions, together: the original Arabic with its Arabic references, or the English translations with their English references. Never both.">
-                Quotations in
+            {(theme.verse || theme.hadith || theme.bismillah) && (
+              <label className="flex items-center justify-between text-sm" title="The basmala and both medallions, together: the original Arabic with its Arabic references, or the English translations with their English references. Never both.">
+                Basmala and quotations in
                 <select className="input w-48" value={theme.quoteLang ?? "auto"} onChange={(e) => onChange({ quoteLang: e.target.value as NonNullable<PosterTheme["quoteLang"]> })}>
                   <option value="auto">The poster&apos;s language</option>
                   <option value="ar">Arabic (العربية)</option>
