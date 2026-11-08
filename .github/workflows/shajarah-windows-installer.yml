@@ -276,7 +276,9 @@ jobs:
           gh release download $env:FROM -R $env:REPO --pattern 'Shajarah-Setup-*.exe' --dir old
           $old = (Get-ChildItem old -Filter 'Shajarah-Setup-*.exe' | Select-Object -First 1).FullName
           $extra = @{}
-          if ($env:FROM -eq $env:NEWEST) { $extra = @{ Recovery = $true; DownAndUp = $true; RedProof = $true } }
+          if ($env:FROM -eq $env:NEWEST) { $extra = @{ Recovery = $true; DownAndUp = $true } }
+          # the red proof needs the defect itself: 1.0.51 was the last release to delete the database
+          if ($env:FROM -eq 'v1.0.51') { $extra = $extra + @{ RedProof = $true } }
           & ./shajarah/desktop/electron/scripts/ci-upgrade.ps1 -OldInstaller $old -OldVersion $env:FROM.TrimStart('v') `
             -CandidateDir (Resolve-Path candidate).Path -NewVersion $env:NEW_VERSION @extra
       - name: Upload logs
