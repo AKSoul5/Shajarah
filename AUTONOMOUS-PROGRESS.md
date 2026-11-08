@@ -9,8 +9,8 @@ published without the owner.
 | Workstream | Branch (worktree) | HEAD |
 |---|---|---|
 | A. Stress test + spouse-frame page fix | `layout/fan-every-foundation` (`/home/user/wt-fan`) | `aa98dc0` |
-| B. Typography and spacing | `layout/typography-spacing` (`/home/user/wt-typo`), branched from A at `600d9a0` | `404c9ab` |
-| C. Quotation language | `feature/quote-language` (`/home/user/wt-quote`), from `main` | `eb789fe` |
+| B. Typography and spacing | `layout/typography-spacing` (`/home/user/wt-typo`), branched from A at `600d9a0` | `dea3143` (+ trunk work, uncommitted at 22:40) |
+| C. Quotation language | `feature/quote-language` (`/home/user/wt-quote`), from `main` | `eae75af` |
 | Notes | `notes/autonomous-progress` (`/home/user/wt-notes`), from `main` | this file |
 
 Scratch outputs (not in git): `/tmp/claude-0/-home-user/e90cb42e-c033-5f48-94e9-9bb338f9cd65/scratchpad/`
@@ -80,3 +80,69 @@ inspections, `quote/` quotation renders).
     floors.
   - **Red proof:** on the engine before the fixes (600d9a0), 5 of 11 fail.
     F ar also failed on 404c9ab (R5).
+
+### 22:15 — B: R7 (titles overflowing their cartouche), committed `dea3143`
+- **Two causes.**
+  1. Titles were measured as the names' width times 1.1 (Ruqaa) or 1.45
+     (Kufi), but the poster loads only the title fonts' Arabic, so English
+     titles are drawn in Amiri. Measured over 410 titles (estimate ÷ true
+     width): the old estimate ran down to 0.65 for English in Ruqaa, and
+     Kufi English was set about 60% too small.
+  2. The title was sized so the text alone filled the room. The ground
+     (cartouche + 2.6 font sizes, panel + 1.8) was then clamped to the room,
+     so long titles ran onto the tips.
+- **Fix.**
+  - `titleEms(text, "ruqaa" | "kufi")` uses per-glyph tables for each
+    title font as drawn (`titleMetrics.json`, from
+    `scripts/font-metrics.mjs`; Latin at the title's weight in Amiri). It
+    is within −5.2% to +5.4% of Chromium over 410 titles.
+  - The header adds a 6% allowance and sizes the title together with its
+    ground's padding (`titleGroundPad`, shared with `TitleGround`).
+- **Test.** `tests/title-width.test.ts`: 15 tests.
+  - **Red proof:** 6 of 15 fail on 404c9ab, and the same 6 with main's
+    estimate.
+  - **Renders:** before/after at A1 (Luxe, Heritage, Platinum):
+    `scratchpad/r7/titles-before-after.png`.
+
+### 22:40 — B: trunk with spouses added (uncommitted at this point)
+- **Finding.** The trunk itself never moves. In 22 layouts the trunk, the
+  canopy base and the crown centre were exactly on the page centre, and
+  the trunk names were in one column. What moved was the canopy.
+- **Root cause 1.**
+  - *Cause:* one wife for the canopy base sent every brother of the centred
+    son to one side. The rule "never split one mother's children" forbade
+    every cut, since all the children were hers.
+  - *Effect:* the first generation's middle moved 12.7% of the page width;
+    medium family 10%, names 4.3 mm instead of 6.5 mm.
+  - *Fix:* the rule does not apply when the centred son is her child too.
+- **Root cause 2.**
+  - *Cause:* a sole wife's frame sat to one side of the trunk because the
+    canopy base's medallion obstacle (`base:obstacle`) was counted as
+    another name, ruling out every spot above the base.
+  - *Fix:* it is treated as the partner's own box.
+- **After.** One wife: canopy middle +2.2% (same as no spouse). Medium:
+  +0.7% Arabic, names 6.52 mm (were 4.33); English 4.30 mm (were 3.47).
+  Tiny family's wife frame: 1.8% from the axis.
+- **Test** `tests/trunk-upright-with-spouses.test.ts` (21 tests):
+  - the trunk drawn upright for every case;
+  - shift ≤ `SIDE_SHIFT_MAX` (4% W, the engine's own balancing limit);
+  - a sole wife's frame within 4% of the axis;
+  - limbs on both sides;
+  - determinism;
+  - long-title families.
+
+  Two or three wives, and a daughter's two husbands, are checked only for
+  upright trunk and limbs on both sides: half-siblings stay grouped on one
+  side, so the balance there is the family's own (English two wives: names
+  10:7). **Red proof:** 6 of 21 fail on `dea3143`.
+
+### 22:40 — C: Basmala in the quotations' language, committed `eae75af`
+- The Basmala follows `layout.quoteLang`: ﷽ in Arabic; in English the
+  exact sentence, on one line between the medallions (4.1 mm at A3, 8.2 mm
+  at A1), never cut.
+- The control is now "Basmala and quotations in", shown when the Basmala
+  or a quotation is on. README updated.
+- `tests/quotation-language.test.ts`: 17 tests pass (6 language
+  combinations × 7 designs × frame on/off, exact sentence, fits between
+  the medallions, legible).
+- Renders: `scratchpad/quote/basmala/basmala-sheet.png`.
