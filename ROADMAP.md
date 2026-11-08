@@ -36,8 +36,8 @@ come before any product or botanical work. Each release:
 |---|---|---|---|
 | S0 | Release pipeline | Q1 checks, database, Windows build, historical upgrades, draft only, live verification after publishing (Q2–Q5 partly) | **Done** |
 | 1.0.52 (S1) | Emergency | E1 classification, pointer file and new-folder set-up; E2 recovery window; E3 repair on a copy; E4 emergency export | **Released** |
-| 1.0.53 (S2) | Data protection | D1 backup format; D2 pre-migration backup; D3 verification, with export and folder copy when it fails; D4 retention (10 full pre-migration copies; 3 daily and 4 weekly project backups; free-space check); D5 restore into a new folder; D6 migration lint and runner v2 (one transaction, checksums); D7 `SchemaMeta`; D8 downgrade and support-floor checks; D9 daily backup on the first start of each day; Q4 historical matrix | **Next** |
-| 1.0.54 (S3) | Relationship integrity | I1 one validator after every change; I2 add-a-parent loop check (C3); I7 `ChangeRecord` (structured repair and correction records, never person notes); I3 parent-correction workflow (C2); I4 loop resolution; I5 undo that can't get stuck; I6 open with repair; I8 relationship history | Planned |
+| 1.0.53 (S2) | Data protection | D1 backup format; D2 pre-migration backup; D3 verification, with export and folder copy when it fails; D4 retention (10 independent recovery points, migration-aware; 3 daily and 4 weekly project backups; configuration-aware free-space check); D5 restore into a new folder; D6 migration lint and runner v2 (one transaction, checksums); D7 `SchemaMeta`; D8 downgrade and support-floor checks; D9 daily backup on the first start of each day; D10 failure explanations; Q4 historical matrix; **Windows release gate W-1 to W-9** (plan §7) | **Next** |
+| 1.0.54 (S3) | Relationship integrity | I1 one validator after every change; I2 add-a-parent loop check (C3); I7 `ChangeRecord` (structured repair and correction records, never person notes); I3 parent-correction workflow (C2); I4 loop resolution; I5 undo that can't get stuck; I6 open with repair; I8 relationship history; I9 Open Project keeps citation and media order (H13) | Planned |
 | 1.0.55 (S4) | GEDCOM identity | G1 family namespace and person and union ids (additive migration); G2 export with `REFN`+`TYPE` and `_UID`, no invented marriages, no `DIV` for an ended marriage; G3 import of Shajarah's own files by id; G4 external matches as confirmed suggestions only, never an automatic merge; G5 interoperability notes | Planned |
 | 1.0.56 (S5) | Silent data loss | L1–L4 (H9–H12) | Planned |
 | 1.0.57 (S6) | Recovery Centre | C1 two tiers (start-up window and in-app page); C2 health, integrity, backups, restore points, GEDCOM validation, project repair, explanations; C3 optional external backup location | Planned |
@@ -69,11 +69,19 @@ because they contain real families).
 | H7 | One person can have up to three different generation numbers | 1.1.0 |
 | H8 | GEDCOM loses or invents data (`DIV` for every marriage end, marriages invented for co-parents, life events dropped) | 1.0.55, then 1.4 |
 | H9–H12 | Over-long imported values; merges failing on long notes; mixed Hijri and Gregorian years; hidden marriages reappearing after project open | 1.0.56 |
+| H13 | Open Project can reorder citations across sources: restored rows share one creation time, and the tree is loaded in creation-time order. Media are exposed to the same tie. Found while validating photo-free project backups | 1.0.54 |
 
 ## Decided (owner)
 
-- **U7, backup storage** (8 Nov 2026): keep **10 full, independent pre-migration copies**. Measured need: 0.5–1.0 GB for a typical family without photos. Photos dominate, at about 78 MB of backup space per 2 MB photo at peak. A free-space check runs before every backup, and nothing is ever deleted to make room. The space-saving options are documented, not adopted. See plan §5.6.
-- **U8, dated project backups** (8 Nov 2026): one on the **first start of each day**; keep the **3 most recent daily** and **4 weekly**, the weekly ones kept independently of daily cleanup. Never deleted: the live database, the newest backup of each kind, or a backup pinned for recovery. Creation and cleanup are safe against interrupted shutdowns. See plan §5.6.
+- **U7, update recovery points** (8 Nov 2026, revised the same day). Before every version change and schema migration, the app keeps **10 independent recovery points**. Each holds:
+  - only the WAL needed to start, compressed with zstd, with a verified full-copy fallback;
+  - project files without photos, which are restored from the same folder.
+
+  Retention is migration-aware, and protected points are never deleted. An existing point is reused only when contents, schema, migration history and PostgreSQL compatibility all match. The free-space check reads the actual PostgreSQL configuration (replication slots, archiving, `wal_keep_size`, the migration's own WAL), never treats `max_wal_size` as a ceiling, and never changes a setting. It refuses, and explains why, when it can't establish a safe requirement. Nothing is ever deleted to make room. See plan §5.6.
+- **U8, dated project backups** (8 Nov 2026): one on the **first start of each day, before the editor opens**, skipped when nothing changed. Keep the **3 most recent daily** and **4 weekly**, the weekly ones kept independently of daily cleanup. Never deleted: the live database, the newest backup of each kind, or a backup pinned for recovery. Creation and cleanup are safe against interrupted shutdowns. See plan §5.6.
+- **Every backup failure is explained** (8 Nov 2026): what failed, whether the database is safe, which recovery point is available, and what to do next.
+- **Windows is a release gate for 1.0.53** (8 Nov 2026): criteria W-1 to W-9 in plan §7 must pass on the installed app.
+- **External backup location** (8 Nov 2026): its own free-space check on its own drive (U6, C3).
 
 ## Open decisions (owner)
 

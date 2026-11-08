@@ -39,7 +39,7 @@ Where this plan and earlier documents disagree, **this plan governs**.
 The earlier decisions still stand, unchanged:
 
 - drafts until you approve publication;
-- keep 10 verified pre-migration backups (full, independent copies) plus dated project backups: 3 daily and 4 weekly (U7 and U8, decided; §5.6);
+- keep 10 verified, independent pre-migration recovery points with migration-aware retention, plus dated project backups: 3 daily and 4 weekly (U7 and U8, decided; §5.6);
 - always ask which relationship to remove in a loop;
 - never merge automatically;
 - the oldest supported upgrade is found by testing;
@@ -217,15 +217,16 @@ Each task lists its owner, what it depends on, and its tests. The defect ids C1�
 
 | ID | Task | Depends on |
 |---|---|---|
-| D1 | Backup folder `%APPDATA%\Shajarah\backups\` (outside `database\`), with three independent kinds in their own sub-folders: `pre-migration\`, `daily\` and `weekly\` (§5.6). One folder per backup, each with a `manifest.json` (kind, time, app and schema versions, the source cluster, file hashes, family counts and checksums) and project files; pre-migration backups also hold a cold copy of the cluster | E1 |
-| D2 | Pre-migration backup: clean stop → copy → hashes → start → project exports (through E4's reader, so it works on any schema) | D1, E4 |
-| D3 | Verification before migrating (re-hash; project files re-read and validated; counts equal). **On failure (R6):** no migration; the recovery window explains which check failed; offers **"Export my families now"** (E4), **"Copy my database folder to…"** (a verified file copy) and "Save a diagnostic report"; the app keeps running **on the current schema without migrating** [H: a new app on an old schema must be tested, or the window offers to reinstall the previous version (§8)] | D2 |
-| D4 | Retention, as decided in §5.6: the **10** most recent verified pre-migration backups (full, independent copies); the **3** most recent daily backups; **4** weekly backups, kept independently of daily cleanup. Pruning runs only after a new backup is verified, touches only backups the app created, never the newest of each kind, never a pinned backup, never the live database. A free-space check runs before every backup | D2, D9 |
+| D1 | Backup folder `%APPDATA%\Shajarah\backups\` (outside `database\`), with three independent kinds in their own sub-folders: `pre-migration\`, `daily\` and `weekly\` (§5.6). One folder per backup, each with a `manifest.json` (kind, time, the identity record of U7.4, the source cluster, file hashes, family counts and checksums) and project files. Pre-migration recovery points also hold a copy of the cluster with only the WAL needed to start it, compressed with zstd, and their project files carry no photos (U7.2). Includes the investigation of a sound, cheap change test (U7.9) | E1 |
+| D2 | Pre-migration recovery point, before every app version change and every schema migration: clean stop → configuration-aware free-space check (U7.7) → the needed WAL identified from `pg_control` → compressed copy with hashes → photo-free project exports (through E4's reader, so it works on any schema). Reuse of the newest point only on a full identity match (U7.5) | D1, E4 |
+| D3 | Verification before migrating: a trial restore from the recovery point's own folder into a temporary folder, started; hashes; an integrity check that hashes stored values, photos included; project files re-read and validated; counts equal. Any failure falls back to a verified full, uncompressed copy (U7.3). **If that also fails (R6):** no migration; the recovery window explains which check failed; offers **"Export my families now"** (E4), **"Copy my database folder to…"** (a verified file copy) and "Save a diagnostic report"; the app keeps running **on the current schema without migrating** [H: a new app on an old schema must be tested, or the window offers to reinstall the previous version (§8)] | D2 |
+| D4 | Retention, as decided in §5.6: **10** independent recovery points chosen migration-aware (U7.6: 3 protected pre-schema-migration points, 6 most recent distinct states, then weekly); the **3** most recent daily backups; **4** weekly backups, kept independently of daily cleanup. Pruning runs only after a new backup is verified, touches only backups the app created, never the newest of each kind, never a protected or pinned point, never the live database; an overrun is kept and reported. The configuration-aware free-space check (U7.7) runs before every operation and each of its steps | D2, D9 |
 | D5 | Restore: choose a backup → its cold copy is copied into a **new** `clusters\<id>` folder → start → verify → the pointer switches after you confirm. The current folder stays in place (no move) | D3 |
 | D6 | **Migration safety lint and runner v2** (§5.2) | Q1 |
 | D7 | `SchemaMeta` migration (app version, schema version, migration manifest hash) through runner v2 | D3, D6 |
 | D8 | Detection of a database ahead of the app, and of one below the support floor (Q4) | D7, Q4 |
-| D9 | **Dated project backups (U8, decided):** on the first start of each local calendar day, one project-file backup of every family, written and verified as §5.6 describes; the first verified daily backup of each ISO week is also kept as that week's weekly backup | D1, D3 |
+| D9 | **Dated project backups (U8, decided):** on the first start of each local calendar day, **before the editor opens**, one project-file backup of every family with its photos, written and verified as §5.6 describes, and skipped when the identity record is unchanged (U7.9); the first verified daily backup of each ISO week is also kept as that week's weekly backup | D1, D3 |
+| D10 | **Failure explanations (U7.8):** one message for each refusal and failure (space, configuration, verification, fallback), stating what failed, that the database is untouched, which recovery point is available, and what to do next, in Arabic and English | D3, D4 |
 
 **S3: relationship integrity and change records (Agent 1; schema by Agent 3)**
 
@@ -239,6 +240,7 @@ Each task lists its owner, what it depends on, and its tests. The defect ids C1�
 | I5 | Undo that cannot get stuck (allowed when no new problem is added) | I1 |
 | I6 | Open with repair: a damaged project file opens into a preview; repairs happen only through I3/I4 choices; it opens as a new family carrying its `ChangeRecord`s; the original file is unchanged | I3, I4 |
 | I8 | **Relationship history:** an ended or corrected relationship stays visible ("recorded as father until 8 Nov 2026; corrected because …") in the person's panel and in the Centre, and can be reverted from its `ChangeRecord` | I7 |
+| I9 | **Open Project keeps the order of citations and media (defect H13).** Restored rows share one `createdAt`, and the tree loads them ordered by `createdAt`, so citations can come back in a different order across sources; media are exposed to the same tie. Restore keeps the saved order explicitly. Separate from the backup work | — |
 
 **S4: GEDCOM identity (Agent 1; schema by Agent 3)**: G1–G5, defined in §6.
 
@@ -250,7 +252,7 @@ Each task lists its owner, what it depends on, and its tests. The defect ids C1�
 |---|---|
 | C1 | Tier 1 (start-up window: E2–E4, D3, D5, D8) and tier 2 (an in-app page) share one problem catalogue: code, explanation in Arabic and English, severity, possible actions |
 | C2 | Tier 2 sections: database health; relationship integrity (I1 results, I3/I4 actions); backup history; verify now (including a trial restore into a temporary folder); restore points; GEDCOM file validation before import; project-file repair (I6); change records (review and revert); plain explanations |
-| C3 | Optional external backup location (version 1, §6, if approved) |
+| C3 | Optional external backup location (version 1, §6, if approved), with its own free-space check on its own drive (U6) |
 
 ---
 
@@ -263,12 +265,13 @@ Each task lists its owner, what it depends on, and its tests. The defect ids C1�
 3. **Check versions** (D8):
    - a database ahead of the app is refused, with the right message;
    - one below the floor is refused, with instructions.
-4. **If migrations are pending:**
-   1. take the pre-migration backup (D2);
+4. **If migrations are pending or the app version changed:**
+   1. take the pre-migration recovery point, or reuse the newest on a full identity match (D2, U7.5);
    2. verify it (D3). If verification fails, §5.4 applies.
 5. **Migrate** with runner v2 (§5.2).
 6. **Run the integrity validator** on every family. It **reports only**: no automatic repair.
-7. **Start the server.**
+7. **Take the daily backup** if one is due (D9, U8), still before the editor opens.
+8. **Start the server.**
 
 ### 5.2 Migration safety (R5)
 
@@ -315,8 +318,8 @@ Added in S3 through runner v2: an additive table, approved by you before it is w
 
 ### 5.4 When backup verification fails (R6)
 
-1. **Nothing is migrated, and nothing is changed.**
-2. The window names the failure in plain words, for example "One family's backup copy did not match the database (a family: 120 people in the database, 119 in the copy)", and gives the technical detail in the diagnostic report.
+1. **Nothing is migrated, and nothing is changed.** Nothing is deleted to make room.
+2. The window follows U7.8: what failed, that the existing database is untouched, which verified recovery point is available (or none), and what to do next. It names the failure in plain words, for example "One family's backup copy did not match the database (a family: 120 people in the database, 119 in the copy)", and gives the technical detail in the diagnostic report.
 3. **Always available:**
    - **Export my families now** (E4) to a folder you choose;
    - **Copy the whole database folder to…** (a verified file copy);
@@ -336,7 +339,7 @@ Added in S3 through runner v2: an additive table, approved by you before it is w
 5. **Only after you confirm**, the pointer switches.
 6. The previous folder stays where it was, and is listed for later deletion with your confirmation (U5).
 
-### 5.6 Backup storage and retention (U7 and U8, decided 8 Nov 2026)
+### 5.6 Backup storage and retention (U7 and U8, decided and revised 8 Nov 2026)
 
 **Measured, not estimated.** Real clusters were made with the PostgreSQL binaries the app ships (16.14). The real migrations were applied, invented families of three sizes were loaded, and a period of heavy editing was simulated: 1,000 saves, each rewriting every person's generation, as a save can. Each size was measured after a clean shutdown, which is what a cold copy holds.
 
@@ -365,7 +368,7 @@ A project-file backup holds about 0.4 KB per person (120 KB for 318 people, 7.7 
   - a daily backup being written before cleanup.
 
   That gives **13 L + 19 P**.
-- **Temporary copies** while migrating or recovering are included in that peak. The free-space check must therefore require **at least 2 L + 2 P + 500 MB free** before any backup, restore or repair starts.
+- **Temporary copies** while migrating or recovering are included in that peak. The free-space check itself is configuration-aware and uses the sizes measured at that moment (U7.7). These figures are an upper bound for the full-copy form only.
 
 | Scenario | L | P | Steady | Peak |
 |---|---|---|---|---|
@@ -378,34 +381,169 @@ A project-file backup holds about 0.4 KB per person (120 KB for 318 people, 7.7 
 
 **Growth:** each person adds about 0.4 KB to the data. Each 2 MB photo adds about **78 MB** of backup space at peak.
 
-**Decided retention policy:**
+**The table above measures full, uncompressed copies.** That is the fallback form (U7.3). The adopted form is smaller:
+- it copies only the WAL needed to start;
+- it compresses with zstd, which in the validations brought data and WAL down to about 12% (photos only to 84–99%);
+- its project files carry no photos.
 
-- **Pre-migration backups (U7):** the **10** most recent verified backups, each a **full, independent** cold copy plus project files. Nothing is shared between backups, so deleting one can never damage another. Taken whenever migrations are pending or the app version changed (D2), and verified before any migration (D3).
-- **Daily backups (U8):** one project-file backup of every family, on the **first start of each local calendar day**. Keep the **3 most recent**. Days on which the app is not started produce none; retention counts backups, not days.
-- **Weekly backups (U8):** the first verified daily backup of each ISO week is also written, as its own copy, to `backups\weekly\<year>-W<week>\`. Keep the **4 most recent weeks**. Daily cleanup never looks inside `weekly\`, and weekly cleanup never looks inside `daily\`.
-- **Never deleted:**
-  - the live database, or any cluster folder (rule R1);
-  - the newest backup of each kind;
-  - any backup **pinned** for recovery, that is, chosen in the recovery window or Centre, being restored, or the source of a repair. Pins are kept in `backups\pins.json`, and a pin is released only when that recovery finishes or is cancelled.
-  - anything outside `backups\`.
+The free-space check (U7.7) therefore never relies on this table. It uses the sizes measured at that moment.
 
-**Safe against interrupted shutdowns:**
+**Decided policy (U7 and U8, 8 Nov 2026; revised the same day to make the free-space check configuration-aware and reuse schema-aware).**
 
-1. **Creating a backup.** Write into `<kind>\<name>.partial-<random>\` → write the files → `manifest.json` last, with every file's hash → re-read and verify (hashes, project files open and pass the validator, counts equal the database) → **rename** to `<kind>\<name>\`. Only a folder with a complete, verified manifest counts as a backup.
-2. **Cleaning up.** Runs only after a new backup is verified. Rename the backup to prune into `<kind>\.trash-<name>\` first (atomic), then delete it. A `.trash-` folder left by an interruption is finished on the next start. A pruned backup is never half-deleted and still looks valid.
-3. **Leftover `.partial-` folders** (an interrupted creation) are never counted as backups and never used for recovery. They are removed on the next start, because they are the app's own unfinished files and hold nothing that exists only there.
-4. **Clock changes.** A daily backup is due when none exists for today's local date. A backup dated in the future does not block one for today. Retention orders backups by creation time recorded in the manifest, not by folder name.
-5. **Not enough free space.** If the check fails, no backup is taken, **no migration runs**, and nothing is deleted to make room. The recovery window explains the space needed and offers the E4 export and the folder copy to another drive.
+#### U7: update recovery points
 
-**Trade-offs not adopted, which need the owner's decision to change:**
+**U7.1 When.** Before every app version change and before every schema migration (D2).
 
-| Option | Saves | Costs |
+**U7.2 What a recovery point is.** One folder under `backups\pre-migration\`, fully independent of every other backup. It contains:
+- **a copy of the database cluster**, taken after a clean shutdown:
+  - only the WAL needed to start it, from the checkpoint's redo position to the checkpoint record, read from `pg_control` (offsets checked against PostgreSQL 16; no `pg_controldata` is shipped);
+  - each file compressed with zstd;
+  - a SHA-256 hash of every original file;
+- **the project files of every family, without embedded photos.** Photos are recovered from this folder's own database copy, never from another backup;
+- **a `manifest.json`** with the identity record (U7.4), the hashes, and the family counts and checksums.
+
+No hard links, no shared photo store: nothing is shared between backups.
+
+**U7.3 Verification and fallback.**
+- **Verification.** A recovery point counts only after it has been restored into a temporary folder, from its own folder alone, and started. Every file must match its hash, and an integrity check must pass. That check hashes stored values directly, photo bytes included, streaming the compression and hashing the stored bytes rather than text renderings of rows.
+- **Fallback.** If any step fails (identifying the WAL, an unclean shutdown, copying, compressing, decompressing, the trial start, the integrity check), that attempt's temporary files are removed. A **full, uncompressed copy** with all WAL is then taken and verified the same way.
+- **If that also fails:** no migration runs, and §5.4 applies.
+
+**U7.4 Identity record.** Stored in every manifest and compared before any reuse:
+
+| Part | Content |
+|---|---|
+| Database contents | A checksum per table, covering every row of every application table, with photo bytes hashed directly |
+| Schema identity | A hash of the `public` schema's definition read from PostgreSQL's catalogue: tables, columns (name, type, nullability, default), indexes, constraints, enum types and their values, sequences. Plus the `SchemaMeta` schema version, once that table exists |
+| Migration history | The ordered list of applied migrations, with each one's name, checksum and finished state |
+| PostgreSQL compatibility | `PG_VERSION`, the `pg_control` version, the catalogue version, `server_version_num`, the block size, the WAL segment size, whether data checksums are on, and the database's encoding, collation and character type |
+| App compatibility | The app version that wrote the database, the project-file format version, and the support floor in force |
+
+**U7.5 Reuse instead of a new copy.** An existing recovery point is reused **only if all of these hold**:
+- it is verified, and passes verification again at the time of reuse;
+- it is the newest recovery point;
+- **every field** of its identity record equals the current database's.
+
+If so, it is marked as the pre-migration recovery point for the pending change, and the new app version is recorded on it, without taking a copy.
+
+If any field differs, or can't be determined, a new recovery point is taken. A database with identical family data but a different schema, migration history or PostgreSQL compatibility **always gets a distinct pre-migration recovery point.**
+
+**U7.6 Retention: 10 copies.** They are chosen in this order, and a copy that qualifies under several rules counts once:
+1. **Protected:** the 3 most recent recovery points taken before a schema migration. They are never pruned while among those 3.
+2. The 6 most recent **distinct** database states. "Distinct" means a different identity record, not only different family data.
+3. Older weekly recovery points, newest weeks first, in the slots that remain.
+
+**Never deleted:**
+- the live database or any cluster folder (R1);
+- the newest recovery point;
+- a protected recovery point;
+- a recovery point pinned for a recovery in progress (`backups\pins.json`; a pin is released only when that recovery finishes or is cancelled);
+- anything outside `backups\`.
+
+If pins and protected points together exceed 10, all are kept, and the overrun is shown to the person. Pruning:
+- runs only after a new recovery point is verified;
+- touches only recovery points the app created;
+- goes through a `.trash-` rename;
+- records every deletion.
+
+**U7.7 Free-space check: configuration-aware, run before every operation.** It runs before every backup, migration, restore and repair, and again before each step within them, against the drive that will hold the files. It uses only values measured at that moment, and it **reads the PostgreSQL configuration without ever changing it**.
+
+1. **Read the actual configuration:**
+   - `max_wal_size`, `min_wal_size`, `wal_keep_size`, `wal_segment_size`;
+   - `checkpoint_timeout`, `checkpoint_completion_target`;
+   - `archive_mode`, plus `archive_command` or `archive_library`;
+   - `max_slot_wal_keep_size`, `wal_level`, `full_page_writes`, `wal_compression`;
+   - every row of `pg_replication_slots` (active, `restart_lsn`, `wal_status`, `safe_wal_size`);
+   - `pg_stat_archiver` and `pg_stat_wal`.
+
+   Also measure the WAL folder's current size from the files on disk.
+2. **WAL already held by retention mechanisms:**
+   - **Replication slots:** the WAL between the oldest slot's `restart_lsn` and the current WAL position.
+   - **Archiving** (`archive_mode` not off): all WAL not yet archived.
+   - **`wal_keep_size`:** counted in full.
+3. **WAL the operation will generate:**
+   - **For a migration:** 1.2 × the sum, over the tables it rewrites, of (table size + its indexes) × the number of rewrites in its transaction, plus 64 MB. The migration lint (D6) reports which tables each statement rewrites and how many times.
+   - **Concurrent writes:** in 1.0.53 no backup, migration, restore or repair runs while edits are possible. They all run before the editor opens, and copies are taken only after a clean shutdown, so this term is zero. Any later operation that runs alongside edits must add at least 2 × the WAL rate observed in `pg_stat_wal` × its estimated duration, and at least 64 MB.
+4. **An allowance for the live database's normal WAL:**
+   - 2 × (`max_wal_size` + `wal_keep_size`) + 2 × `wal_segment_size`, minus the WAL already on disk (never below zero);
+   - plus the retention measured in step 2.
+
+   **`max_wal_size` is never treated as a ceiling:** measured peaks of 1,040–1,056 MB exceeded its 1,024 MB.
+5. **Other temporary space:**
+   - backup staging: the larger of twice the uncompressed slim copy and twice the live cluster (the fallback);
+   - the project files to be written, with a daily backup's photos when one is due;
+   - the migration's own table rewrites: (table size + indexes) × rewrites;
+   - a restore: the restored cluster's full size;
+   - a repair: one full copy.
+6. **Margin:** 500 MB or 10% of the total, whichever is larger.
+
+**The factors in steps 3, 4 and 6 are minimum conservative allowances, not upper limits.** Whenever a measured requirement is higher (the WAL on disk, a measured rewrite size, a measured slot or archive backlog), the measured value is used.
+
+**Refuse, explaining why and how to resolve it** (U7.8), when any of these holds:
+- free space is below the total;
+- free space can't be read;
+- any input can't be read or determined;
+- the lint can't classify a statement's WAL volume;
+- a replication slot has unbounded retention (`max_slot_wal_keep_size` = -1) or reports `wal_status` "lost" or "unreserved";
+- archiving shows failures since its last success, or its state can't be read.
+
+When it refuses, nothing is copied, migrated or deleted, and **nothing is deleted to make room**. The app never removes a slot, turns off archiving or changes any setting. The person decides.
+
+**U7.8 Every failure is explained.** When a backup fails, space is insufficient, or the PostgreSQL configuration prevents a safe backup, the window (§5.4) states, in plain words in Arabic and English:
+1. **what failed**, naming the step, and, for a configuration refusal, the slot or archiving setting found and its retained size;
+2. **whether the existing database is safe:** it is untouched, and the app says so explicitly;
+3. **whether a recovery point is available:** the newest verified one, its date and app version, or "none";
+4. **what to do next:**
+   - free a stated amount of space on a named drive;
+   - or remove or limit a named replication slot, or fix archiving (with the setting to change, done by the person);
+   - and in every case: export the families (E4) or copy the database folder to another drive.
+
+There are no silent failures, and nothing is deleted automatically to make room.
+
+**U7.9 Change detection must be correct first, then cheap.** Full identity hashing (every row and photo) is required when a recovery point is created, verified, reused or restored. It must **not** run on every start. Deciding whether a backup is due (U7.5, U8) may use a cheaper test, but only one that is proven sound: it may say "changed" freely, and may say "unchanged" only when no write could have happened. Candidates to investigate in D1:
+- the per-family revision the API already advances on every change (`If-Match`), together with the schema identity;
+- WAL positions recorded at clean shutdown.
+
+A candidate is adopted only if a test (D-T14) shows that every write path (API, import, merge, undo, restore, repair, migration) moves it. Otherwise the full identity is computed. Correctness is never traded for speed.
+
+#### U8: dated project backups
+
+- **When:** once a day, on the first start of the local calendar day, **before the editor opens**. That means no concurrent edits, and the timing is predictable. It is one project backup of every family, **with embedded photos**.
+- **Unchanged days:** none is taken when the full identity record (U7.4) equals the newest daily backup's, using the U7.9 test to decide.
+- **Retention:**
+  - keep the 3 most recent daily backups;
+  - the first verified daily backup of each ISO week is also written, as its own copy, to `backups\weekly\<year>-W<week>\`, as that week's weekly backup;
+  - keep the 4 most recent weekly backups;
+  - weeks without a change produce none, so 4 weekly backups can span more than 4 weeks.
+
+  Daily cleanup never looks inside `weekly\`, and weekly cleanup never looks inside `daily\`.
+- **Never deleted:** the live database, the newest backup of each kind, or a pinned backup.
+- **Space:** the U7.7 check applies. If space is short, the backup is skipped and the person is told, as U7.8 describes. Editing is not blocked.
+
+**Safe against interrupted shutdowns (U7 and U8):**
+
+1. **Creating a backup.**
+   1. Write into `<kind>\<name>.partial-<random>\`.
+   2. Write the files, then `manifest.json` last, with every file's hash.
+   3. Verify: the hashes; project files open and pass the validator; counts equal the database's; and, for recovery points, the trial restore of U7.3.
+   4. **Rename** the folder to `<kind>\<name>\`.
+
+   Only a folder with a complete, verified manifest counts as a backup.
+2. **Cleaning up.** This runs only after a new backup is verified. The backup to prune is first renamed to `<kind>\.trash-<name>\` (atomic), then deleted. A `.trash-` folder left by an interruption is finished on the next start, so a pruned backup is never left half-deleted while still looking valid.
+3. **Leftover `.partial-` folders** come from an interrupted creation. They are never counted as backups or used for recovery, and they are removed on the next start: they are the app's own unfinished files and hold nothing that exists only there.
+4. **Temporary folders** for trial restores and fallbacks have unique names inside `backups\`. They are removed after use and on the next start. A temporary folder that holds a startable database is never left behind.
+5. **Clock changes.** A daily backup is due when none exists for today's local date. A backup dated in the future does not block one for today. Retention orders backups by the creation time recorded in the manifest, not by folder name.
+
+**Trade-offs, as decided:**
+
+| Option | Decision | Why |
 |---|---|---|
-| Lower `min_wal_size` / `max_wal_size` for the app's clusters | Most of L for heavily edited databases (1.35 GB to about 0.35 GB in the extreme case) | Changes PostgreSQL settings inside existing cluster folders; slightly more frequent checkpoints |
-| Copy only the WAL needed after a clean shutdown | The same saving, without changing settings | The cold copy is no longer a byte-for-byte folder copy; relies on reading `pg_control` correctly (no `pg_controldata` is shipped) |
-| Store each photo once, shared by all project backups (content-addressed) | Most of 19 P when there are photos | Backups are no longer independent: one damaged photo store affects every backup; a new backup format |
-| Compress cold copies | 50–90% of L | Slower backups and restores; a restore needs decompression first |
-| Fewer than 10 pre-migration backups | Proportional | Fewer restore points (your stated preference is 10) |
+| Copy only the WAL needed after a clean shutdown | **Adopted**, with the verified full-copy fallback | Removes most of L for heavily edited databases without changing any setting |
+| Compress copies (zstd) | **Adopted** | Data and WAL to about 12% in the validations; the round trip is verified on every backup |
+| Leave photos out of pre-migration project files | **Adopted** | Photos are restored from the same folder's database copy; Open Project of the rebuilt file was validated |
+| Lower `min_wal_size` / `max_wal_size` | **Not adopted** | The app never changes PostgreSQL settings in an existing cluster |
+| Store each photo once, shared by all backups; hard links | **Not adopted** | Backups would no longer be independent |
+| Fewer than 10 recovery points | **Not adopted** | 10 kept, with migration-aware retention |
 
 ---
 
@@ -506,11 +644,31 @@ Every test fingerprints the whole data folder before and after.
 | D-T5 | Each isolated-step fixture: idempotent re-run; failure leaves the backup and shows the recovery window |
 | D-T6 | Upgrades from every Q4 release, with old-version data: the backup is created and verified, the migration is applied, families are identical |
 | D-T7 | Each verification failure (corrupted byte, missing project file, count mismatch) blocks the migration, and **E4 export and the folder copy both work from that state** |
-| D-T8 | Retention with 15 backups of each kind, including failed and partial ones: exactly 10 verified pre-migration backups, 3 daily and 4 weekly remain; no pinned or newest backup is pruned; weekly backups survive any amount of daily cleanup |
-| D-T10 | A daily backup is made on the first start of a day and not on the second; none on a day the app is not started; the first of each ISO week also becomes that week's weekly backup |
+| D-T8 | Retention (U7.6) over generated histories with failed and partial backups: 10 recovery points remain, chosen as U7.6 says; the 3 protected pre-schema-migration points, the newest, and every pinned point always survive; an overrun is kept and reported; 3 daily and 4 weekly remain; weekly backups survive any amount of daily cleanup |
+| D-T10 | A daily backup is made on the first start of a day, before the editor opens, and not on the second; none on a day the app is not started or when the identity record is unchanged; the first of each ISO week also becomes that week's weekly backup |
 | D-T11 | Interruptions: the process is killed at every step of creating and of pruning a backup (simulated). Afterwards there is never a half-written backup that counts as valid, never a half-deleted one that still looks valid, and the next start finishes or removes only the app's own `.partial-`/`.trash-` folders |
 | D-T12 | Too little free space: no backup, no migration, nothing deleted; the recovery window shows the space needed and the export still works |
+| D-T13 | Configuration-aware check (U7.7): measured values above the minimum factors are used; an unbounded or lost replication slot, failing archiving, or an unreadable setting refuses with the reason; the cluster's settings are byte-identical before and after |
+| D-T14 | Identity and reuse (U7.4, U7.5, U7.9): identical family data with a different schema, migration history or PostgreSQL compatibility field gets a distinct recovery point; a full match is reused and re-verified; every write path (API, import, merge, undo, restore, repair, migration) is detected as a change by the cheap test, or the full identity is used |
+| D-T15 | Fallback (U7.3): each injected failure (wrong or missing WAL segment, lost file, corrupted compressed file, failed trial start, unclean shutdown) ends in a verified full copy that restores identically, with the live database untouched |
+| D-T16 | Explanations (U7.8): each refusal and failure shows what failed, that the database is untouched, the available recovery point (or none), and the next step, in Arabic and English |
 | D-T9 | Restore round trip: identical checksums; the previous folder untouched; the pointer switches only after confirmation |
+
+D-T1 to D-T16 run on Linux and Windows in CI.
+
+**Windows release gate for 1.0.53.** Each criterion runs on a Windows runner against the **installed** app (Electron's own Node, its bundled PostgreSQL), with test data folders and invented families that include photos. 1.0.53 is not released unless every one passes, in addition to D-T1 to D-T16 and the Q4 historical matrix.
+
+| Id | Criterion |
+|---|---|
+| W-1 | **zstd in the real runtime.** The installed app compresses and decompresses a backup with Electron's own Node. Every file's SHA-256 matches after decompression, including a file over 1 GB, streamed within a stated memory limit |
+| W-2 | **Independent restore.** Take a backup, delete the test's original database folder and password, and restore from the backup folder alone into a new folder. PostgreSQL starts; every table's rows and checksums equal the original; the app shows every family, person and photo (bytes compared); an edit works. Delete the restored copy and restore again: identical again, and the backup folder unchanged byte for byte |
+| W-3 | **Photo-free project files.** From the backup folder alone, rebuild the full project file (photos from the backup's own database copy) and open it with Open Project in a fresh data folder. People, relations, sources, settings and every photo's bytes, caption and owner match |
+| W-4 | **File locking and shutdown.** A backup started straight after the app closes waits until `pg_control` reads "shut down", and never copies a running cluster. A lock held by another process (simulated) gives a clear, safe failure: nothing modified, and the fallback or the refusal reported |
+| W-5 | **Paths, permissions, cleanup.** These all work: a user profile path with spaces and non-ASCII letters, paths over 260 characters (or a clear refusal), read-only attributes on backup files. After every test, killed processes included, the only leftovers are the app's own `.partial-`/`.trash-` folders, removed on the next start. No temporary folder holding a startable database remains |
+| W-6 | **Free space.** The free-space query works on NTFS. On a size-limited test volume, an update with too little space refuses: no backup, no migration, nothing deleted, and the live database and existing backups identical (data compared). With enough space, the update proceeds |
+| W-7 | **Fallback.** D-T15's injected failures each fall back to a verified full copy that restores identically, with the live database untouched |
+| W-8 | **Configuration-aware check.** On a test cluster with an unbounded replication slot, and on one with a failing `archive_command`, the update refuses with the U7.8 explanation. Neither the test nor the app changes the cluster's settings |
+| W-9 | **Schema-aware reuse.** Identical family data with a different schema, migration history or PostgreSQL compatibility field gets a distinct recovery point. Twenty version changes with a fully identical identity create no new copy |
 
 ### S3: 1.0.54 relationship integrity
 
@@ -525,6 +683,7 @@ Every test fingerprints the whole data folder before and after.
 | I-T7 | Damaged project files open only through explicit repair choices; the original file's hash is unchanged |
 | I-T8 | Revert of a `ChangeRecord` restores the original relationship exactly |
 | I-T9 | Project files with `changeRecords` still open in 1.0.53 (format 1) |
+| **I-T10 (RED)** | **Save a project file whose citations and media have a deliberate order, then open it in a fresh data folder: 1.0.53 reorders citations (red); 1.0.54 keeps both orders exactly** |
 
 ### S4: 1.0.55 GEDCOM identity
 
@@ -600,7 +759,10 @@ Each of H9, H10, H11 and H12 has a **(RED)** test.
 | Installers for 1.0.32–1.0.51 may no longer be downloadable; 1.0.7–1.0.30 have no tags on GitHub | Q4 records what can be obtained. The support floor is the oldest *tested* release. Users below it get guided steps (E4 export, then import) |
 | A new app on an old schema (when the migration is skipped) may not run | Tested in S2. If it cannot, the recovery window offers export or a reinstall instead |
 | Relaxing the parent role/gender rule (U1) makes such trees unopenable in older versions | Documented in rollback; such trees occur only after your explicit confirmation |
-| Backups take disk space: measured, 0.5–1.0 GB for a typical family without photos, but about 78 MB per 2 MB photo at peak (§5.6) | Free-space check before every backup; nothing is deleted to make room; the space used is shown in the Centre; the space-saving options in §5.6 await the owner's decision |
+| Backups take disk space: measured, 0.5–1.0 GB for a typical family without photos in the full-copy form, about 78 MB per 2 MB photo at peak (§5.6) | Slim WAL, zstd and photo-free pre-migration project files (U7.2); the configuration-aware free-space check before every operation (U7.7); nothing is deleted to make room; the space used is shown in the Centre |
+| The WAL allowance is a judgement: peaks were measured on a fast disk only | The factors are minimums; measured values win when higher (U7.7); W-6 and D-T13 on Windows |
+| Local copies do not survive a disk failure | The external backup location (C3), with its own free-space check |
+| Full identity hashing is slow for large families | Only when creating, verifying, reusing or restoring a recovery point; a cheap test only if proven sound (U7.9, D-T14) |
 | Roaming-profile sync of a live database | U13 |
 | External programs strip identifiers | Suggestion-only fallback; G5 documents it |
 
@@ -614,9 +776,9 @@ Each of H9, H10, H11 and H12 has a **(RED)** test.
 | U3 | S1 waits for the whole S0 pipeline, including the 448 layout-QA cases | Yes |
 | U4 | Offer "repair on a copy" (E3) in S1 | Yes, only on a copy and only after confirmation |
 | U5 | Deleting old or abandoned folders and backups: only after your confirmation in the Centre | Yes |
-| U6 | External backup location: allow cloud folders; encrypt external backups by default | Allow, with the privacy warning; encryption on |
-| U7 | Disk budget for 10 cold copies | **Decided (8 Nov 2026):** 10 full, independent copies, kept. The measured requirement and its trade-offs are in §5.6 |
-| U8 | Dated project backups | **Decided (8 Nov 2026):** daily on the first start of each day; keep 3 daily and 4 weekly, the weekly ones independent of daily cleanup; safe against interruption (§5.6) |
+| U6 | External backup location: allow cloud folders; encrypt external backups by default | Allow, with the privacy warning; encryption on. **Decided (8 Nov 2026):** its own free-space check on its own drive before anything is written there |
+| U7 | Update recovery points | **Decided and revised (8 Nov 2026):** 10 independent recovery points, slim WAL with zstd and a verified full-copy fallback, photo-free project files, migration-aware retention, schema-aware reuse (a full identity match only), a configuration-aware free-space check that refuses and explains (§5.6, U7.1–U7.9) |
+| U8 | Dated project backups | **Decided (8 Nov 2026):** daily on the first start of each day, before the editor opens, skipped when unchanged; keep 3 daily and 4 weekly, the weekly ones independent of daily cleanup; safe against interruption (§5.6) |
 | U9 | Opening a project file **beside** its original: keep namespace and ids (a second appearance of the same family), or offer "Open as an independent copy" with new ones | Ask each time; default to an independent copy if the namespace already exists |
 | U10 | Scope: desktop only for S1–S6, or also a web/server deployment | Desktop only, unless one is in use |
 | U11 | No downgrade through the updater | Confirm |
