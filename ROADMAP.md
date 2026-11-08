@@ -36,7 +36,7 @@ come before any product or botanical work. Each release:
 |---|---|---|---|
 | S0 | Release pipeline | Q1 checks, database, Windows build, historical upgrades, draft only, live verification after publishing (Q2–Q5 partly) | **Done** |
 | 1.0.52 (S1) | Emergency | E1 classification, pointer file and new-folder set-up; E2 recovery window; E3 repair on a copy; E4 emergency export | **Released** |
-| 1.0.53 (S2) | Data protection | D1 backup format; D2 pre-migration backup; D3 verification, with export and folder copy when it fails; D4 retention (10 verified, plus at least 3 dated project backups); D5 restore into a new folder; D6 migration lint and runner v2 (one transaction, checksums); D7 `SchemaMeta`; D8 downgrade and support-floor checks; Q4 historical matrix | **Next** |
+| 1.0.53 (S2) | Data protection | D1 backup format; D2 pre-migration backup; D3 verification, with export and folder copy when it fails; D4 retention (10 full pre-migration copies; 3 daily and 4 weekly project backups; free-space check); D5 restore into a new folder; D6 migration lint and runner v2 (one transaction, checksums); D7 `SchemaMeta`; D8 downgrade and support-floor checks; D9 daily backup on the first start of each day; Q4 historical matrix | **Next** |
 | 1.0.54 (S3) | Relationship integrity | I1 one validator after every change; I2 add-a-parent loop check (C3); I7 `ChangeRecord` (structured repair and correction records, never person notes); I3 parent-correction workflow (C2); I4 loop resolution; I5 undo that can't get stuck; I6 open with repair; I8 relationship history | Planned |
 | 1.0.55 (S4) | GEDCOM identity | G1 family namespace and person and union ids (additive migration); G2 export with `REFN`+`TYPE` and `_UID`, no invented marriages, no `DIV` for an ended marriage; G3 import of Shajarah's own files by id; G4 external matches as confirmed suggestions only, never an automatic merge; G5 interoperability notes | Planned |
 | 1.0.56 (S5) | Silent data loss | L1–L4 (H9–H12) | Planned |
@@ -70,13 +70,17 @@ because they contain real families).
 | H8 | GEDCOM loses or invents data (`DIV` for every marriage end, marriages invented for co-parents, life events dropped) | 1.0.55, then 1.4 |
 | H9–H12 | Over-long imported values; merges failing on long notes; mixed Hijri and Gregorian years; hidden marriages reappearing after project open | 1.0.56 |
 
+## Decided (owner)
+
+- **U7, backup storage** (8 Nov 2026): keep **10 full, independent pre-migration copies**. Measured need: 0.5–1.0 GB for a typical family without photos. Photos dominate, at about 78 MB of backup space per 2 MB photo at peak. A free-space check runs before every backup, and nothing is ever deleted to make room. The space-saving options are documented, not adopted. See plan §5.6.
+- **U8, dated project backups** (8 Nov 2026): one on the **first start of each day**; keep the **3 most recent daily** and **4 weekly**, the weekly ones kept independently of daily cleanup. Never deleted: the live database, the newest backup of each kind, or a backup pinned for recovery. Creation and cleanup are safe against interrupted shutdowns. See plan §5.6.
+
 ## Open decisions (owner)
 
 Full wording and recommendations are in the plan, §10. Needed soonest:
 
 - **U1** (before 1.0.54): a parent's recorded role (father or mother) is kept separately from their gender, and a mismatch is a notice, not an error.
 - **U3** (applies to every release): every release waits for the whole pipeline.
-- **U7, U8** (before 1.0.53): disk budget for 10 cold copies; frequency of dated project backups.
 - **U9** (before 1.0.55): opening a project beside its original keeps ids, or makes an independent copy.
 - **U13** (for new installs): keep the database in `%LOCALAPPDATA%` rather than the roaming profile.
 - **U2, U4–U6, U10–U12, U14, U15:** see the plan.
