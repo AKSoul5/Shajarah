@@ -9,6 +9,9 @@ import { generateSultanTree } from "@/lib/samples/sultan";
 import { generateHypotheticalTree } from "@/lib/samples/al_kalali_hypo";
 import { nouriFamily } from "@/lib/samples/nouri";
 import { abdullahFamily, shaalanFamily, denseFamily, marriagesFamily, multiMarriageFamily, namesFamily, smallFamily } from "@/lib/samples/fixtures";
+import { STRESS_FAMILIES, STRESS_FAMILY_IDS, type StressFamilyId } from "@/lib/qa/stressFamilies";
+import { THEME_PRESETS } from "@/lib/theme";
+import type { ThemePreset } from "@/lib/types";
 
 const SAMPLES = {
   abdullah: abdullahFamily, shaalan: shaalanFamily, nouri: nouriFamily, natural350: () => naturalFamily(350), sultan: generateSultanTree, hypo: generateHypotheticalTree, kalali: kalaliTree, "kalali-filled": kalaliFilledTree, "kalali-realistic": kalaliRealistic150, small: smallFamily, marriages: marriagesFamily, names: namesFamily,
@@ -39,9 +42,19 @@ export const metadata = { title: "Demo — Shajarah" };
  * variants can be compared on identical data. &focus=<id or name> draws one
  * branch (a branch poster); &shape=auto|leaf|circle|oval sets the names' shape.
  */
-export default function DemoPage({ searchParams }: { searchParams: { sample?: string; colors?: string; poster?: string; soil?: string; focus?: string; shape?: string } }) {
+export default function DemoPage({ searchParams }: { searchParams: { sample?: string; colors?: string; poster?: string; soil?: string; focus?: string; shape?: string; lang?: string; preset?: string; show?: string } }) {
   const make = SAMPLES[searchParams.sample as keyof typeof SAMPLES];
-  const base = make ? make() : generateSampleTree();
+  // &sample=stress-<id>: a family of the poster stress test (&lang=en for its English version)
+  const stress = searchParams.sample?.startsWith("stress-") ? searchParams.sample.slice(7) as StressFamilyId : null;
+  const base = stress && STRESS_FAMILY_IDS.includes(stress)
+    ? STRESS_FAMILIES[stress](searchParams.lang === "en" ? "en" : "ar")
+    : make ? make() : generateSampleTree();
+  // &show=all: daughters, spouses and daughters' families (the stress test's "all")
+  const showAll = searchParams.show === "all";
+  const throughDaughters = showAll
+    ? base.members.filter((m) => m.gender === "FEMALE" && m.fatherId && base.members.some((c) => c.motherId === m.id)).map((m) => m.id)
+    : null;
+  const preset = searchParams.preset && searchParams.preset in THEME_PRESETS ? (searchParams.preset as ThemePreset) : null;
   const posterSize = isPaperSize(searchParams.poster) ? searchParams.poster : undefined;
   // &focus=<member id or name>: a branch poster (a name shared by several
   // people picks the canopy base if it is one of them, else the eldest)
@@ -55,8 +68,11 @@ export default function DemoPage({ searchParams }: { searchParams: { sample?: st
       ...base.settings,
       ...(posterSize ? { posterSize } : {}),
       ...(focus ? { focusId: focus.id } : {}),
+      ...(throughDaughters ? { showFemales: true, familiesThrough: throughDaughters } : {}),
       theme: {
         ...base.settings?.theme,
+        ...(preset ? { preset, v: 2 } : {}),
+        ...(showAll ? { motherNames: true } : {}),
         ...(searchParams.colors === "1" ? { branchColors: true } : {}),
         ...(searchParams.soil && searchParams.soil in SOIL_STYLES ? { soilStyle: searchParams.soil as SoilStyleId } : {}),
         ...(["auto", "leaf", "circle", "oval", "rect", "cartouche", "octagon", "shield", "hexagon", "cameo", "scallop"].includes(searchParams.shape ?? "") ? { nodeShape: searchParams.shape as PosterTheme["nodeShape"] } : {}),
