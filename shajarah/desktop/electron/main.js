@@ -22,16 +22,23 @@ const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const { Database } = require("./postgres");
+const recovery = require("./recovery");
+const cluster = require("./cluster");
 const { migrate } = require("./migrate");
 const { COMMANDS, EMPTY_STATE, cleanState, buildMenuTemplate } = require("./menu");
 
 const SMOKE = process.argv.includes("--smoke-test");
 const UPDATE_TEST = process.argv.includes("--update-test");
+// `--recovery-test`: reports what state the database folder is in (JSON on
+// stdout and in logs/recovery-test.txt) and exits, changing nothing.
+const RECOVERY_TEST = process.argv.includes("--recovery-test");
+// (tests run the installed program against a folder of their own)
+if (process.env.SHAJARAH_USER_DATA) app.setPath("userData", path.resolve(process.env.SHAJARAH_USER_DATA));
 const userData = app.getPath("userData");
 const logDir = path.join(userData, "logs");
 fs.mkdirSync(logDir, { recursive: true });
 const mainLog = path.join(logDir, "shajarah.log");
-const log = (msg) => fs.appendFileSync(mainLog, `${new Date().toISOString()} ${msg}\n`);
+const log = (msg) => fs.appendFileSync(mainLog, `${new Date().toISOString()} ${msg}\n`); // own-file: log
 
 const resources = app.isPackaged ? process.resourcesPath : __dirname;
 const serverDir = path.join(resources, "server");
@@ -78,7 +85,7 @@ async function waitFor(url, seconds) {
 
 async function startServer() {
   const port = await freePort();
-  const out = fs.openSync(path.join(logDir, "server.log"), "a");
+  const out = fs.openSync(path.join(logDir, "server.log"), "a"); // own-file: log
   // Electron's own binary runs the Next.js server as plain Node.
   server = spawn(process.execPath, [path.join(serverDir, "server.js")], {
     cwd: serverDir,
@@ -93,13 +100,22 @@ async function startServer() {
   if (!(await waitFor(appUrl, 90))) throw new Error("The app server did not start.");
 }
 
+/** The database folder needs the person (see cluster.classify): nothing was changed. */
+class NeedsRecovery extends Error {
+  constructor(state) {
+    super(`The family database needs attention (${state.kind}).`);
+    this.state = state;
+  }
+}
+
 let startupSeconds = null;
 async function start() {
   const t0 = Date.now();
   const step = (what) => log(`${what} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
-  log("starting");
-  await db.init();
-  step("database ready on disk");
+  log(`starting ${app.getVersion()}`);
+  const state = await db.prepare();
+  step(`database folder ${db.target.dir}: ${state.kind}`);
+  if (state.kind !== "ready" && state.kind !== "created") throw new NeedsRecovery(state);
   await db.start(await freePort());
   step("database started");
   const applied = await migrate(db.url, migrationsDir);
@@ -345,6 +361,96 @@ async function uiSmoke() {
   }
 }
 
+// ── Recovery ─────────────────────────────────────────────────────────
+// When the database cannot be used as it is, this window explains why and
+// offers ways back to the families. It needs neither the app server nor a
+// running database, and nothing it does changes the original folder.
+function reportRecoveryState(state) {
+  const line = `RECOVERY ${JSON.stringify({ ...state, folder: db.target?.dir ?? null })}`;
+  console.log(line);
+  log(line);
+  fs.writeFileSync(path.join(logDir, "recovery-test.txt"), line + "\n"); // own-file: log
+  app.exit(state.kind === "ready" ? 0 : 3);
+}
+
+function recoveryWindow(initial) {
+  const state = initial;
+  let repair = null;
+  const dataDir = path.join(userData, "database");
+  const w = new BrowserWindow({
+    width: 720, height: 640, show: false, icon: iconPath, backgroundColor: "#f6efe0", title: "Shajarah — recovery",
+    webPreferences: { preload: path.join(__dirname, "recovery-preload.js"), contextIsolation: true, sandbox: true },
+  });
+  const ask = async (title, buttons) => (await dialog.showMessageBox(w, { type: "question", title, message: title, buttons, cancelId: buttons.length - 1 })).response;
+  const chooseFolder = async (title) => {
+    const r = await dialog.showOpenDialog(w, { title, properties: ["openDirectory", "createDirectory"] });
+    return r.canceled ? null : r.filePaths[0];
+  };
+  const handlers = {
+    state: () => ({ ...state, folder: db.target?.dir ?? null, dataDir, logDir, version: app.getVersion(), repair: repair && { counts: repair.counts } }),
+    openFolder: () => shell.openPath(dataDir),
+    openLogs: () => shell.openPath(logDir),
+    report: async () => {
+      const r = await dialog.showSaveDialog(w, { title: "Save a diagnostic report", defaultPath: path.join(app.getPath("documents"), "shajarah-diagnostic.json") });
+      if (r.canceled) return null;
+      const tail = (f) => (fs.existsSync(f) ? fs.readFileSync(f, "utf8").split("\n").slice(-200).join("\n") : null);
+      const report = { version: app.getVersion(), at: new Date().toISOString(), state, folder: db.target?.dir ?? null,
+        dataFolder: recovery.describeDataFolder(dataDir), log: tail(mainLog), postgresLog: tail(path.join(logDir, "postgres.log")),
+        postgresTools: tail(path.join(logDir, "postgres-tools.log")) };
+      fs.writeFileSync(r.filePath, JSON.stringify(report, null, 2)); // own-file: chosen by the person
+      return r.filePath;
+    },
+    copyFolder: async () => {
+      if (!db.target?.dir) throw new Error("No database folder is known.");
+      const to = await chooseFolder("Copy the database folder to…");
+      return to ? recovery.copyDatabaseFolder(db.target, to) : null;
+    },
+    exportFamilies: async () => {
+      const target = repair ? { dir: repair.staging, passwordFile: repair.passwordFile } : db.target;
+      const to = await chooseFolder("Save the families as project files in…");
+      return to ? recovery.exportFamilies({ dataDir, logDir, target, outDir: to }) : null;
+    },
+    repair: async () => {
+      repair = await recovery.repairOnCopy({ dataDir, logDir, source: db.target, state });
+      return { counts: repair.counts, copied: repair.copied };
+    },
+    adoptRepair: async () => {
+      if (!repair) throw new Error("There is no repaired copy.");
+      const { families, people } = repair.counts;
+      const yes = await ask(`Use the repaired copy (${families} families, ${people} people)? The original folder stays where it is.`, ["Use the repaired copy", "Cancel"]);
+      if (yes !== 0) return false;
+      recovery.adoptRepair(dataDir, repair);
+      app.relaunch();
+      app.exit(0);
+      return true;
+    },
+    newDatabase: async () => {
+      if (state.kind !== "incomplete") throw new Error("A new database is only offered when the folder was never set up.");
+      const yes = await ask("Start a new, empty database in a new folder? The current folder stays where it is.", ["Start a new database", "Cancel"]);
+      if (yes !== 0) return false;
+      const fresh = new Database(dataDir, logDir);
+      await fresh.createNew("person chose a new database: the previous folder was never set up");
+      app.relaunch();
+      app.exit(0);
+      return true;
+    },
+    quit: () => app.exit(1),
+  };
+  ipcMain.removeHandler("shajarah:recovery");
+  ipcMain.handle("shajarah:recovery", async (_e, name) => {
+    if (!Object.hasOwn(handlers, name)) throw new Error(`unknown action ${name}`);
+    try {
+      return { ok: true, value: await handlers[name]() };
+    } catch (err) {
+      log(`recovery ${name} failed: ${err.stack || err}`);
+      return { ok: false, error: err.message };
+    }
+  });
+  w.loadFile(path.join(__dirname, "recovery.html"));
+  w.once("ready-to-show", () => w.show());
+  w.on("closed", () => app.exit(1));
+}
+
 // ── Updates ──────────────────────────────────────────────────────────
 autoUpdater.logger = {
   info: (m) => log(`update: ${m}`), warn: (m) => log(`update: ${m}`),
@@ -382,7 +488,7 @@ async function updateTest() {
   const report = (line) => {
     console.log(line);
     log(line);
-    fs.writeFileSync(path.join(logDir, "update-test.txt"), line + "\n");
+    fs.writeFileSync(path.join(logDir, "update-test.txt"), line + "\n"); // own-file: log
   };
   autoUpdater.autoInstallOnAppQuit = false;
   try {
@@ -415,16 +521,25 @@ if (UPDATE_TEST) {
   });
 
   app.whenReady().then(async () => {
+    if (RECOVERY_TEST) {
+      // only reads the folder: no database is started or created
+      db.target = cluster.activeCluster(path.join(userData, "database"));
+      return reportRecoveryState(cluster.classify(db.target));
+    }
     const splash = SMOKE ? null : splashWindow();
     try {
       await start();
     } catch (err) {
       log(`failed: ${err.stack || err}`);
       splash?.destroy();
-      if (SMOKE) console.error(`SMOKE FAIL ${err.message}`);
-      else dialog.showErrorBox("Shajarah could not start", `${err.message}\n\nDetails are in ${logDir}`);
       await stop();
-      app.exit(1);
+      const state = err instanceof NeedsRecovery ? err.state : { kind: "start-failed", detail: err.message };
+      if (SMOKE) {
+        console.error(`SMOKE FAIL ${err.message}`);
+        app.exit(1);
+        return;
+      }
+      recoveryWindow(state);
       return;
     }
     if (SMOKE) {
@@ -432,7 +547,7 @@ if (UPDATE_TEST) {
       const line = `SMOKE ${ok ? "PASS" : "FAIL"} ${JSON.stringify(results)}`;
       console.log(line);
       log(line);
-      fs.writeFileSync(path.join(logDir, "smoke-test.txt"), line + "\n");
+      fs.writeFileSync(path.join(logDir, "smoke-test.txt"), line + "\n"); // own-file: log
       await stop();
       app.exit(ok ? 0 : 1);
       return;

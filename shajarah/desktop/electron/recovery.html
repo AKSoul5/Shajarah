@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'">
+<title>Shajarah — recovery</title>
+<style>
+  body { margin: 0; font: 15px/1.6 "Segoe UI", Tahoma, sans-serif; color: #3d2914; background: #f6efe0; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .en { direction: ltr; text-align: left; color: #5b4a36; }
+  .box { background: #fffaf0; border: 1px solid #d9c7a6; border-radius: 8px; padding: 14px 16px; margin: 14px 0; }
+  .safe { border-color: #7a9a6a; background: #f1f7ec; }
+  button { font: inherit; padding: 8px 14px; margin: 4px 0 4px 8px; border-radius: 6px; border: 1px solid #8a6a3c; background: #fff; cursor: pointer; }
+  button.main { background: #5b3a1d; color: #fff; border-color: #5b3a1d; }
+  button[disabled] { opacity: .5; cursor: default; }
+  #out { white-space: pre-wrap; font-size: 13px; }
+  code { font-size: 12px; direction: ltr; unicode-bidi: embed; }
+</style>
+</head>
+<body>
+<main>
+  <h1>قاعدة بيانات العائلة تحتاج إلى انتباهك</h1>
+  <div class="en">Your family database needs attention</div>
+
+  <div class="box safe">
+    <div>لم يُحذف أي شيء ولم يُغيَّر. المجلد الأصلي باقٍ كما هو.</div>
+    <div class="en">Nothing has been deleted or changed. The original folder is exactly as it was.</div>
+  </div>
+
+  <div class="box"><div id="explain-ar"></div><div class="en" id="explain-en"></div>
+    <div class="en"><code id="folder"></code></div></div>
+
+  <div class="box" id="actions"></div>
+  <div class="box" id="out" hidden></div>
+</main>
+<script>
+const TEXT = {
+  "marker-missing": [
+    "قاعدة بياناتك موجودة، لكن ملفًا صغيرًا يحدد نسختها (PG_VERSION) مفقود، فلا يمكن تشغيلها. يمكنك صنع نسخة مُصلَحة منها؛ يبقى الأصل دون مساس.",
+    "Your family database is present, but a small file that names its version (PG_VERSION) is missing, so it cannot start. You can make a repaired copy; the original stays untouched."],
+  "password-missing": [
+    "قاعدة بياناتك موجودة، لكن ملف كلمة المرور الخاص بها مفقود. يمكنك صنع نسخة مُصلَحة بكلمة مرور جديدة؛ يبقى الأصل دون مساس.",
+    "Your family database is present, but its password file is missing. You can make a repaired copy with a new password; the original stays untouched."],
+  "incomplete": [
+    "وُجد مجلد قاعدة بيانات لم يكتمل إعداده قط (انقطع تشغيل أول سابق)، فلا يمكن أن يحتوي على عائلات. يمكنك بدء قاعدة بيانات جديدة فارغة في مجلد جديد؛ يبقى هذا المجلد في مكانه.",
+    "A database folder was found that was never fully set up (an earlier first start was interrupted), so it cannot hold any families. You can start a new, empty database in a new folder; this folder stays where it is."],
+  "unknown-version": [
+    "هذا المجلد أنشأه إصدار مختلف من PostgreSQL، ولا يستطيع هذا البرنامج فتحه بأمان. احفظ نسخة منه واطلب المساعدة.",
+    "This folder was made by a different PostgreSQL version, and this program cannot open it safely. Save a copy of it and ask for help."],
+  "pointer-damaged": [
+    "ملف active.json الذي يحدد قاعدة البيانات المستخدمة لا يمكن قراءته. لم يُغيَّر أي مجلد. احفظ تقريرًا ونسخة واطلب المساعدة.",
+    "The file active.json, which says which database is in use, cannot be read. No folder was changed. Save a report and a copy, and ask for help."],
+  "start-failed": [
+    "تعذّر تشغيل البرنامج. بياناتك لم تُمَسّ. يمكنك حفظ عائلاتك كملفات مشاريع، أو نسخ مجلد قاعدة البيانات.",
+    "Shajarah could not start. Your data was not touched. You can save your families as project files, or copy the database folder."],
+};
+const ACTIONS = {
+  repair: ["اصنع نسخة مُصلَحة", "Make a repaired copy"],
+  adoptRepair: ["استخدم النسخة المُصلَحة", "Use the repaired copy"],
+  exportFamilies: ["احفظ العائلات كملفات مشاريع…", "Save the families as project files…"],
+  copyFolder: ["انسخ مجلد قاعدة البيانات إلى…", "Copy the database folder to…"],
+  newDatabase: ["ابدأ قاعدة بيانات جديدة فارغة", "Start a new, empty database"],
+  report: ["احفظ تقريرًا تشخيصيًا…", "Save a diagnostic report…"],
+  openFolder: ["افتح مجلد البيانات", "Open the data folder"],
+  quit: ["أغلق", "Close"],
+};
+const out = document.getElementById("out");
+const show = (msg) => { out.hidden = false; out.textContent = msg; };
+async function act(name) {
+  for (const b of document.querySelectorAll("button")) b.disabled = true;
+  show("…");
+  const r = await window.recovery.run(name);
+  if (!r.ok) show(`لم ينجح ذلك. Not done: ${r.error}`);
+  else if (name === "repair") show(`النسخة المُصلَحة تعمل: ${r.value.counts.families} عائلات، ${r.value.counts.people} شخصًا.\nThe repaired copy works: ${r.value.counts.families} families, ${r.value.counts.people} people.`);
+  else if (name === "exportFamilies" && r.value) show(r.value.map((f) => `${f.name} (${f.people}) → ${f.file}`).join("\n") || "لا توجد عائلات. No families.");
+  else if (name === "copyFolder" && r.value) show(`نُسخ ونُحقِّق منه. Copied and verified: ${r.value.dest} (${r.value.files} files)`);
+  else if (name === "report" && r.value) show(`حُفظ. Saved: ${r.value}`);
+  else out.hidden = true;
+  await render();
+}
+async function render() {
+  const s = (await window.recovery.run("state")).value;
+  const [ar, en] = TEXT[s.kind] ?? TEXT["start-failed"];
+  document.getElementById("explain-ar").textContent = ar;
+  document.getElementById("explain-en").textContent = s.detail ? `${en} (${s.detail})` : en;
+  document.getElementById("folder").textContent = s.folder ?? s.dataDir;
+  const list = [];
+  if (["marker-missing", "password-missing"].includes(s.kind) && s.repairable !== false) list.push(s.repair ? "adoptRepair" : "repair");
+  if (s.kind === "start-failed" || s.repair) list.push("exportFamilies");
+  if (s.kind === "incomplete") list.push("newDatabase");
+  if (s.folder) list.push("copyFolder");
+  list.push("report", "openFolder", "quit");
+  const box = document.getElementById("actions");
+  box.replaceChildren(...list.map((name, i) => {
+    const b = document.createElement("button");
+    b.className = i === 0 ? "main" : "";
+    b.textContent = `${ACTIONS[name][0]} — ${ACTIONS[name][1]}`;
+    b.onclick = () => act(name);
+    return b;
+  }));
+}
+render();
+</script>
+</body>
+</html>
