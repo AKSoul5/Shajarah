@@ -243,6 +243,16 @@ export function StylePanel({ theme, onChange, soilText, onSoilTextChange, frameA
                 {label}
               </label>
             ))}
+            {(theme.verse || theme.hadith) && (
+              <label className="flex items-center justify-between text-sm" title="Both medallions, together: the original Arabic with its Arabic references, or the English translations with their English references. Never both.">
+                Quotations in
+                <select className="input w-48" value={theme.quoteLang ?? "auto"} onChange={(e) => onChange({ quoteLang: e.target.value as NonNullable<PosterTheme["quoteLang"]> })}>
+                  <option value="auto">The poster&apos;s language</option>
+                  <option value="ar">Arabic (العربية)</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+            )}
             {theme.frame && frameAvailable && theme.preset === "luxe" && (
               <label className="flex items-center justify-between text-sm" title="Softer: the gold ornament and the paper's texture quieter, so the tree comes first">
                 Frame finish

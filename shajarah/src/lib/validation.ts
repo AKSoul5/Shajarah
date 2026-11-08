@@ -44,6 +44,7 @@ export const themeSchema = z
     frameFinish: z.enum(["full", "soft"]),
     verse: z.boolean(),
     hadith: z.boolean(),
+    quoteLang: z.enum(["auto", "ar", "en"]),
     frame: z.boolean(),
     femaleCapsule: z.boolean(),
     branchColors: z.boolean(),

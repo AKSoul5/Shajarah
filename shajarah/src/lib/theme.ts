@@ -415,6 +415,7 @@ export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
     motherNames: theme.motherNames,
     branchScale: isInkOnly(theme) ? 0.35 : 1,
     cornerMedallions: theme.verse || theme.hadith,
+    quoteLang: theme.quoteLang ?? "auto",
     framed: theme.frame,
     soilStyle: theme.soilStyle,
     soilShorten: theme.soilShorten ?? false,

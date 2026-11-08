@@ -148,6 +148,8 @@ export interface LayoutOptions {
   maxTrunkLabels?: number;
   /** Branch thickness multiplier (line-art themes use thin branches). */
   branchScale?: number;
+  /** The medallions' language: "auto" follows the poster's (see PosterTheme.quoteLang). */
+  quoteLang?: "auto" | "ar" | "en";
   /** Reserve the top corners for the verse / hadith medallions. */
   cornerMedallions?: boolean;
   /** Top of the canopy as a fraction of the height (room for a header). */
@@ -321,6 +323,8 @@ export interface PosterLayout {
   surfaceRoots: Branch[];
   /** Circular corner medallions (verse / hadith), when reserved. */
   medallions: { x: number; y: number; r: number }[];
+  /** The one language both medallions' quotations are set in. */
+  quoteLang: "ar" | "en";
   /** Placement of the header and the footer line (key and counts). */
   frame: {
     framed: boolean;
@@ -967,6 +971,8 @@ const FAN_P = 2.4;
 /** The share of their room neighbours on a ring are at least given (see the ring packing), and the other shares tried on a clean poster. */
 const RING_STEP = 0.3;
 const RING_TRIES: { step: number; ends?: boolean }[] = [{ step: 0.6 }, { step: 0.7, ends: true }, { step: 0.25 }, { step: 0.8, ends: true }];
+/** How much larger the corner medallions are when their quotations are in English. */
+const QUOTE_EN_SCALE = 1.2;
 /** Above this many names, fewer of RING_TRIES are tried. */
 const HUGE_FAMILY = 300;
 /** A fan this smooth (see fanKink) is not laid out again. */
@@ -1173,7 +1179,7 @@ function layoutAttempt(
     width: W, height: H, rtl: true, crown, origin, groundY,
     trunkPath: trunkOutline(origin, groundY, trunkWidth), trunkWidth,
     trunkLabels: [], soil: null, trunkZigzag: false, base: null, stubs: [], nodes: [], spouses: [],
-    branches: [], edges: [], canopy: null, surfaceRoots: [], medallions: [],
+    branches: [], edges: [], canopy: null, surfaceRoots: [], medallions: [], quoteLang: "ar",
     frame: place,
     legibility: { minTextMm, smallestTextMm: minTextMm, ok: true, scaleNeeded: 1 },
     overlaps: 0,
@@ -1240,6 +1246,8 @@ function layoutAttempt(
   const genOf = (m: MemberDTO) => generationOf.get(m.id) ?? m.generation;
 
   const rtl = opts.rtl ?? ARABIC.test(root.data.member?.name ?? tree.title ?? "");
+  // the quotations in the poster's language unless one is chosen
+  const quoteLang: "ar" | "en" = opts.quoteLang === "ar" || opts.quoteLang === "en" ? opts.quoteLang : rtl ? "ar" : "en";
   // Children are in sibling order (eldest first); on RTL posters the eldest
   // sits on the right, i.e. at the end of the u axis.
   if (rtl) root.each((n) => n.children?.reverse());
@@ -2412,10 +2420,13 @@ function layoutAttempt(
   }
 
   // ── Corner medallions (verse / hadith) ──────────────────────────────
+  // (in English the quotations run about twice as long as in Arabic: their
+  // medallions are a fifth larger, so the text is set nearly as large)
+  const mr = quoteLang === "en" ? QUOTE_EN_SCALE : 1;
   const medallions = opts.cornerMedallions
     ? framed
-      ? [{ x: W * 0.205, y: H * 0.205, r: W * 0.07 }, { x: W * 0.795, y: H * 0.205, r: W * 0.07 }]
-      : [{ x: W * 0.18, y: H * 0.112, r: W * 0.094 }, { x: W * 0.82, y: H * 0.112, r: W * 0.094 }]
+      ? [{ x: W * 0.205, y: H * 0.205, r: W * 0.07 * mr }, { x: W * 0.795, y: H * 0.205, r: W * 0.07 * mr }]
+      : [{ x: W * 0.18, y: H * 0.112, r: W * 0.094 * mr }, { x: W * 0.82, y: H * 0.112, r: W * 0.094 * mr }]
     : [];
   // The crown base medallion is a fixed obstacle too.
   if (base.data.member) {
@@ -3918,6 +3929,7 @@ function layoutAttempt(
     canopy,
     surfaceRoots,
     medallions,
+    quoteLang,
     frame: place,
     // side branches lower on the trunk are older than the canopy base
     generationOffset: Math.min(base.data.member?.generation ?? 0, ...gens),

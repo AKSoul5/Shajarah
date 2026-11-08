@@ -7,7 +7,7 @@ import { textWidth } from "@/lib/layout/botanical";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
 import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
-import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
+import { quotations, scallopPath, textInCircle, type Quotation } from "./ornaments";
 import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
 import type { PosterTheme } from "@/lib/types";
 import { LEGEND, NAMED_GENERATIONS, say, spouseLabel, statCards } from "@/lib/legend";
@@ -202,7 +202,9 @@ export const TreePoster = memo(
           // RTL: the verse sits on the right, the hadith on the left
           const isVerse = (m.x > W / 2) === rtl;
           const show = isVerse ? theme.verse : theme.hadith;
-          return show ? <TextMedallion key={i} {...m} content={isVerse ? VERSE : HADITH} pal={pal} /> : null;
+          // both in the one language the layout chose (never one of each)
+          const q = quotations(layout.quoteLang);
+          return show ? <TextMedallion key={i} {...m} content={isVerse ? q.verse : q.hadith} pal={pal} /> : null;
         })}
 
         {/* A faint wash behind the canopy gives a sparse tree its shape */}
@@ -932,7 +934,10 @@ function BranchTints({ layout, pal }: { layout: PosterLayout; pal: Palette }) {
 function Header({ layout, meta, theme, pal }: { layout: PosterLayout; meta: PosterMeta; theme: PosterTheme; pal: Palette }) {
   const { width: W, height: H, rtl } = layout;
   const hd = layout.frame.header;
-  const avail = layout.medallions.length ? Math.min(hd.maxTitleWidth, W * 0.44) : hd.maxTitleWidth;
+  // (between the medallions, clear of them however large they are set)
+  const avail = layout.medallions.length
+    ? Math.min(hd.maxTitleWidth, W * 0.44, ...layout.medallions.map((m) => 2 * (Math.abs(m.x - W / 2) - m.r) - W * 0.01))
+    : hd.maxTitleWidth;
   // Ruqaa runs a little wider than Amiri, which textWidth is tuned for;
   // Kufi wider still
   const kufi = pal.titleFont === "kufi";
@@ -1008,14 +1013,15 @@ function editionLine(updated: string | null | undefined, rtl: boolean): string {
 }
 
 /** Round medallion carrying a verse or hadith, in fine gold lines. */
-function TextMedallion({ x, y, r, content, pal }: { x: number; y: number; r: number; content: typeof VERSE; pal: Palette }) {
+function TextMedallion({ x, y, r, content, pal }: { x: number; y: number; r: number; content: Quotation; pal: Palette }) {
   const set = textInCircle(r * 0.8, content.heading, content.body, content.footer);
+  const dir = content.lang === "ar" ? "rtl" : "ltr";
   return (
     <g>
       <circle cx={x} cy={y} r={r} fill={pal.ivory} stroke={pal.line} strokeWidth={r * 0.02} />
       <circle cx={x} cy={y} r={r * 0.93} fill="none" stroke={pal.line} strokeWidth={r * 0.007} />
       {set.lines.map((l, i) => (
-        <text key={i} x={x} y={y + l.y} textAnchor="middle" dominantBaseline="central" direction="rtl" fontSize={l.size} fontWeight={l.bold ? 700 : 400} fill={pal.ink}>
+        <text key={i} x={x} y={y + l.y} textAnchor="middle" dominantBaseline="central" direction={dir} lang={content.lang} data-quote-lang={content.lang} fontSize={l.size} fontWeight={l.bold ? 700 : 400} fill={pal.ink}>
           {l.text}
         </text>
       ))}
