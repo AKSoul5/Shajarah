@@ -2700,6 +2700,13 @@ function layoutAttempt(
   // A holder sits on the way from the partner to the children she bore,
   // nearer the partner, wherever it and the lines to and from it are clear
   // of every other name and holder.
+  // A spouse's box keeps inside the page's margin, like every name.
+  const onThePage = (J: Vec, h: { w: number; h: number }) =>
+    J.x - h.w / 2 >= margin && J.x + h.w / 2 <= W - margin && J.y - h.h / 2 >= contentTop;
+  const keepOnPage = (h: Holder) => {
+    h.x = clamp(h.x, margin + h.w / 2, W - margin - h.w / 2);
+    h.y = Math.max(h.y, contentTop + h.h / 2);
+  };
   const placeHolders = () => {
     if (!holders.length) return;
     // the lines as last drawn, sampled once for this placement
@@ -2752,6 +2759,9 @@ function layoutAttempt(
       // not where they were)
       const at = (q: { h: Holder; J?: Vec }) => (q.J ? { ...q.h, x: q.J.x, y: q.J.y } : q.h);
       const fits = (h: Holder, J: Vec, also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true) => {
+        // (on the page, inside its margin: a spouse's box placed past the
+        // edge was cut off the print)
+        if (!onThePage(J, h)) return false;
         // (clear of names by a little more than a hairline: a box with a
         // name's rim touching it read as one shape)
         const pad = h.fontSize * 0.4;
@@ -2931,6 +2941,8 @@ function layoutAttempt(
         placed.push({ h, from: P });
       }
     }
+    // (wherever the search left it: never past the page's edge)
+    for (const h of holders) keepOnPage(h);
   };
   // A father of more than five children: his lines leave him heading for
   // each child (little of his own growth direction, an early first control
