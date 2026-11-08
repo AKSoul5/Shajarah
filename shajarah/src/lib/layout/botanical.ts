@@ -54,6 +54,7 @@ import { leavingParent, validateRelationships, type ClarityReport } from "./clar
 import { soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from "./soil";
 import { namesOf, shortenSoil, wordsOf } from "./soil/common";
 import { mulberry32 } from "./random";
+import { textEms } from "./textMetrics";
 
 export type NodeShape = "leaf" | "circle" | "oval" | DesignShape;
 
@@ -967,6 +968,8 @@ const FAN_P = 2.4;
 /** The share of their room neighbours on a ring are at least given (see the ring packing), and the other shares tried on a clean poster. */
 const RING_STEP = 0.3;
 const RING_TRIES: { step: number; ends?: boolean }[] = [{ step: 0.6 }, { step: 0.7, ends: true }, { step: 0.25 }, { step: 0.8, ends: true }];
+/** A spouse's box closer than this (in its font sizes) to a name or another box touches it (see the overlap count). */
+const HOLDER_TOUCH = 0.2;
 /** Above this many names, fewer of RING_TRIES are tried. */
 const HUGE_FAMILY = 300;
 /** A fan this smooth (see fanKink) is not laid out again. */
@@ -1357,6 +1360,8 @@ function layoutAttempt(
   const holderRoom = new Set<number>();
   /** Members whose children's lines pass a spouse's box on their way out (a daughter's family through her, or spouses shown). */
   const holderParents = new Set<string>();
+  /** For each of them, how many spouses' boxes stand between them and their children (one per spouse with children shown). */
+  const holderCount = new Map<string, number>();
   {
     const matri = tree.lineage === "MATRILINEAL";
     const partners = new Map<string, Set<string>>();
@@ -1369,6 +1374,7 @@ function layoutAttempt(
       if (n.children && id && (through.has(id) || (opts.motherNames && partners.has(id)))) {
         holderRoom.add(n.depth - base.depth + 1);
         holderParents.add(id);
+        holderCount.set(id, partners.get(id)?.size ?? 1);
       }
     });
   }
@@ -1875,6 +1881,15 @@ function layoutAttempt(
     if (m) return m;
     m = new Map([[n.depth, extentAcross(n) / Math.max(1, ringR[n.depth - base.depth] ?? 1)]]);
     for (const k of (n.children ?? []) as HNode[]) for (const [d, v] of needOf(k)) m.set(d, (m.get(d) ?? 0) + v);
+    // a spouse's box stands on the way to the next ring, beside the
+    // children's lines: room on that ring, as a name there needs (a daughter
+    // with three husbands got the room of one, and her boxes crowded until
+    // every name on the poster was set smaller: tests/sisters-several-husbands.test.ts)
+    const boxes = holderCount.get(n.data.member?.id ?? "") ?? 0;
+    if (boxes > 1 && n.children) {
+      const d = n.depth + 1;
+      m.set(d, (m.get(d) ?? 0) + ((boxes - 1) * extentAcross(n)) / Math.max(1, ringR[d - base.depth] ?? 1));
+    }
     ringNeed.set(n, m);
     return m;
   };
@@ -1891,7 +1906,12 @@ function layoutAttempt(
     // sibling with as many descendants spread over later generations.
     // (Weighted by 1/√generations below, not 1/generations: outer rings are
     // also more crowded with their own cousins.)
-    const rawWeights = kids.map((k) => k.descendants().reduce((sum, x) => sum + 1 / Math.sqrt(Math.max(1, x.depth - d0)), 0));
+    // (with each spouse's box beyond the first counted as one more name on
+    // the ring after its partner's)
+    const rawWeights = kids.map((k) => k.descendants().reduce((sum, x) => {
+      const boxes = x.children ? Math.max(0, (holderCount.get(x.data.member?.id ?? "") ?? 0) - 1) : 0;
+      return sum + 1 / Math.sqrt(Math.max(1, x.depth - d0)) + boxes / Math.sqrt(Math.max(1, x.depth + 1 - d0));
+    }, 0));
     const totalWeight = rawWeights.reduce((a, b) => a + b, 0);
     // Balance, at every level: every child with descendants of his own gets
     // at least a minimum share of the space, so a lineage much larger than
@@ -2721,6 +2741,11 @@ function layoutAttempt(
     if (bb) obstacles.push({ ...bb, id: base.data.member?.id });
     const placed: { h: Holder; from: Vec }[] = [];
     const within = (p: Vec, o: Rect, pad = 0) => Math.abs(p.x - o.x) < o.w / 2 + pad && Math.abs(p.y - o.y) < o.h / 2 + pad;
+    // a holder at c would touch a name (or one of `boxes`), or leave the page
+    const touchesAt = (h: Holder, c: Vec, boxes: Rect[]) => {
+      const gap = h.fontSize * HOLDER_TOUCH;
+      return !onThePage(c, h) || [...obstacles, ...boxes].some((o) => Math.abs(o.x - c.x) < (o.w + h.w) / 2 + gap && Math.abs(o.y - c.y) < (o.h + h.h) / 2 + gap);
+    };
     // a straight line from a to b passing under r (outside a's and b's own boxes)
     const lineHits = (a: Vec, b: Vec, r: Rect, skip: Rect[]) => {
       if (r.x + r.w / 2 < Math.min(a.x, b.x) || r.x - r.w / 2 > Math.max(a.x, b.x)
@@ -2758,7 +2783,7 @@ function layoutAttempt(
       // (holders placed in this pass are judged where they are going, J,
       // not where they were)
       const at = (q: { h: Holder; J?: Vec }) => (q.J ? { ...q.h, x: q.J.x, y: q.J.y } : q.h);
-      const fits = (h: Holder, J: Vec, also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true) => {
+      const fits = (h: Holder, J: Vec, also: { h: Holder; from: Vec; J?: Vec }[], linesToo: boolean | "group" = true) => {
         // (on the page, inside its margin: a spouse's box placed past the
         // edge was cut off the print)
         if (!onThePage(J, h)) return false;
@@ -2775,6 +2800,14 @@ function layoutAttempt(
           return Math.abs(o.x - J.x) < (o.w + h.w) / 2 + gap && Math.abs(o.y - J.y) < (o.h + h.h) / 2 + gap;
         })) return false;
         if (!linesToo) return true;
+        // (no spot clear of every line: at least clear of the partner's own
+        // lines to their other spouses' boxes, both ways: a daughter's line
+        // to one husband passing under another husband's box was the one
+        // fault left on a poster, and every name on it was set a quarter
+        // smaller for it: tests/sisters-several-husbands.test.ts)
+        if (linesToo === "group") {
+          return !also.some((q) => q.h.partnerId === h.partnerId && (lineHits(P, J, at(q), [partnerBox, me]) || lineHits(q.from, at(q), me, [at(q)])));
+        }
         // the partner's line to it, and its lines to the children
         if (others.some((o) => o !== partnerBox && lineHits(P, J, o, [partnerBox, me]))) return false;
         for (const k of h.kids) if (others.some((o) => o !== k && lineHits(J, k, o, [me, k]))) return false;
@@ -2813,7 +2846,7 @@ function layoutAttempt(
       const TS = [0.45, 0.38, 0.52, 0.31, 0.6, 0.25, 0.68, 0.2, 0.76, 0.84, 0.9, 0.14];
       const KNOT_TS = [0.22, 0.28, 0.16, 0.34, 0.4, 0.45, 0.52, 0.6, 0.68, 0.76];
       const DEGS = [0, 8, -8, 16, -16, 24, -24, 32, -32, 42, -42];
-      const spot = (h: Holder, ts: number[], also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true, shared = true) => {
+      const spot = (h: Holder, ts: number[], also: { h: Holder; from: Vec; J?: Vec }[], linesToo: boolean | "group" = true, shared = true) => {
         // towards her children, turned a little either way, or towards one of them
         const dirs = [...DEGS.map((deg) => turned(h.dir, deg)), ...h.kids.map((k) => norm(sub(k, P)))];
         for (const t of ts) for (const d of dirs) {
@@ -2881,7 +2914,7 @@ function layoutAttempt(
         // room (clear of every name and line, else of every name)
         for (const h of group) {
           let J: Vec | null = null;
-          for (const linesToo of [true, false]) {
+          for (const linesToo of [true, "group", false] as const) {
             search: for (const t of [1.2, 1.6, 2.1, 2.8, 3.6]) for (const deg of [70, -70, 50, -50, 90, -90, 30, -30, 110, -110, 0, 135, -135, 180]) {
               const c = beyond(h, turned(h.dir, deg), t);
               if (fits(h, c, placed, linesToo)) { J = c; break search; }
@@ -2890,8 +2923,8 @@ function layoutAttempt(
           }
           h.clear = !!J;
           let to = J ?? beyond(h, h.dir, 1.2);
-          // (no room anywhere: at least not on another spouse's holder)
-          const onOther = (c: Vec) => placed.some((q) => Math.abs(q.h.x - c.x) < (q.h.w + h.w) / 2 && Math.abs(q.h.y - c.y) < (q.h.h + h.h) / 2);
+          // (no room anywhere: at least touching no name and no other spouse's holder)
+          const onOther = (c: Vec) => touchesAt(h, c, placed.map((q) => q.h));
           if (!J && onOther(to)) {
             search: for (const t of [1.2, 1.6, 2.1, 2.8, 3.6, 4.6, 6]) for (const deg of [0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180]) {
               const c = beyond(h, turned(h.dir, deg), t);
@@ -2916,7 +2949,7 @@ function layoutAttempt(
         // (where no spot keeps every line clear, one clear of every name:
         // the clarity check reports the line)
         for (const h of group) {
-          const J = spot(h, order, [...placed, ...got], true, false) ?? spot(h, order, [...placed, ...got], false, false);
+          const J = spot(h, order, [...placed, ...got], true, false) ?? spot(h, order, [...placed, ...got], "group", false) ?? spot(h, order, [...placed, ...got], false, false);
           if (J) got.push({ h, from: P, J });
         }
       }
@@ -2925,8 +2958,10 @@ function layoutAttempt(
         h.clear = !!J;
         // (no room anywhere: towards her children, never on the partner's
         // name, and not on another spouse's holder)
-        const others = [...placed, ...(got ?? [])].filter((q) => q.h !== h).map(at);
-        const onOther = (c: Vec) => others.some((o) => Math.abs(o.x - c.x) < (o.w + h.w) / 2 && Math.abs(o.y - c.y) < (o.h + h.h) / 2);
+        const siblings = [...placed, ...(got ?? [])].filter((q) => q.h !== h);
+        const others = siblings.map(at);
+        // (and off the partner's lines to their other spouses, as fits' "group" asks)
+        const onOther = (c: Vec) => touchesAt(h, c, others) || !fits(h, c, siblings, "group");
         let to = J ?? (reach * 0.45 > edge(h.dir, partnerBox.w + h.w, partnerBox.h + h.h) ? add(P, scale(h.dir, reach * 0.45)) : beyond(h, h.dir, 1.15));
         if (!J && onOther(to)) {
           // (all the way round, further out, if need be)
@@ -3694,9 +3729,18 @@ function layoutAttempt(
     }
   }
 
-  // a spouse's holder with no clear place counts as overlapping names, as
-  // does one that came to overlap a name or another holder
-  overlaps += holders.filter((h) => !h.clear).length;
+  // a spouse's holder that came to overlap a name or another holder counts
+  // as overlapping names; so does one the search found no clear place for,
+  // when where it stands it touches a name or a holder. (Not one that is
+  // merely short of the search's own margins: the clarity check judges its
+  // lines and the boxes under them. Counted regardless, a single husband's
+  // box with nothing wrong set every name on a poster a quarter smaller:
+  // tests/sisters-several-husbands.test.ts.)
+  const touches = (h: Holder) => [...nodes, ...holders.filter((x) => x !== h)].some((o) => {
+    const gap = h.fontSize * HOLDER_TOUCH;
+    return Math.abs(o.x - h.x) < (o.w + h.w) / 2 + gap && Math.abs(o.y - h.y) < (o.h + h.h) / 2 + gap;
+  });
+  overlaps += holders.filter((h) => !h.clear && touches(h)).length;
   for (const h of holders) {
     for (const o of [...nodes, ...holders.filter((x) => x !== h && x.id > h.id)]) {
       if (Math.abs(o.x - h.x) < (o.w + h.w) / 2 - 0.5 && Math.abs(o.y - h.y) < (o.h + h.h) / 2 - 0.5) overlaps++;
@@ -4137,10 +4181,9 @@ function splitInTwo(text: string): string {
   return `${text.slice(0, at)}\n${text.slice(at + 1)}`;
 }
 
+/** A name's width as drawn in the names' font (see textMetrics.ts), at least 1.2 font sizes. */
 export function textWidth(text: string, fontSize: number): number {
-  let w = 0;
-  for (const ch of text) w += ARABIC.test(ch) ? 0.46 : ch === " " ? 0.28 : 0.52;
-  return Math.max(w, 1.2) * fontSize;
+  return Math.max(textEms(text), 1.2) * fontSize;
 }
 
 type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number; mass: number; /** Drawn past the box on every side (see nodeGeometry's decorOutset). */ pad?: number };
