@@ -142,6 +142,19 @@ export interface LayoutOptions {
    * a child set back behind his father's box; see computePosterLayout.)
    */
   boxRoom?: boolean;
+  /**
+   * The tallest the canopy may be, as a share of its width. A canopy that
+   * has reached the page's width and is given more height (a short
+   * foundation, or none) grows taller instead, and on a canopy taller than
+   * wide each generation's names step along its sides instead of keeping
+   * to one arc. With this set, the names are sized so the canopy keeps
+   * within it, and spare height is not spent stretching it. Tried by
+   * computePosterLayout when a poster's canopy came out taller than wide,
+   * and kept only when it is smoother and otherwise as good.
+   */
+  crownRatioCap?: number;
+  /** With crownRatioCap: the names at this share of the size the page allows (see computePosterLayout). */
+  crownNameScale?: number;
   /** Where the trunk starts; older ancestors go into the soil. Defaults to tree.trunkStartId. */
   trunkStartId?: string | null;
   /** In automatic mode: ancestors on the trunk before the rest move into the soil. */
@@ -407,6 +420,36 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const layout = withCompactLower(tree, opts);
+  // A canopy taller than wide (it had reached the page's width and was given
+  // more height, by a short foundation or none): its generations step along
+  // its sides instead of keeping to their arcs. Laid out again no taller
+  // than wide; that poster is used when it is as clean and as legible, its
+  // names at least CAPPED_SIZE of their size, and its arcs smoother.
+  if (opts.crownRatioCap === undefined && layout.nodes.length && layout.crown.ry > layout.crown.rx * TALL_CROWN) {
+    const capped = withCompactLower(tree, { ...opts, crownRatioCap: CAPPED_RATIO, crownNameScale: CAPPED_NAMES });
+    const asGood = (isCleanPoster(capped) || !isCleanPoster(layout))
+      && (capped.legibility.ok || !layout.legibility.ok)
+      && capped.overlaps <= layout.overlaps
+      && capped.clarity.issues.length <= layout.clarity.issues.length
+      && capped.clarity.clearCrossings <= layout.clarity.clearCrossings
+      && capped.legibility.smallestTextMm >= layout.legibility.smallestTextMm * CAPPED_SIZE;
+    if (asGood && fanKink(capped) < fanKink(layout) - CAPPED_GAIN) return capped;
+  }
+  return layout;
+}
+
+/** A canopy taller than this share of its width is laid out again (see computePosterLayout), */
+const TALL_CROWN = 1;
+/** ...no taller than this share of its width, its names at CAPPED_NAMES of the size the page allows */
+const CAPPED_RATIO = 0.9;
+const CAPPED_NAMES = 0.92;
+/** ...and that layout is kept only with its names at least this share of their size, */
+const CAPPED_SIZE = 0.9;
+/** ...and its arcs smoother by at least this much (see fanKink). */
+const CAPPED_GAIN = 0.02;
+
+function withCompactLower(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = withBoxRoom(tree, opts);
   // A dense family on small paper: its names set smaller to fit, while the
   // foundation (and the trunk) kept the full size, standing two or three
@@ -1658,6 +1701,25 @@ function layoutAttempt(
     plan = plans[plans.length - 1];
     f = largestFitting(plan, minFont * 0.2, minFont);
   }
+  // A canopy no taller than crownRatioCap times its width: the names set
+  // smaller until it is (never below the legible size).
+  const ratioCap = opts.crownRatioCap;
+  // (and its names a little smaller, so its rings are less crowded)
+  if (ratioCap && opts.crownNameScale && opts.crownNameScale < 1) f = Math.max(minFont, f * opts.crownNameScale);
+  if (ratioCap && f > minFont) {
+    const tooTall = (ff: number) => { const d = crownDims(ff); return d.ry > d.rx * ratioCap; };
+    if (tooTall(f)) {
+      if (tooTall(minFont)) f = minFont;
+      else {
+        let lo = minFont, hi = f;
+        for (let i = 0; i < 20; i++) {
+          const mid = (lo + hi) / 2;
+          if (tooTall(mid)) hi = mid; else lo = mid;
+        }
+        f = lo;
+      }
+    }
+  }
   // A retry (fontScale < 1) keeps the canopy the same size and sets the
   // canopy's names smaller, so each gets more room around it.
   // Dense packing (a second try, see computePosterLayout): the canopy is
@@ -1675,6 +1737,8 @@ function layoutAttempt(
         const t = ringChain(demand, r0d, meanReachFor(rx, ry), fd);
         if (t[t.length - 1] <= DENSE_TOP) return { rx, ry, fits: true };
         if (ry * 1.05 > cap) return { rx, ry, fits: false };
+        // (no taller than crownRatioCap allows: the names set smaller instead)
+        if (ratioCap && ry * 1.05 > Math.min(rxMax, rx * 1.05) * ratioCap) return { rx, ry, fits: false };
         rx = Math.min(rxMax, rx * 1.05);
         ry *= 1.05;
       }
@@ -1720,7 +1784,8 @@ function layoutAttempt(
   // branch poster's canopy stops at CANOPY_GROWTH × its natural height, or
   // a branch of two or three people is stretched into long bare stalks;
   // height it cannot use is shared above and below.
-  const ryMax = ry * (branchMode ? CANOPY_GROWTH : 2);
+  // (with crownRatioCap, spare height never stretches it past the cap)
+  const ryMax = Math.min(ry * (branchMode ? CANOPY_GROWTH : 2), opts.crownRatioCap ? Math.max(ry, rx * opts.crownRatioCap) : Infinity);
   let stemExtra = 0;
   if (branchMode && slack > 0) {
     // a branch poster's canopy reaches for 70% of the page

@@ -607,6 +607,24 @@ on any member's panel:
     with no more crossings (tests/fan.test.ts).
   - On a 245-person family, the worst break in any theme went from
     0.13–0.14 to 0.08–0.11 of a generation's distance.
+  - **The same arcs in every design.** Once the canopy has reached the
+    page's width, more height used to make it taller instead: larger names
+    filled a canopy taller than wide, and on it each generation stepped
+    along the sides. That happened whenever a poster had height to spare:
+    a short foundation (the paragraph, in Heritage and Mono) or no lineage
+    under the trunk, so one family was on smooth arcs in one design and
+    stepped in another (found on an 8A0 poster).
+  - Such a poster is now laid out again with its canopy no taller than
+    0.9 of its width and its names a little smaller (92% of what the page
+    allows). It is kept only when it is as clean and as legible, with no
+    more crossings, its names at least 90% of their size, and its arcs
+    smoother; otherwise the larger names stay (tests/even-fans-in-every-design.test.ts).
+  - Measured on 48 posters (four invented families from 150 to 350
+    people, A1 to 2A0, four designs): canopies taller than wide went from
+    24 to 6; the worst break, in the default design with the paragraph
+    foundation, from 0.54–0.58 to 0.26 (0.24 with its own column). Names
+    kept 90–100% of their size, four came out larger. Such a poster takes
+    about twice as long to lay out.
 - **Crossing lines:** a crossing at a clear angle is allowed, but on a
   clean poster the people at each end are still tried a little further out
   or along their ring, kept only when the poster stays clean and readable
