@@ -101,12 +101,21 @@ without the owner).
     to his children Hamad and Noura (qa-c-29, qa-c-30) pass under his
     brother's long name with honorific, «عبد الملك الملقب بالأمين»
     (qa-c-26). The search then settles just below the minimum.
+- **Root cause** (traced further): in this design, first-generation names
+  are round medallions. A medallion is a circle as wide as its name
+  (`w = h = max(2.7 fs, text + 0.9 fs)`), so the brother's long name with
+  its honorific becomes a disc 132 units across, against Nasser's 40.
+  Nasser's lines to his children run under that disc. The plain "circle"
+  design already avoids this: a long name stretches into a capsule rather
+  than a larger circle. Medallions have no such rule.
 - **Options:**
-  1. Keep B out of `main` until the ring gives a long sibling name room
-     clear of his brother's lines. That is the next layout task; I would
-     continue with it.
+  1. Keep B out of `main` and give medallions the same treatment: a long
+     name set on two lines, split at the space nearest its middle (the
+     engine's `splitInTwo`), so the disc is about half the size. This is
+     a visible design change to every long-named medallion in every
+     design, so it needs your approval (and the design review the project
+     asks for) before I build it.
   2. Accept this one case (update the baseline) for the gains elsewhere:
      titles, frames, and canopy balance (many families 1–5 mm larger).
-- **Recommendation:** 1. The fix belongs in the engine, and B stays
-  unmerged meanwhile.
+- **Recommendation:** 1. B stays unmerged meanwhile.
 - **Blocked by it:** merging B. Work on B continues.
