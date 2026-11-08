@@ -194,3 +194,14 @@ inspections, `quote/` quotation renders).
   (H1); then A; then B (includes A); then C, resolving the three conflicts
   above. Then full suite, `qa:layout` against the baseline, and PDF export
   checks on the combined tree.
+
+### 23:55 — B: layout QA result (H3)
+- `qa:layout` on B `1f10f91`: **447 of 448 pass**; typecheck and lint
+  clean. One regression, `C_all_silver-gold_A1`: 3.20 mm → 2.95 mm (below
+  the legible minimum).
+- Bisected to `1f70b91`, the true name widths. The fault at the legible
+  size is two lines under a brother's long name with honorific. Details in
+  ON-HOLD H3; the baseline was **not** updated.
+- QA output: `scratchpad/qa-B/` (SVG and JSON per case); log
+  `scratchpad/qa-B.log`.
+- C: typecheck and lint clean; quotation tests 17 of 17.

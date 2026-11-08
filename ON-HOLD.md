@@ -78,3 +78,35 @@ without the owner).
   measured on an idle machine.
 - **Blocked by it:** improving speed for families too large for their
   paper. Nothing else waits on it.
+
+---
+
+## H3. Branch B makes one layout QA case drop below the legible size
+
+**ON HOLD — USER INPUT REQUIRED**
+
+- **Decision:** accept this one result, or keep B from merging until it
+  is fixed.
+- **Why it needs you:** the project rule is that a layout change is kept
+  only if no family gets worse; the baseline is updated only by you,
+  after review.
+- **Result.** `qa:layout` on B (`1f10f91`): 447 of 448 pass.
+  `C_all_silver-gold_A1` drops from 3.20 mm (legible, on the minimum
+  exactly) to 2.95 mm (below the 3.2 mm minimum). No other case got worse.
+- **Cause.** Bisected to B's first commit (`1f70b91`); the trunk and frame
+  work does not change it. With the old width estimate swapped back in,
+  the case is legible again (3.20 mm), so the cause is measuring names at
+  their true width.
+  - At the legible size, only two faults remain: Nasser's (qa-c-28) lines
+    to his children Hamad and Noura (qa-c-29, qa-c-30) pass under his
+    brother's long name with honorific, «عبد الملك الملقب بالأمين»
+    (qa-c-26). The search then settles just below the minimum.
+- **Options:**
+  1. Keep B out of `main` until the ring gives a long sibling name room
+     clear of his brother's lines. That is the next layout task; I would
+     continue with it.
+  2. Accept this one case (update the baseline) for the gains elsewhere:
+     titles, frames, and canopy balance (many families 1–5 mm larger).
+- **Recommendation:** 1. The fix belongs in the engine, and B stays
+  unmerged meanwhile.
+- **Blocked by it:** merging B. Work on B continues.
