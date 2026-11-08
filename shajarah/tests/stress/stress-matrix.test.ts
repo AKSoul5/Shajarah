@@ -30,8 +30,14 @@ export function pairwise<T extends Record<string, readonly unknown[]>>(factors: 
   keys.forEach((a, i) => keys.slice(i + 1).forEach((b) => factors[a].forEach((_, va) => factors[b].forEach((__, vb) => uncovered.add(pairKey(a, va, b, vb))))));
   const rows: Record<keyof T, number>[] = [];
   while (uncovered.size) {
-    const row = {} as Record<keyof T, number>;
+    // (each row starts from a pair still uncovered, so every row covers at
+    // least one: chosen greedily from the first factor alone, a row could
+    // cover none and the loop never end)
+    const [first] = uncovered;
+    const [fa, fb] = first.split("|").map((part) => part.split("="));
+    const row = { [fa[0]]: Number(fa[1]), [fb[0]]: Number(fb[1]) } as Record<keyof T, number>;
     for (const k of keys) {
+      if (row[k] !== undefined) continue;
       let best = 0, bestGain = -1;
       factors[k].forEach((_, v) => {
         let gain = 0;
@@ -40,8 +46,6 @@ export function pairwise<T extends Record<string, readonly unknown[]>>(factors: 
           const [a, b] = keys.indexOf(done) < keys.indexOf(k) ? [done, k] : [k, done];
           if (uncovered.has(pairKey(a, a === k ? v : row[a], b, b === k ? v : row[b]))) gain++;
         }
-        // (the first factor: the value in the most uncovered pairs)
-        if (Object.keys(row).length === 0) gain = [...uncovered].filter((p) => p.startsWith(`${String(k)}=${v}|`)).length;
         if (gain > bestGain) { bestGain = gain; best = v; }
       });
       row[k] = best;
