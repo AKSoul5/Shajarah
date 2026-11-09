@@ -35,6 +35,7 @@ import { editingText, fileOf, inDesktop, useDesktopCommands, useDesktopState, ty
 import { exportPoster, type ExportKind } from "../poster/ExportMenu";
 import { mergePeople, spouseNamed } from "@/lib/merge";
 import { explainNotDrawn, type NotDrawn, type NotDrawnKind } from "@/lib/notDrawn";
+import { maleRootOfMothersLine } from "@/lib/lineageNotice";
 import { normalizeName } from "@/lib/nasab";
 import { Icon } from "@/components/Icon";
 
@@ -477,6 +478,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   );
   // The people the poster leaves out, by what would bring them on.
   const notDrawn = useMemo(() => explainNotDrawn(tree, layout?.unplacedIds ?? []), [tree, layout?.unplacedIds]);
+  const maleRootMothersLine = useMemo(() => maleRootOfMothersLine(tree), [tree]);
   const notDrawnCount = (kind: NotDrawnKind) => notDrawn.filter((x) => x.kind === kind).length;
   /** How many of their descendants go with `id` when hidden (in-laws who married in aside). */
   const hiddenWith = (id: string) =>
@@ -1294,6 +1296,13 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 onChoose={(p) => updateSettings({ posterSize: p })}
                 onShortenSoil={layout.soilOverShare && !theme.soilShorten ? () => updateSettings({ theme: { ...theme, soilShorten: true } }) : undefined}
               />
+            )}
+            {maleRootMothersLine && notDrawn.length > 0 && (
+              <div role="status" className="absolute bottom-4 start-4 max-w-[45%] rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-start text-xs text-amber-900 shadow">
+                This poster follows the mother&apos;s line, but its root, {maleRootMothersLine.name}, is a man: children whose
+                mothers are recorded belong to their mothers&apos; lines, so they are not drawn from him. To start the line from a
+                woman, select a woman with no parents recorded and choose &ldquo;Make this the root of the trunk&rdquo;.
+              </div>
             )}
             {notDrawn.length > 0 && (
               <button

@@ -38,8 +38,9 @@ export const metadata = { title: "Demo — Shajarah" };
  * &soil=column|spine|banner|pedestal|paragraph the foundation style, so
  * variants can be compared on identical data. &focus=<id or name> draws one
  * branch (a branch poster); &shape=auto|leaf|circle|oval sets the names' shape.
+ * &lineage=matrilineal draws the mother's line (the family as recorded).
  */
-export default function DemoPage({ searchParams }: { searchParams: { sample?: string; colors?: string; poster?: string; soil?: string; focus?: string; shape?: string } }) {
+export default function DemoPage({ searchParams }: { searchParams: { sample?: string; colors?: string; poster?: string; soil?: string; focus?: string; shape?: string; lineage?: string } }) {
   const make = SAMPLES[searchParams.sample as keyof typeof SAMPLES];
   const base = make ? make() : generateSampleTree();
   const posterSize = isPaperSize(searchParams.poster) ? searchParams.poster : undefined;
@@ -51,6 +52,7 @@ export default function DemoPage({ searchParams }: { searchParams: { sample?: st
   const focus = named.find((m) => m.id === base.crownBaseId) ?? [...named].sort((a, b) => a.generation - b.generation)[0];
   const tree = {
     ...base,
+    ...(searchParams.lineage === "matrilineal" ? { lineage: "MATRILINEAL" as const } : {}),
     settings: {
       ...base.settings,
       ...(posterSize ? { posterSize } : {}),
