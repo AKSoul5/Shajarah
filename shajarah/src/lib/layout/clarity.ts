@@ -334,3 +334,81 @@ function distToSegment(p: Vec, a: Vec, b: Vec): number {
   const t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / l2));
   return Math.hypot(p.x - a.x - t * vx, p.y - a.y - t * vy);
 }
+
+/**
+ * A thin line running alongside a thick one: brothers' lines leave their
+ * father (or their mother's box) together, but where a thin one (a
+ * childless son's, a daughter's) then parts from a brother's thick limb at
+ * a narrow angle, it rides along the limb's edge and reads as part of it
+ * (a man's two wives at the canopy base: the line to one son ran along his
+ * brother's limb for four lines' height). The check of merging lines asks
+ * for touching, and passes over the stretch where brothers' lines start
+ * together; this measures how fast a thin line gets clear of a thick one
+ * once it has come out from under it: by `RUN` names' heights further on
+ * it must stand at least a name's height off the limb's edge.
+ */
+export const ALONGSIDE_RUN = 2;
+export function linesAlongside(layout: PosterLayout): { edge: [string, string]; other: [string, string]; at: Vec; gap: number }[] {
+  const sizes = layout.nodes.map((n) => n.fontSize).sort((a, b) => a - b);
+  const fs = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 12;
+  const boxes = new Map<string, { x: number; y: number; w: number; h: number }>();
+  for (const n of [...layout.nodes, ...layout.stubs]) boxes.set(n.id, n);
+  for (const s of layout.spouses ?? []) boxes.set(s.id, s);
+  if (layout.base) boxes.set(layout.base.member.id, layout.base);
+  const inBox = (p: Vec, id: string) => {
+    const b = boxes.get(id);
+    return !!b && Math.abs(p.x - b.x) <= b.w / 2 && Math.abs(p.y - b.y) <= b.h / 2;
+  };
+  const gapTo = (p: Vec, thinW: number, thick: Edge) => {
+    const n = thick.points.length;
+    let g = Infinity;
+    for (let k = 1; k < n; k++) {
+      const a = thick.points[k - 1], b = thick.points[k];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+      const w = thick.w0 + (thick.w1 - thick.w0) * ((k - 1 + t) / Math.max(1, n - 1));
+      g = Math.min(g, Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy) - w / 2 - thinW / 2);
+    }
+    return g;
+  };
+  const out: { edge: [string, string]; other: [string, string]; at: Vec; gap: number }[] = [];
+  const byParent = new Map<string, Edge[]>();
+  const byChild = new Map<string, Edge>();
+  for (const e of layout.edges) {
+    byParent.set(e.parentId, [...(byParent.get(e.parentId) ?? []), e]);
+    byChild.set(e.childId, e);
+  }
+  const check = (thin: Edge, thick: Edge) => {
+    if (Math.min(thick.w0, thick.w1) < 3 * Math.max(thin.w0, thin.w1)) return;
+    const pts = thin.points.filter((p) => !inBox(p, thin.parentId) && !inBox(p, thin.childId));
+    let s = 0, emerged: number | null = null, at: Vec | null = null;
+    for (let i = 0; i < pts.length; i++) {
+      if (i > 0) s += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      const g = gapTo(pts[i], Math.max(thin.w0, thin.w1), thick);
+      if (emerged === null) {
+        if (g > 0) { emerged = s; at = pts[i]; }
+        // (never out from under it: running inside the limb)
+        else if (s >= ALONGSIDE_RUN * fs + Math.max(thick.w0, thick.w1)) {
+          out.push({ edge: [thin.parentId, thin.childId], other: [thick.parentId, thick.childId], at: pts[i], gap: g / fs });
+          return;
+        }
+        continue;
+      }
+      if (s - emerged >= ALONGSIDE_RUN * fs) {
+        if (g < fs) out.push({ edge: [thin.parentId, thin.childId], other: [thick.parentId, thick.childId], at: at!, gap: g / fs });
+        return;
+      }
+    }
+  };
+  for (const sibs of byParent.values()) {
+    for (const thin of sibs) {
+      // brothers' lines, and a line turning back along the limb that
+      // brought its father (a son's line running down inside his
+      // father's branch)
+      for (const thick of sibs) if (thick !== thin) check(thin, thick);
+      const into = byChild.get(thin.parentId);
+      if (into) check(thin, into);
+    }
+  }
+  return out;
+}

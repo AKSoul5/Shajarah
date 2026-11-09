@@ -1,24 +1,25 @@
-// A man's line to one wife's box does not cross his other wife's line to
-// her son. Both boxes are placed in one pass, and each was checked only
-// against the lines drawn the time before, where the other box had been:
-// the second box's place was found clear of a line that then moved.
-// Each box is now also checked against the lines of the boxes placed with it,
-// as they will be drawn. Found on an invented family with two wives at the
-// canopy base and children interleaved by birth ("family 11"). There the
-// refined design on 2A0 had one crossing at every size (the poster came out
-// at 5.16 mm with the crossing); it is now clean at 4.13 mm. The classic
-// design on A0 still has one crossing, of another kind: its names went from
-// 3.27 to 4.82 mm, and that case is kept as an expected failure below.
+// A man's wives' boxes each stand on the side of their own children, and
+// no line crosses another or runs along a thick limb. With spouses shown,
+// a centred son (the one whose branch holds the most people) was set
+// between his elder and younger brothers by birth, or moved among them to
+// balance the two sides, which could stand him apart from his full
+// brothers with his half-brothers between them. His mother's box then had
+// lines on both sides of the other wife's fan, and one crossing was
+// unavoidable wherever the boxes went (an invented family with two wives at
+// the canopy base, children interleaved by birth: "family 11"; one crossing
+// at every size, names 3.27 to 5.16 mm). He is now set among his brothers
+// where each mother's children stay together; his brothers keep their own
+// order. Clean, with names 7.28 to 10.97 mm.
 //
-// NOT READY (render inspected at print scale): the clean refined 2A0 poster
-// is worse to read than the old one. One wife's box swings far down and
-// left of the canopy base, her limb runs out sideways along the canopy's
-// lower edge, and two thin lines run alongside thick limbs (to طاهر beside
-// the gold limb, to نافع inside the green one), which the check does not
-// catch. The first test below must not be taken as proof of a good poster.
+// An earlier attempt (placing the two boxes clear of each other's lines,
+// fbf20fc) was clean by the check but swung one box far down beside the
+// canopy and ran two thin lines along thick limbs. The new measure of lines
+// running alongside (linesAlongside) flags both on that layout; it is
+// checked here too.
 import { describe, expect, it } from "vitest";
 import { computeGenerations } from "@/lib/genealogy";
 import { computePosterLayout, type PosterLayout } from "@/lib/layout/botanical";
+import { linesAlongside } from "@/lib/layout/clarity";
 import { kalaliTree } from "@/lib/samples/kalali";
 import { layoutOptionsFor, resolveTheme } from "@/lib/theme";
 import type { MarriageDTO, MemberDTO, TreeDTO } from "@/lib/types";
@@ -66,31 +67,36 @@ const lay = (preset: string, paper: string): PosterLayout => {
   const settings = { showFemales: true, theme: { preset, motherNames: true } } as TreeDTO["settings"];
   return computePosterLayout({ ...t, settings }, layoutOptionsFor(resolveTheme(settings), paper as never));
 };
-/** Crossings between two lines that both run to or from a spouse's box. */
-const boxCrossings = (l: PosterLayout) =>
-  l.clarity.issues.filter(
-    (i) => i.kind === "crossing" && [i.edge, i.other].every((e) => Array.isArray(e) && e.some((id) => String(id).startsWith("spouse:"))),
-  );
 
-describe("spouses' box lines do not cross each other", () => {
-  it("family 11, refined, 2A0, spouses shown: clean", { timeout: 600_000 }, () => {
-    const l = lay("refined", "2A0");
-    expect(boxCrossings(l)).toEqual([]);
-    expect(l.overlaps).toBe(0);
-    expect(l.clarity.issues).toEqual([]);
-    expect(l.legibility.ok).toBe(true);
-    // both wives' boxes drawn, each with her own children's lines
-    const boxes = new Set(l.edges.map((e) => e.parentId).filter((id) => id.startsWith("spouse:")));
-    expect(boxes.size).toBe(2);
-  });
-
-  // Not yet fixed: on classic A0 the man's line to his first wife's box
-  // still crosses his second wife's line to her son, away from any name.
-  // Unresolved, reported in AUTONOMOUS-PROGRESS.md; when it is fixed this
-  // expected failure fails and must become an ordinary test.
-  it.fails("family 11, classic, A0, spouses shown: clean (known defect)", { timeout: 600_000 }, () => {
-    const l = lay("classic", "A0");
-    expect(l.overlaps).toBe(0);
-    expect(l.clarity.issues).toEqual([]);
-  });
+describe("a man's wives' boxes stand by their own children", () => {
+  // (smallest names before: 5.16, 3.27 and 4.18 mm)
+  for (const [preset, paper, before] of [["refined", "2A0", 5.16], ["classic", "A0", 3.27], ["emerald", "A1", 4.18]] as const) {
+    it(`family 11, ${preset}, ${paper}, spouses shown`, { timeout: 600_000 }, () => {
+      const l = lay(preset, paper);
+      expect(l.overlaps).toBe(0);
+      expect(l.clarity.issues).toEqual([]);
+      expect(l.legibility.ok).toBe(true);
+      expect(l.legibility.smallestTextMm).toBeGreaterThan(before);
+      expect(linesAlongside(l)).toEqual([]);
+      // both wives' boxes, each within its own children's span as seen
+      // from the man (a little either side), never among the other's
+      const base = l.base!;
+      const ang = (p: { x: number; y: number }) => (Math.atan2(base.y - p.y, p.x - base.x) * 180) / Math.PI;
+      const pos = new Map(l.nodes.map((n) => [n.id, n]));
+      expect(l.spouses.length).toBe(2);
+      for (const s of l.spouses) {
+        const mine = s.childIds.map((c) => ang(pos.get(c)!));
+        const a = ang(s);
+        expect(a).toBeGreaterThan(Math.min(...mine) - 15);
+        expect(a).toBeLessThan(Math.max(...mine) + 15);
+        for (const o of l.spouses) {
+          if (o === s) continue;
+          const theirs = o.childIds.map((c) => ang(pos.get(c)!));
+          // the other wife's children all to one side of this wife's
+          const lo = Math.min(...mine), hi = Math.max(...mine);
+          expect(theirs.every((t) => t < lo) || theirs.every((t) => t > hi)).toBe(true);
+        }
+      }
+    });
+  }
 });
