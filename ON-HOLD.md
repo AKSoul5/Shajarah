@@ -210,33 +210,46 @@ fixed: see AUTONOMOUS-PROGRESS.md)
 
 ## H7. The paragraph foundation: smooth fan or larger names, for a long lineage
 
-**ON HOLD — USER INPUT REQUIRED**
+**ON HOLD — USER INPUT REQUIRED** (corrected 09 Nov evening: the earlier
+statement that the paragraph text takes height from the canopy was wrong)
 
 - **Decision:** for a long lineage drawn with the paragraph foundation
   (default design and Mono), which comes first: an even fan or name size.
-- **Why it needs you:** each remedy costs readability or changes a
-  design. Both are your call, under the rule that readability is not
-  lowered.
-- **Evidence** (`kalaliFilledTree`, A0, refined):
-  - The paragraph text block takes height from the canopy.
-  - The normal layout is smooth (ring measure 0.035), but its smallest
-    names are 3.27 mm (typical 11.4 mm).
-  - The engine therefore takes its "dense" layout: smallest names 4.82 mm
-    (typical 16.8 mm), with the inner four generations pushed outward and
-    the other ten squeezed to a twentieth of the reach apart. Two crowded
-    names step off their rings: 0.585 against the column foundation's
-    0.200.
-  - This is the defect still marked as a temporary expected failure on
-    branch A.
+- **Finding:**
+  - The paragraph foundation takes the least height of all six (its text
+    110 units high on the long lineage at A0, against 465 to 521 for the
+    others). The canopy gets the rest and grows taller than wide.
+  - On a tall canopy the engine's larger-names ("dense") layout pushes the
+    crowded inner generations outward and squeezes the outer ten together.
+    Two names step off their rings (0.585, against 0.200 for the column).
+  - Making the text smaller would make the canopy taller still, so
+    reducing the text's height cannot help. What helps is the opposite:
+    the foundation keeping a little more height.
+- **Measured** (paragraph kept six type sizes taller; refined and Mono
+  alike):
+
+  | Family | A1 | A0 | 2A0 |
+  |---|---|---|---|
+  | Long lineage | 0.592 → 0.088; names 3.44 → 3.20 mm | 0.585 → 0.041; 4.82 → 4.23 mm | 0.576 → 0.040; 6.52 → 5.82 mm |
+  | No lineage under the trunk, balanced family | unchanged | unchanged | unchanged |
+  | English stress family | 6.3 both (see below) | 0.617 → 5.542, worse; 4.48 → 3.78 mm | 0.715 → 6.230, worse |
+
+  So the extra height is not a general cure: it helps only long lineages,
+  costs them 7–12% of name size, and makes the English stress family
+  worse.
 - **Options:**
-  1. Keep the larger names and accept the stepped fan for such posters
-     (the expected-failure marker stays, documented).
-  2. Prefer the smooth fan: names a third smaller (3.27 mm, near the
-     legible minimum).
-  3. Give the paragraph foundation less height for long lineages
-     (condensed text, or a smaller type size in the paragraph), so the
-     normal layout's names grow; a design change to that foundation.
-- **Recommendation:** 3, trying a smaller paragraph type size first, kept
-  only if the names grow and the paragraph stays legible.
+  1. Keep the larger names and the stepped fan (the expected-failure marks
+     stay, documented).
+  2. Keep the foundation taller only for long lineages (trunk longer than
+     the canopy is deep): smooth fan, names 7–12% smaller, still legible.
+  3. Look for a layout of the dense rings that is smooth at the larger
+     size (engineering, no promise of success).
+- **Recommendation:** 3 first (I can do it without your decision); 2 if
+  it fails.
 - **Blocked by it:** the two expected-failure cases in
-  `tests/even-fans-in-every-design.test.ts`. Nothing else.
+  `tests/even-fans-in-every-design.test.ts`.
+- **Separate finding (being investigated, not a decision):** the English
+  stress family's ring measure is 6.2–6.3 at A1 with every foundation
+  setting, far above anything else measured. It may be a fault in the
+  measure (a ring whose median distance is near zero) rather than in the
+  poster.
