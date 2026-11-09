@@ -119,3 +119,33 @@ without the owner).
      titles, frames, and canopy balance (many families 1–5 mm larger).
 - **Recommendation:** 1. B stays unmerged meanwhile.
 - **Blocked by it:** merging B. Work on B continues.
+
+---
+
+## H4. A mother's-line poster of a family rooted at a man is almost empty
+
+**ON HOLD — USER INPUT REQUIRED**
+
+- **Decision:** what a poster should show when the lineage is set to the
+  mother's line (MATRILINEAL) but the family's root is a man.
+- **Why it needs you:** it is a genealogy and product rule, not a layout
+  fix.
+- **Evidence** (stress matrix, huge family, 463 people, A's engine): the
+  seven pairwise cases with the mother's line draw 1 to 6 people. One
+  laid out again here: 0 names in the canopy, 456 people unplaced. In a
+  mother's-line tree a man's children belong to their mother's line, so
+  nothing grows from a male root.
+  - The app lists the people it did not draw (`unplacedIds`), but the
+    poster is nearly blank.
+  - The stress grader passed six of the seven for genealogy: the
+    not-drawn explainer counts them as outside the line.
+- **Options:**
+  1. When the mother's line is chosen and the root is a man, start the
+     line from his eldest daughter with children (or ask which woman).
+  2. Keep the rule, and warn plainly in the editor (and grade such posters
+     LIMITATION, not PASS) that the root must be a woman for this setting.
+  3. Disallow the mother's line unless the root is a woman.
+- **Recommendation:** 2 now (an honest warning and grade, no genealogy
+  change); decide 1 or 3 separately.
+- **Blocked by it:** the matrilineal rows of the stress grading. Nothing
+  else.

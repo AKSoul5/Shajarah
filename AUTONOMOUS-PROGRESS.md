@@ -205,3 +205,25 @@ inspections, `quote/` quotation renders).
 - QA output: `scratchpad/qa-B/` (SVG and JSON per case); log
   `scratchpad/qa-B.log`.
 - C: typecheck and lint clean; quotation tests 17 of 17.
+
+### 00:05 — Container restarted; matrix resumed; first grading
+- The container restarted at about 23:58 and the matrix runner stopped.
+  Saved results were kept: 367 primary, 82 designs, 31 modes. Restarted
+  ("RESUMED after restart (2)" in `progress.log`); finished jobs are
+  skipped.
+- **Graded so far** (`tests/stress/grade.py`, A's engine `aa98dc0`,
+  without B's fixes):
+  - **Primary** (367): genealogy 367 PASS; layout 135 FAIL (merges,
+    junctions, occlusions, crossings); page fit 344 FAIL (one side heavier
+    279, stub of a trunk 234, crown swung aside 176, canopy hangs 171);
+    readability 55 SMALL; performance FAIL nearly everywhere (see H2).
+  - **Designs** (82): all FAIL, on page fit and line faults.
+  - **Modes** (huge family, 31): 10 PASS.
+- The page-fit faults (side heavier, crown swung) are what B's trunk fix
+  targets. Re-grade on B's engine before drawing conclusions.
+- **New finding (H4):** mother's-line posters of a man-rooted family draw
+  1 to 6 of 463 people, and the grader passes most of them. On hold:
+  rule plus grading.
+- One modes case drew a foundation past the page's edge
+  (`huge_ar_heritage_2A0_daughters_…_branch`, `offPage: soil`): to
+  investigate.
