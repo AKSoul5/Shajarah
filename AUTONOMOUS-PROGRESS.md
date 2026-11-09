@@ -232,3 +232,31 @@ inspections, `quote/` quotation renders).
   (`even-fans-in-every-design`), now on hold as H5. Its full suite and
   `qa:layout` were not run, because the stress matrix runs from `wt-fan`
   (CPU and file contention).
+
+### 02:30 — Check-in 2: restarts, queue reordered, export stage, harness fixes
+- **The container was reclaimed again** (up 1 min at 02:05): only 13 rows
+  had been added in two hours. Background jobs die whenever the session is
+  idle long enough to be reclaimed, so the huge, large and deep jobs (tens
+  of minutes each) keep getting cut off.
+  - The queue is now reordered: small families first (`jobs.txt`; the old
+    order is kept in `jobs.heavy-first.txt`).
+  - Tiny, small and spouses finished within minutes: 1,035 rows saved.
+  - Heavy families need an active session for hours; they are not
+    expected to finish unattended.
+- **Off-page foundation case: a false positive in the harness.**
+  - Cause: the foundations give their box from its left edge
+    (`drawPlaque`); the check read it as centred. The wide paragraph
+    foundation (huge, Heritage, 2A0, branch) is centred on the page.
+  - Fixed: A `0e4430d`, B `f83acd3`. Earlier rows flagged only for
+    `soil` are not reliable.
+- **Export stage, run for the first time** (`tests/stress/export.mjs`,
+  real `/demo` editor and Export menu in Chromium, A's engine):
+  - Tiny and small, all 7 designs at A3, plus English: **16 of 16** pass.
+    Each PDF is one A3 page (297×420 mm); each SVG parses at A3 with its
+    viewBox; every font is embedded; no page errors.
+  - Contact sheet: `scratchpad/stress/export/export-small-sheet.png`.
+    Visual check: every element is present in every design. The tiny
+    family's wife frame sits off to the left of the trunk in all 7: the
+    defect fixed on B (`1f10f91`).
+  - Driver fix (load the installed Playwright): A `6289b44`, B `e652b9c`.
+- Dev server for the export run (port 3107) stopped by exact PIDs.
