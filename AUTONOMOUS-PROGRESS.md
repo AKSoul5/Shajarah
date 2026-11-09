@@ -403,3 +403,24 @@ Each fix is on its own branch; none is merged or released.
     sibling order).
 - Branch A: suite 651, QA 448/448, start-up 19/19; ready, not merged
   (needs approval).
+
+## 09 Nov, evening — more fixes, all branches checked (no merges)
+
+| Branch | Head | Base | Suite | QA | Start-up (PG 16, non-root) |
+|---|---|---|---|---|---|
+| `layout/side-branches-from-their-badge` | `6dcbfa8` | main | 609 passed | 448/448 | 19/19 |
+| `layout/canopy-base-crossings` | `fe9af82` | `6dcbfa8` | 640 | 448/448 | 19/19 |
+| `layout/forked-lines-checked-as-drawn` | `1af54b7` | main | 608 | 448/448 | 19/19 |
+| `layout/spouse-box-lines` | `836cbf3` | `6dcbfa8` + `1af54b7` | 617 | 448/448 | 19/19 |
+| `layout/paragraph-fan-smooth` | `56d973f` | A `1eb61c9` | 656 | 448/448 | 19/19 |
+| A `layout/fan-every-foundation` | `1eb61c9` | main | 651 | 448/448 | 19/19 |
+| B `layout/typography-spacing` | `981eb48` | main + A's older work | 700 passed, 4 failed (only the old fan test, replaced by A's: on a scratch merge of A into B it passes 28/28) | 448/448 | — |
+| C `feature/quote-language` | `eae75af` | main | 623 | 448/448 | 19/19 |
+| H4 `feature/matrilineal-root-warning` | `fc780aa` | main | 610 | — | — |
+
+- The owner's family (private, local): on canopy + spouse-box together
+  (scratch merge, not pushed), all 13 variants clean, names as on the side
+  branch or larger.
+- On hold for the owner: H6 (interleaved children of two wives), H7
+  (paragraph foundation: smooth fan or larger names), H1 (pipeline 504 on
+  the installer download).
