@@ -1467,7 +1467,7 @@ function layoutAttempt(
     const span = Math.max(1, M - r0);
     const t = [0];
     for (let d = 1; d <= Math.max(1, base.height); d++) {
-      const need = ((demand[d] ?? 0) / (ARC * RING_FILL) - r0) / span;
+      const need = ((demand[d] ?? 0) / (ARC * (process.env.ZZFILL ? +process.env.ZZFILL : RING_FILL)) - r0) / span;
       const room = holderRoom.has(d) ? (f * 3.2) / span : 0;
       t.push(Math.max(need, d === 1 ? room : t[d - 1] + (f * 2.6) / span + room));
     }

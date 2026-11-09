@@ -1,0 +1,25 @@
+import { it } from "vitest";
+import { appendFileSync } from "node:fs";
+import { computePosterLayout, ringKink } from "@/lib/layout/botanical";
+import { kalaliFilledTree } from "@/lib/samples/kalali";
+import { naturalFamily } from "@/lib/samples/natural";
+import { fixtureStressEnglish, fixtureBalanced } from "@/lib/qa/fixtures";
+import { layoutOptionsFor, resolveTheme } from "@/lib/theme";
+import type { TreeDTO } from "@/lib/types";
+it("h7", { timeout: 7200_000 }, () => {
+  const all: [string, () => TreeDTO][] = [["long-ar", kalaliFilledTree], ["nolineage-ar", () => naturalFamily(350, 23)], ["balanced-ar", fixtureBalanced], ["stress-en", fixtureStressEnglish]];
+  const fams = all.filter(([n]) => (process.env.FAMS ?? "long-ar,nolineage-ar,balanced-ar,stress-en").split(",").includes(n));
+  for (const [name, build] of fams) for (const paper of (process.env.PAPERS ?? "A1,A0,2A0").split(",")) for (const preset of (process.env.PRESETS ?? "refined").split(",")) {
+    const t = build();
+    const settings = { ...t.settings, theme: { ...(t.settings as any)?.theme, preset } } as TreeDTO["settings"];
+    const l = computePosterLayout({ ...t, settings }, { ...layoutOptionsFor(resolveTheme(settings), paper as never), showFemales: true, soilStyle: "paragraph" as never });
+    if (process.env.RINGS) {
+      const fan = l.fan!; const n = fan.reach.length - 1;
+      const reachAt = (th: number) => { const u = Math.max(0, Math.min(n, ((th - fan.theta0) / (fan.theta1 - fan.theta0)) * n)); const i = Math.min(n - 1, Math.floor(u)); return fan.reach[i] + (fan.reach[i + 1] - fan.reach[i]) * (u - i); };
+      const rings = new Map<number, { ray: number; t: number; id: string }[]>();
+      for (const nd of l.nodes) { const ray = (nd as any).ray; if (ray === undefined || nd.depth < 1) continue; const span = 0.95 * reachAt(ray) - fan.r0; rings.set(nd.depth, [...(rings.get(nd.depth) ?? []), { ray, t: (Math.hypot(nd.x - l.origin.x, nd.y - l.origin.y) - fan.r0) / span, id: nd.id }]); }
+      for (const [d, ring] of [...rings].sort((a, b) => a[0] - b[0])) { if (ring.length < 5) continue; ring.sort((a, b) => a.ray - b.ray); const med = ring.map((x) => x.t).sort((a, b) => a - b)[ring.length >> 1]; let w = 0, at = -1; for (let i = 2; i < ring.length; i++) { const k = Math.abs(ring[i].t - 2 * ring[i - 1].t + ring[i - 2].t) / med; if (k > w) { w = k; at = i; } } appendFileSync(process.env.OUT!, `  ring ${d} n ${ring.length} med ${med.toFixed(3)} worst ${w.toFixed(3)} at ${at}/${ring.length} ts ${ring.slice(Math.max(0, at - 3), at + 2).map((x) => x.t.toFixed(3)).join(",")}\n`); }
+    }
+    appendFileSync(process.env.OUT!, `${process.env.TAG ?? ""} ${name} ${paper} ${preset} kink ${ringKink(l)?.toFixed(3)} mm ${l.legibility.smallestTextMm.toFixed(2)} ok ${l.legibility.ok} clean ${l.overlaps === 0 && l.clarity.ok}\n`);
+  }
+});
