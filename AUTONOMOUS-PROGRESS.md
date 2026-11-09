@@ -227,3 +227,8 @@ inspections, `quote/` quotation renders).
 - One modes case drew a foundation past the page's edge
   (`huge_ar_heritage_2A0_daughters_…_branch`, `offPage: soil`): to
   investigate.
+- **A, integration readiness:** typecheck and lint clean; 44 tests run, 40
+  pass. The 4 failures are the deliberate target test
+  (`even-fans-in-every-design`), now on hold as H5. Its full suite and
+  `qa:layout` were not run, because the stress matrix runs from `wt-fan`
+  (CPU and file contention).

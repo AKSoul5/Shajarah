@@ -149,3 +149,29 @@ without the owner).
   change); decide 1 or 3 separately.
 - **Blocked by it:** the matrilineal rows of the stress grading. Nothing
   else.
+
+---
+
+## H5. Branch A carries a deliberately failing target test
+
+**ON HOLD — USER INPUT REQUIRED**
+
+- **Decision:** what to do with `tests/even-fans-in-every-design.test.ts`
+  on `layout/fan-every-foundation` before A can merge.
+- **Why it needs you:** it decides what the project tests and whether a
+  known defect may be in `main`.
+- **Evidence:** A typechecks and lints cleanly; its other tests pass (40
+  of 44). The 4 failures are this file: arc spread 1190 against ≤ 1080,
+  982 against ≤ 960, 1223 against ≤ 1080, and smoothness 0.54 against
+  ≤ 0.29.
+  - It was kept as a target when the capped canopy was backed out
+    (`27d594d`: it shrank the canopy at A1).
+  - Its "fan kink" measure was found misleading on oval rings. Merged as
+    it is, it turns the `main` pipeline red.
+- **Options:**
+  1. Rework the measure (ring-relative instead of absolute), then re-set
+     the thresholds from the default design's own values.
+  2. Mark the four as known failures (`it.fails`): visible, and green CI.
+  3. Drop the file and keep the finding in the notes only.
+- **Recommendation:** 1, with 2 in the meantime if A must merge before.
+- **Blocked by it:** merging A (and B, which contains A).
