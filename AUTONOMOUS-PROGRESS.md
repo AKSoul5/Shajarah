@@ -370,3 +370,36 @@ with full checks on the combined code, and no release.
   - The test no longer requires the canopy to be no taller than wide (the
     backed-out remedy, not a measure).
   - A's full suite and layout QA: running.
+
+## 09 Nov, afternoon — trunk, canopy and spouse-box fixes (no merges)
+
+Each fix is on its own branch; none is merged or released.
+
+| Branch | Head | What | Checks |
+|---|---|---|---|
+| `layout/side-branches-from-their-badge` | `6dcbfa8` (unchanged) | side branches in slices; every side branch and stub from its own badge | suite 609 passed; QA 448/448; start-up 19/19 on PostgreSQL 16 (non-root) |
+| `layout/canopy-base-crossings` | `fe9af82` (on `6dcbfa8`) | two sons' lines from one place tried together | suite 640; QA 448/448; start-up 19/19 |
+| `layout/forked-lines-checked-as-drawn` | `1af54b7` (on `main`) | the layout's check reads dotted lines from a fork as drawn | suite 608; QA 448/448; start-up 19/19 |
+| `layout/spouse-box-lines` | `836cbf3` (on `6dcbfa8`, merges `1af54b7`) | a tangle at one man and his wives' boxes is untangled | suite 617; QA 448/448; start-up 19/19 |
+
+- The owner's family (private, local only), 13 variants:
+  - main: 68 to 99 problems each.
+  - Side branches: 11 of 13 clean.
+  - Canopy: daughters 1 to 0.
+  - Spouse boxes: everyone shown 5 to 0.
+  - Canopy and spouse boxes together: see below.
+- **The PostgreSQL-client limitation.** The worktrees had no
+  `desktop/electron/node_modules`, so `migrate.js` could not load `pg`.
+  - Linked from `wt-152` (environment only, nothing committed).
+  - As root the 14 real-database tests skip (initdb refuses root); run as
+    a non-root user (`pgtest`) with `REQUIRE_PG=1`, all 19 pass.
+- The design-director agent is defined in `.claude/agents/` but is not
+  available in this session: the visual review of the side branches waits
+  for it. Before/after renders of an invented family are in
+  `scratchpad/review-side/ev/`.
+- **H6:**
+  - The one-man tangle part is fixed (`layout/spouse-box-lines`).
+  - Kept on hold: interleaved children of two wives (a decision on
+    sibling order).
+- Branch A: suite 651, QA 448/448, start-up 19/19; ready, not merged
+  (needs approval).
