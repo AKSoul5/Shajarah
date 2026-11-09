@@ -219,15 +219,25 @@ jobs:
       matrix: ${{ steps.list.outputs.matrix }}
       newest: ${{ steps.list.outputs.newest }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: shajarah/desktop/electron/package.json
+          sparse-checkout-cone-mode: false
       - id: list
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          # every published release that still has its Windows installer
+          # every published release older than this build that still has its
+          # Windows installer (a release cannot update to its own version: a
+          # push that does not bump the version is tested against the
+          # releases before it)
+          version=$(jq -r .version shajarah/desktop/electron/package.json)
+          older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; }
           tags=$(gh release list -R "$REPO" --exclude-drafts --limit 100 --json tagName --jq '.[].tagName')
           found=()
           for t in $tags; do
+            if ! older "${t#v}" "$version"; then echo "not older than $version: $t"; continue; fi
             if gh release view "$t" -R "$REPO" --json assets --jq '.assets[].name' | grep -q '^Shajarah-Setup-.*\.exe$'; then found+=("$t"); fi
           done
           echo "releases with an installer: ${found[*]}"
@@ -266,7 +276,9 @@ jobs:
           gh release download $env:FROM -R $env:REPO --pattern 'Shajarah-Setup-*.exe' --dir old
           $old = (Get-ChildItem old -Filter 'Shajarah-Setup-*.exe' | Select-Object -First 1).FullName
           $extra = @{}
-          if ($env:FROM -eq $env:NEWEST) { $extra = @{ Recovery = $true; DownAndUp = $true; RedProof = $true } }
+          if ($env:FROM -eq $env:NEWEST) { $extra = @{ Recovery = $true; DownAndUp = $true } }
+          # the red proof needs the defect itself: 1.0.51 was the last release to delete the database
+          if ($env:FROM -eq 'v1.0.51') { $extra = $extra + @{ RedProof = $true } }
           & ./shajarah/desktop/electron/scripts/ci-upgrade.ps1 -OldInstaller $old -OldVersion $env:FROM.TrimStart('v') `
             -CandidateDir (Resolve-Path candidate).Path -NewVersion $env:NEW_VERSION @extra
       - name: Upload logs
