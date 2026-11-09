@@ -129,6 +129,8 @@ export interface CaseRow {
   id: string; spec: CaseSpec; people: number; drawn: number; ms: number; heapMB: number; error?: string;
   legible?: boolean; textMm?: number; minMm?: number; overlaps?: number; counts?: Record<string, number>; defects?: number;
   clearCrossings?: number; nearMiss?: number; missingPeople?: string[]; duplicates?: string[]; siblingOrder?: string[];
+  /** A mother's-line poster whose root is a man (see grade.py): his children with recorded mothers are not drawn. */
+  maleRootMothersLine?: boolean;
   offPage?: string[]; truncated?: string[]; shape?: ReturnType<typeof measureShape>; svg?: { bytes: number; viewBox: boolean; bad: number };
   hash?: string; tooDense?: boolean; soilShortened?: boolean; svgFile?: string; equivalentTo?: string;
 }
@@ -137,6 +139,7 @@ export function runStressCase(s: CaseSpec, keepSvg = true): CaseRow {
   const id = caseId(s);
   const { tree, theme } = buildCase(s);
   const row: CaseRow = { id, spec: s, people: tree.members.length, drawn: 0, ms: 0, heapMB: 0 };
+  row.maleRootMothersLine = tree.lineage === "MATRILINEAL" && tree.members.find((m) => m.id === tree.rootMemberId)?.gender === "MALE";
   const g = (globalThis as { gc?: () => void }).gc;
   g?.();
   const heap0 = process.memoryUsage().heapUsed;

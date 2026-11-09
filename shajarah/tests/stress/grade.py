@@ -10,7 +10,8 @@ clarity and layout-QA defects, the tree-shape limits of tests/shape.test.ts,
 and the speed budget of tests/bench (2.5 s for 350 people on A1).
 LIMITATION is never a pass: it means the poster is clean but its names are
 below the legible size, and a larger paper is clean and legible (the editor
-then recommends it). Writes <dir>/grades.json and prints a summary.
+then recommends it); or that the poster follows the mother's line from a
+man, so his children with recorded mothers are not drawn (the editor warns). Writes <dir>/grades.json and prints a summary.
 """
 import json
 import sys
@@ -53,6 +54,15 @@ def grade(r):
     if r.get("siblingOrder"):
         why["genealogy"].append(f"siblings out of order x{len(r['siblingOrder'])}")
     g["genealogy"] = "FAIL" if why["genealogy"] else "PASS"
+    # A mother's-line poster from a man: his children whose mothers are
+    # recorded belong to their mothers' lines and are not drawn from him. The
+    # poster is all but empty by the rule, not by a fault: LIMITATION, never
+    # PASS (the editor warns of it). (Rows recorded before the field: every
+    # stress family is rooted at a man, so the lineage says it.)
+    male_root = r.get("maleRootMothersLine", r["spec"].get("lineage") == "MATRILINEAL")
+    if male_root:
+        g["genealogy"] = "LIMITATION"
+        why["genealogy"] = ["mother's line from a man: his children with recorded mothers are not drawn"]
     for k in LAYOUT_DEFECTS:
         if c.get(k):
             why["layout"].append(f"{k} x{c[k]}")
@@ -110,6 +120,8 @@ def main():
         hard = [k for k in ("genealogy", "layout", "pageFit", "export") if g[k] == "FAIL"] + (["readability"] if g["readability"] == "FAIL" else [])
         if hard:
             r["result"] = "FAIL"
+        elif g["genealogy"] == "LIMITATION":
+            r["result"] = "LIMITATION"
         elif g["readability"] == "SMALL":
             p = r["spec"]["paper"]
             larger = [x for x in by[key(r)] if ORDER.index(x["spec"]["paper"]) > ORDER.index(p)]
