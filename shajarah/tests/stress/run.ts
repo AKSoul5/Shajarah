@@ -77,6 +77,11 @@ export function buildCase(s: CaseSpec): { tree: TreeDTO; theme: ReturnType<typeo
 }
 
 type Box = { x: number; y: number; w: number; h: number };
+/** The foundation's box as a centred box: the foundations give theirs from its left edge and top (see drawPlaque). */
+const soilBox = (l: PosterLayout): Box | null => {
+  const b = boxOf((l.soil as unknown as { box?: unknown } | null)?.box);
+  return b && { x: b.x + b.w / 2, y: b.y + b.h / 2, w: b.w, h: b.h };
+};
 const boxOf = (b: unknown): Box | null => {
   const o = b as Record<string, number> | null;
   if (!o) return null;
@@ -176,7 +181,7 @@ export function runStressCase(s: CaseSpec, keepSvg = true): CaseRow {
   const W = l.width, H = l.height;
   const boxes: [string, Box | null][] = [
     ...l.nodes.map((n): [string, Box] => [`node:${n.id}`, n]), ...l.spouses.map((n): [string, Box] => [`spouse:${n.id}`, n]),
-    ...l.trunkLabels.map((t): [string, Box] => [`trunk:${t.member.id}`, t]), ["soil", boxOf((l.soil as unknown as { box?: unknown } | null)?.box)],
+    ...l.trunkLabels.map((t): [string, Box] => [`trunk:${t.member.id}`, t]), ["soil", soilBox(l)],
   ];
   row.offPage = boxes.filter(([, b]) => b && (![b.x, b.y, b.w, b.h].every(Number.isFinite) || b.x - b.w / 2 < -0.5 || b.x + b.w / 2 > W + 0.5 || b.y - b.h / 2 < -0.5 || b.y + b.h / 2 > H + 0.5)).map(([k]) => k);
   // no name silently cut short
