@@ -195,7 +195,10 @@ diagnosis was wrong, and the sibling order is unchanged.
 - **Cause:** the crossing is in where the two boxes are placed. Both are
   placed in one pass, and each was checked only against the lines drawn
   last time, where the other box had been.
-- **Fix:** branch `layout/spouse-boxes-lines-never-cross` (from `main`).
+- **Fix attempt, NOT READY:** branch `layout/spouse-boxes-lines-never-cross`
+  (`fbf20fc`, from `main`). Checks pass, but the render is worse (see
+  below). The crossing is therefore still open, as an engineering defect,
+  not a decision for you.
   Each box is now also checked against the lines of the box placed with it.
   - Family 11, refined 2A0: 1 crossing → clean (names 5.16 → 4.13 mm; the
     old poster was never clean at any size).
@@ -207,6 +210,15 @@ diagnosis was wrong, and the sibling order is unchanged.
     A0, with larger names as above. No family is worse. Family 1 has 1 to 2
     problems on `main` and on the fix alike: a separate, existing defect,
     not yet investigated.
+- **Render inspected:** the clean refined 2A0 poster is worse to read than
+  the old one with its crossing:
+  - one wife's box swings far down and left of the canopy base;
+  - her limb runs out sideways along the canopy's lower edge;
+  - two thin lines run alongside thick limbs, which the check does not
+    flag.
+
+  Next: keep the box near its own children's side, and look at the
+  "running alongside" gap in the check.
 - **Sibling order:** unchanged, chronological. Nothing was changed without you.
 - **Separate finding:** with spouses' boxes shown, this family's names are
   much smaller than without them (3.27 mm against 8.42 mm on classic A0).

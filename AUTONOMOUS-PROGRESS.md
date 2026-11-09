@@ -441,7 +441,12 @@ Each fix is on its own branch; none is merged or released.
   - The engine already groups by mother, so the crossing was in the box
     placement.
   - The fix is on the new branch `layout/spouse-boxes-lines-never-cross`
-    (from `main`). Its head is recorded below once committed.
+    (from `main`), head `fbf20fc`, pushed. It is **not ready**:
+    - Checks: suite 608, QA 448/448, start-up 19/19 (non-root); the test is
+      red on `main`.
+    - But the render of the now-clean refined 2A0 poster reads worse: a
+      box swings far down-left, and lines run alongside limbs. The commit
+      is marked WIP (not ready), and the README was left unchanged.
   - Scan of 30 invented families at emerald A1 and classic A0 (60
     layouts): 59 identical to `main`; family 11 classic A0 has larger names
     (3.27 → 4.82 mm) and still has 1 crossing (known defect, kept as an
