@@ -607,6 +607,11 @@ on any member's panel:
     with no more crossings (tests/fan.test.ts).
   - On a 245-person family, the worst break in any theme went from
     0.13–0.14 to 0.08–0.11 of a generation's distance.
+  - Which version is smoother is judged against each generation's own
+    ring (ringKink), not against a circle round the canopy base: on a
+    canopy taller than wide the circle read the oval's own curve as steps.
+    The long lineage on A0, column foundation: 0.268 -> 0.200, names
+    unchanged (tests/even-fans-in-every-design.test.ts).
 - **Crossing lines:** a crossing at a clear angle is allowed, but on a
   clean poster the people at each end are still tried a little further out
   or along their ring, kept only when the poster stays clean and readable

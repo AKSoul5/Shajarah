@@ -861,7 +861,12 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // families their name size: it drags fathers off their families' sectors.)
   if (best.layout.overlaps === 0 && best.layout.legibility.ok && best.layout.clarity.issues.length <= 2) {
     const before = best.layout;
-    let kink = fanKink(before), issues = before.clarity.issues.length;
+    // (smoothness against each generation's own ring, ringKink: fanKink
+    // measures from the canopy base, and on a canopy taller than wide it
+    // read the oval's own curve as steps, so a stepped fan from the
+    // paragraph foundation was never laid out again)
+    const kinkOf = (l: PosterLayout) => ringKink(l) ?? fanKink(l);
+    let kink = kinkOf(before), issues = before.clarity.issues.length;
     // (a very large family tries the first few only: each is a whole layout)
     for (const step of before.nodes.length > HUGE_FAMILY ? RING_TRIES.slice(0, 2) : RING_TRIES) {
       if (kink <= FAN_SMOOTH && issues === 0) break;
@@ -872,7 +877,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         untangle = untangleChecks;
         l = best.attempt(best.chosen, false, best.strict, untangle, best.fit, true, step);
       }
-      const k = fanKink(l), n = l.clarity.issues.length;
+      const k = kinkOf(l), n = l.clarity.issues.length;
       // (smoother with no more ambiguities, or fewer and no rougher)
       if (l.overlaps === 0 && (isClean(l) || !isClean(before)) && l.legibility.ok && l.clarity.clearCrossings <= before.clarity.clearCrossings
         && (n < issues ? k <= kink + 0.02 : n === issues && k < kink - 0.01)) {
