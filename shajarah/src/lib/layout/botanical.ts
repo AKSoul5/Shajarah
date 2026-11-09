@@ -2371,12 +2371,62 @@ function layoutAttempt(
       // placed: started each at its own badge, two from neighbouring badges
       // came to overlap, which the check of names, passing over two fixed
       // ones, did not count)
-      let reachS = Math.hypot(reachX - trunkWidth * 0.42, trunkWidth * 0.55);
-      const endAt = (r: number): Vec => ({ x: start.x + side * Math.cos(th) * r, y: start.y - Math.sin(th) * r });
-      for (let k = 0; k < 12 && stubs.some((o) => Math.hypot(o.x - endAt(reachS).x, o.y - endAt(reachS).y) < (o.w + size) / 2 + fs * 0.4); k++) reachS += size * 0.35;
-      const end: Vec = endAt(reachS);
+      const reach0 = Math.hypot(reachX - trunkWidth * 0.42, trunkWidth * 0.55);
+      const endAt = (r: number, a = th): Vec => ({ x: start.x + side * Math.cos(a) * r, y: start.y - Math.sin(a) * r });
+      const touches = (a: number, r: number) => stubs.some((o) => Math.hypot(o.x - endAt(r, a).x, o.y - endAt(r, a).y) < (o.w + size) / 2 + fs * 0.4);
+      // Nor may its line pass under a stub already placed, or a stub's
+      // line pass under its name: a childless son's line from one badge
+      // ran under the name of the next badge's childless son, which sat
+      // between it and its own name (English names, being wider, put it
+      // there; a 15-ancestor trunk at A1 to A3). Its way as planned is kept
+      // when it clears; otherwise it is tried turned a little within its
+      // slice, then up past it, ending short of the stub in its way or
+      // further out, until both clear; failing that, as before.
+      const pathOf = (from: Vec, sd0: number, a: number, r: number, to: Vec): Vec[] => {
+        const sd: Vec = { x: sd0 * Math.cos(a), y: -Math.sin(a) };
+        return sample({ p0: from, c1: add(from, { x: sd0 * r * 0.35, y: 0 }), c2: sub(to, scale(sd, r * 0.3)), p1: to }, 12);
+      };
+      const under = (pts: Vec[], c: Vec, rad: number) => pts.some((p, i) => i > 0 && [0, 0.5].some((t) => {
+        const q = add(pts[i - 1], scale(sub(p, pts[i - 1]), t));
+        return Math.hypot(q.x - c.x, q.y - c.y) < rad;
+      }));
+      const clearOf = (a: number, r: number) => {
+        const e = endAt(r, a);
+        const mine = pathOf(start, side, a, r, e);
+        const lw = TW * 0.1;
+        for (const [id, d] of stubDraw) {
+          const placed = stubs.find((s2) => s2.id === id)!;
+          if (under(mine.slice(0, -1), placed, placed.w / 2 + lw + fs * 0.2)) return false;
+          const theirs = pathOf(spurOf.get(id)!.to, d.side, d.th, d.reachS, d.end);
+          if (under(theirs.slice(0, -1), e, size / 2 + lw + fs * 0.2)) return false;
+        }
+        return true;
+      };
+      let reachS = reach0;
+      let thS = th;
+      {
+        let found = false;
+        // (up past its slice only when nothing within it clears: the slices
+        // are shares of each badge's own range, so a stub from the badge
+        // above could be aimed below its neighbour's and had to run over
+        // its name)
+        const turns = [0, 0.25, -0.25, 0.5, -0.5, 0.75, 1, 1.5, 2].map((u) => th + u * (slice.hi - slice.lo));
+        // (short of the stub in its way first, then further out)
+        const reaches = [0.85, 0.7, 0.6].map((u) => reach0 * u).filter((r) => r > size * 0.9 + trunkWidth * 0.3);
+        const tries = [reach0, ...reaches, ...Array.from({ length: 11 }, (_, k) => reach0 + (k + 1) * size * 0.35)];
+        for (const r of tries) {
+          if (found) break;
+          for (const a of turns) {
+            if (!touches(a, r) && clearOf(a, r)) { reachS = r; thS = a; found = true; break; }
+          }
+        }
+        if (!found) {
+          for (let k = 0; k < 12 && touches(th, reachS); k++) reachS += size * 0.35;
+        }
+      }
+      const end: Vec = endAt(reachS, thS);
       // (drawn once every name is placed: settlePorts)
-      stubDraw.set(m.id, { o, side, th, reachS, end });
+      stubDraw.set(m.id, { o, side, th: thS, reachS, end });
       const stub: LiveNode = {
         id: m.id, member: m, x: end.x, y: end.y, tx: end.x, ty: end.y, depth: 0,
         generation: genOf(m), w: size, h: size, fontSize: fs, shape: "medallion", label,

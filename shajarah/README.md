@@ -607,6 +607,19 @@ on any member's panel:
     badge.) Two sons of one ancestor on one side leave his badge a little
     apart, in the order their lines go; childless sons' medallions keep
     clear of each other (tests/side-branches-start-at-their-badge.test.ts).
+  - A childless son's line does not run under the name of the childless
+    son of the badge next to his, and his name sits clear of that son's
+    line. With English names, on a 15-ancestor trunk, the line from one
+    badge ran under the medallion of the son of the badge below (A1 to A3):
+    each one's angle is a share of his own badge's range, so the son from
+    the higher badge was aimed lower. His way is now chosen clear of the
+    childless sons placed before him, turned within his share or, if
+    nothing there clears, a little up past it. English A1: 1 problem to 0,
+    names unchanged (3.78 mm); Arabic A1 to A3 unchanged in size, the two
+    such sons now one above the other
+    (tests/childless-sons-lines-clear-each-others-names.test.ts). Still
+    open: in English on A2 and A3 (below the legible size, so not offered
+    for that family) a side family's line clips a childless son's medallion.
 - **A daughter's several husbands:** their boxes stand around her in the
   same order as their children, each on the way to his own. A box turned
   aside to find room may not pass another (one daughter's four husbands
