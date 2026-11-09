@@ -287,3 +287,26 @@ inspections, `quote/` quotation renders).
   Daughters improves but stays lopsided; I have not yet separated the
   part that is structural (families grouped by mother) from layout.
 - The dev server was stopped by exact PIDs.
+
+### 05:05 — Check-in 4: daughters family's lean on B is structural
+- The container restarted again (about 04:55); the matrix runner was
+  resumed ("restart (5)"). 1,611 rows are saved.
+- **Daughters family on B's engine** (refined, A1):
+
+  | Mode | Names left:right | Balance |
+  |---|---|---|
+  | Daughters hidden | 7:7 | −0.02 |
+  | Daughters shown, without their families | 23:33 | −0.24 |
+  | Everything shown | 32:65 | −0.55 |
+
+- **Why.** The canopy base has seven children:
+  - the eldest son (38 people), centred;
+  - a second son (31 people), who must stand on one side;
+  - five daughters (1 each, one with 4 through her).
+
+  No arrangement of the brothers and sisters can put anything against
+  a 31-person branch, so the lean is the family's shape, like the
+  two-wives case, not a misplaced canopy.
+- **Possible improvement.** The engine's "split the brothers by the room
+  their families need" setting (`centerSides: "room"`). It is a design
+  setting, not tried here; noted for the final report.
