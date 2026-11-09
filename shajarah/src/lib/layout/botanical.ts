@@ -2794,6 +2794,16 @@ function layoutAttempt(
             for (let i = 1; i < d.pts.length; i++) if (crossesInside(a, b, d.pts[i - 1], d.pts[i])) return false;
           }
         }
+        // nor cross the lines of another spouse's box placed with it, as
+        // they will be drawn: the lines drawn last time round are those of
+        // the boxes where they were, and the man's line to his first wife's
+        // box crossed his second wife's line to her son, both boxes placed
+        // in one pass (a man with two wives, at the canopy base)
+        for (const q of also) {
+          const J2 = at(q);
+          const theirs: [Vec, Vec][] = [[q.from, { x: J2.x, y: J2.y }], ...q.h.kids.map((k): [Vec, Vec] => [{ x: J2.x, y: J2.y }, k])];
+          for (const [a, b] of mineSegs) for (const [c, d] of theirs) if (crossesInside(a, b, c, d)) return false;
+        }
         return true;
       };
       const turned = (d: Vec, deg: number) => {
