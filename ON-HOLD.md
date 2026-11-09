@@ -178,42 +178,30 @@ without the owner).
 
 ---
 
-## H6. Lines to a canopy base's spouses' boxes run together or cross
+## H6. Spouses' boxes when one man's children by two wives are interleaved
 
-**ON HOLD — NEEDS A PLACEMENT STRATEGY CHANGE (owner's go-ahead)**
+**ON HOLD — USER INPUT REQUIRED** (the rest of the former H6 is being
+fixed: see AUTONOMOUS-PROGRESS.md)
 
-- **What:** with spouses' boxes shown, the lines from a canopy base to his
-  wives' boxes, and from a box to her children, can run together with
-  the base's other lines, or cross another wife's line.
-- **Seen:**
-  - The owner's family, everyone shown: 5 merges at the canopy base (17
-    children: 9 by one wife, 3 by another, 5 sons with no mother
-    recorded). The other 12 variants are clean.
-  - Invented families (`twoWives`, see
-    `tests/brothers-lines-from-one-place-do-not-cross.test.ts`):
-    - family 4 at fixed size 0.45: the base's lines to his two wives'
-      boxes merge;
-    - family 11, classic A0 and refined 2A0 with spouses: the base's
-      line to one wife's box crosses the other wife's line to her son.
-      Same on the old engine.
-- **Geometric cause:**
-  - A wife's box is placed by straight-line tests: clear of names and
-    boxes, and no straight crossing.
-  - The lines actually drawn are curves that rise out of the base before
-    turning, so two boxes on one side, just outside the base's oval, get
-    curves that run together or cross. The placement never sees this.
-  - Lines to boxes are also not among those the line-bending step can
-    reshape.
-- **Tried and dropped:** a straight-line "runs alongside" test in box
-  placement.
-  - It fixed the owner's 5 merges.
-  - Across 480 invented layouts it changed 2, both for the worse, so it
-    is not on the canopy branch.
-- **Proposal:**
-  - Judge a box's spot by the curves as drawn: place, build the curves,
-    re-place the box where a curve merges or crosses (as is already done
-    when a bent line passes under a box).
-  - Make the lines to boxes reshapeable like the others.
-- **Why on hold:** both change how spouses' boxes are placed (a separate
-  strategy, with its own QA run), per the owner's instruction.
-- **Blocked by it:** the owner's "everyone shown" variant only.
+- **Decision:** with spouses' boxes shown, how to order a man's children
+  whose mothers alternate by birth (wife A, wife B, wife A).
+- **Why it needs you:** it changes the order of brothers and sisters on
+  the poster, which today follows birth order (or the order you set).
+- **Evidence:** invented family 11 (`twoWives(11)` in
+  `tests/brothers-lines-from-one-place-do-not-cross.test.ts`), classic A0
+  and refined 2A0 with spouses: one crossing. One wife's son stands
+  between the other wife's two sons; each wife's children leave her box,
+  so the second wife's line must cross into the first wife's fan,
+  wherever the boxes go (old and new engines alike). No box placement
+  can remove it.
+- **Options:**
+  1. When spouses' boxes are shown, group a man's children by mother
+     (each group in birth order; the groups in the order of their eldest).
+  2. Keep birth order; accept the crossing, and say so in the editor
+     ("children of different mothers alternate").
+  3. Keep birth order; draw such a man's children from him directly (no
+     boxes) when they alternate.
+- **Recommendation:** 1, as a setting that is on by default only when
+  spouses' boxes are shown; birth order unchanged everywhere else.
+- **Blocked by it:** posters with spouses shown where one man's children
+  by two wives alternate. Nothing else.
