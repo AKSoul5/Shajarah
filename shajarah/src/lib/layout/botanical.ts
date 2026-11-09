@@ -2286,29 +2286,97 @@ function layoutAttempt(
   });
   const stemStart = new Map<string, Vec>();
   const stemDir = new Map<string, Vec>();
+  // Each side branch and stub grows out of its own ancestor's badge: from
+  // under the badge's rounded end, level, at the height of the badge's
+  // centre, across the bark to the trunk's edge, and only then turns its
+  // way. (They once started at the bark's edge a little above the badge, a
+  // stub up to 1.4 lines above it, level with the badge above; and a large
+  // family's limb began wider than a badge, over its neighbours. Where
+  // several neighbours had branches on one side, which name a branch came
+  // from could not be told.) A branch begins no wider than 0.62 of a badge,
+  // so the spurs of neighbouring badges keep the badges' own gap apart.
+  const portCap = trunkFont * 1.6 * 0.62;
+  const spurOf = new Map<string, { from: Vec; to: Vec }>();
   const visibleOffshoots = offshoots.filter((o) => shownSet.has(o.anchor));
+  const portOf = (o: (typeof visibleOffshoots)[number], side: number, w: number) => {
+    const y = labelY.get(o.anchor.data.member!.id)! + (portShift.get(o.node) ?? 0);
+    const from: Vec = { x: origin.x + side * Math.max(0, widest / 2 - trunkFont * 0.8), y };
+    const to: Vec = { x: origin.x + side * (trunkWidth / 2 + Math.max(w, trunkFont * 0.3)), y };
+    return { from, to };
+  };
   // Alternate sides, starting on the side of the eldest (right in RTL).
   const sideUse = { [-1]: 0, [1]: 0 } as Record<number, number>;
-  visibleOffshoots.forEach((o, i) => {
+  // Side branches on one side of the trunk share that side's fan: each
+  // fanned over the whole range from its own badge, families hanging from
+  // neighbouring badges interleaved their names and crossed each other's
+  // lines. Each takes a slice of the range instead, the higher on the trunk
+  // the higher its slice, sized by its leaves.
+  const sideShare = new Map<HNode, [number, number]>();
+  const portShift = new Map<HNode, number>();
+  {
+    const bySide = new Map<number, { o: (typeof visibleOffshoots)[number]; w: number; y: number }[]>();
+    visibleOffshoots.forEach((o, i) => {
+      const side = (i % 2 === 0) === rtl ? 1 : -1;
+      // (a childless son's stub too, one leaf: a fan passing through its
+      // knob crossed its line)
+      bySide.set(side, [...(bySide.get(side) ?? []), { o, w: o.node.children ? (o.node.value ?? 1) : 1, y: labelY.get(o.anchor.data.member!.id)! }]);
+    });
+    for (const list of bySide.values()) {
+      list.sort((a, b) => a.y - b.y);
+      const total = list.reduce((s2, e) => s2 + e.w, 0) || 1;
+      let acc = 0;
+      for (const e of list) {
+        sideShare.set(e.o.node, [acc / total, (acc + e.w) / total]);
+        acc += e.w;
+      }
+    }
+  }
+  // The range a side branch (or stub) at A may fan over at reach R: up and
+  // out, never above the canopy base, down no further than above the
+  // ground, and within its own slice of its side's range (sideShare).
+  const sideFan = (node: HNode, A: Vec, R: number) => {
+    const pad = f * 1.5;
+    const hi = Math.min(1.25, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R));
+    // (down no further than the names may go: above the ground by
+    // 3% of the page; a fan reaching lower had its names clamped up into a
+    // knot)
+    const downMost = -Math.atan2(Math.max(0, groundY - Math.max(pad, W * 0.03 + f) - A.y), R);
+    const lo0 = Math.max(hi - 1.55, Math.min(downMost, hi - 0.6));
+    const [s0, s1] = sideShare.get(node) ?? [0, 1];
+    return { hi: hi - s0 * (hi - lo0), lo: hi - s1 * (hi - lo0) };
+  };
+  const stubDraw = new Map<string, { o: (typeof visibleOffshoots)[number]; side: number; th: number; reachS: number; end: Vec }>();
+  const spurCurve = (p: { from: Vec; to: Vec }): Cubic => ({ p0: p.from, c1: add(p.from, scale(sub(p.to, p.from), 1 / 3)), c2: add(p.from, scale(sub(p.to, p.from), 2 / 3)), p1: p.to });
+  // (each laid out twice: once only to learn which way its line sets off,
+  // `plan`, then for good)
+  const layOffshoot = (o: (typeof visibleOffshoots)[number], i: number, plan?: Map<HNode, number>) => {
     const y = labelY.get(o.anchor.data.member!.id)!;
     const side = (i % 2 === 0) === rtl ? 1 : -1;
     const stack = sideUse[side]++;
     const m = o.node.data.member!;
     if (!o.node.children) {
       // Stub: a short knob off the trunk carrying one name.
-      const y0 = y - trunkFont * 0.6 - (stack % 3) * trunkFont * 0.4;
-      const start: Vec = { x: origin.x + side * trunkWidth * 0.42, y: y0 };
-      const reachX = trunkWidth * (1.45 + Math.floor(stack / 3) * 0.9);
-      const end: Vec = { x: origin.x + side * reachX, y: y0 - trunkWidth * 0.55 };
-      const curve: Cubic = {
-        p0: start, c1: add(start, { x: side * trunkWidth * 0.5, y: 0 }),
-        c2: add(end, { x: -side * trunkWidth * 0.2, y: trunkWidth * 0.25 }), p1: end,
-      };
-      branchesOut.push({ ...shaded(curve, TW * 0.2, TW * 0.1), w: trunkWidth });
-      edges.push({ parentId: o.anchor.data.member!.id, childId: m.id, points: sample(curve), w0: TW * 0.2, w1: TW * 0.1 });
+      const port = portOf(o, side, TW * 0.2);
+      const start: Vec = port.to;
+      spurOf.set(m.id, port);
+      const reachX = trunkWidth * (1.45 + Math.floor(stack / 3) * 0.9) - (start.x - origin.x) * side + trunkWidth * 0.42;
+      // (out along the middle of its own slice of the side's fan)
+      const slice = sideFan(o.node, start, reachX);
+      const th = (slice.hi + slice.lo) / 2;
+      if (plan) { plan.set(o.node, th); return; }
       const fs = Math.max(floorFor(f), trunkFont * 0.8);
       const { label, subLabel } = labelOf(m);
       const size = Math.max(fs * 3.2, textWidth(label, fs) + fs, subLabel ? textWidth(subLabel, fs * 0.68) + fs * 1.4 : 0);
+      // (further out along its way while it would touch a stub already
+      // placed: started each at its own badge, two from neighbouring badges
+      // came to overlap, which the check of names, passing over two fixed
+      // ones, did not count)
+      let reachS = Math.hypot(reachX - trunkWidth * 0.42, trunkWidth * 0.55);
+      const endAt = (r: number): Vec => ({ x: start.x + side * Math.cos(th) * r, y: start.y - Math.sin(th) * r });
+      for (let k = 0; k < 12 && stubs.some((o) => Math.hypot(o.x - endAt(reachS).x, o.y - endAt(reachS).y) < (o.w + size) / 2 + fs * 0.4); k++) reachS += size * 0.35;
+      const end: Vec = endAt(reachS);
+      // (drawn once every name is placed: settlePorts)
+      stubDraw.set(m.id, { o, side, th, reachS, end });
       const stub: LiveNode = {
         id: m.id, member: m, x: end.x, y: end.y, tx: end.x, ty: end.y, depth: 0,
         generation: genOf(m), w: size, h: size, fontSize: fs, shape: "medallion", label,
@@ -2322,22 +2390,16 @@ function layoutAttempt(
     // Side branch: a small canopy fanning outward from the trunk.
     const sub0 = o.node.descendants() as HNode[];
     const leaves = o.node.value ?? 1;
-    const A: Vec = { x: origin.x + side * trunkWidth * 0.45, y: y - trunkFont * 0.3 };
+    const port = portOf(o, side, portCap / 2);
+    spurOf.set(m.id, port);
+    const A: Vec = port.to;
     const depthMax = Math.max(1, o.node.height + 1);
     // Up and out, but never above the canopy base: the crown's lowest
     // names are there, and a side branch fanned up into them crosses their
     // lines (one from the badge nearest the crown once tangled with the
     // canopy base's wife and daughters). It turns down into the free room
     // beside the trunk instead, above the ground.
-    const pad = f * 1.5;
-    const fanFor = (R: number) => {
-      const hi = Math.min(1.25, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R));
-      // (down no further than the names may go: above the ground by
-      // 3% of the page; a fan reaching lower had its names clamped up into a
-      // knot)
-      const downMost = -Math.atan2(Math.max(0, groundY - Math.max(pad, W * 0.03 + f) - A.y), R);
-      return { hi, lo: Math.max(hi - 1.55, Math.min(downMost, hi - 0.6)) };
-    };
+    const fanFor = (R: number) => sideFan(o.node, A, R);
     // As far out as its names need: each generation a ring, a name's width
     // plus a gap from the last, and every ring long enough for its names
     // side by side (up to the room beside the trunk).
@@ -2361,11 +2423,17 @@ function layoutAttempt(
       reachR = clamp(Math.max(reachR, need), f * 4, Math.min(W * 0.42, room * 0.92));
     }
     const { hi, lo } = fanFor(reachR);
+    if (plan) { plan.set(o.node, (hi + lo) / 2); return; }
     const a0 = side > 0 ? hi : Math.PI - hi; // the highest, out
     const a1 = side > 0 ? lo : Math.PI - lo; // the lowest, out
     partition(o.node, 0, 1);
     stemStart.set(m.id, A);
-    stemDir.set(m.id, norm({ x: side * 0.8, y: -0.6 }));
+    // (setting off along the middle of its own slice: always up and out, a
+    // family whose slice is lower rose into the family above, then turned)
+    // (it leaves its spur level, so its start reads as its badge's, and
+    // turns towards the middle of its slice on the way out)
+    const midTh = ((hi + lo) / 2) * 0;
+    stemDir.set(m.id, { x: side * Math.cos(midTh), y: -Math.sin(midTh) });
     for (const n of sub0) {
       const d = n.depth - o.node.depth + 1;
       const theta = a0 + (a1 - a0) * (n.u ?? 0.5);
@@ -2375,7 +2443,30 @@ function layoutAttempt(
       const parent = byId.get(n.parent?.data.member?.id ?? "");
       makeNode(n, p, d + 1, parent ? { x: parent.tx, y: parent.ty } : A, "side", side);
     }
-  });
+  };
+  // Sons of one ancestor on one side sit on his badge in the order their
+  // lines set off, the one heading highest highest, or their lines crossed
+  // just out of the bark. (By the way each line actually leaves: a stub's
+  // slice and a side branch's are reckoned at different reaches, and a
+  // branch with the higher share once set off below its brother's stub.)
+  {
+    const plan = new Map<HNode, number>();
+    const use = { ...sideUse };
+    visibleOffshoots.forEach((o, i) => layOffshoot(o, i, plan));
+    Object.assign(sideUse, use);
+    const groups = new Map<string, (typeof visibleOffshoots)[number][]>();
+    visibleOffshoots.forEach((o, i) => {
+      const key = `${o.anchor.data.member!.id}|${(i % 2 === 0) === rtl ? 1 : -1}`;
+      groups.set(key, [...(groups.get(key) ?? []), o]);
+    });
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      group.sort((a, b) => (plan.get(b.node) ?? 0) - (plan.get(a.node) ?? 0));
+      const step = Math.min(trunkFont * 0.4, trunkFont / (group.length - 1));
+      group.forEach((o, k) => portShift.set(o.node, (k - (group.length - 1) / 2) * step));
+    }
+  }
+  visibleOffshoots.forEach((o, i) => layOffshoot(o, i));
 
   // ── Lineages ─────────────────────────────────────────────────────────
   // A major lineage is a son of the crown base who has descendants (in
@@ -2661,6 +2752,8 @@ function layoutAttempt(
     }
     if (node.shape === "leaf") return { w0: widthOf(1), w1: Math.max(wMin * 0.8, node.fontSize * 0.14) };
     const w = widthOf(node.leafCount);
+    // (a side branch's first line no wider at its start than its spur)
+    if (spurOf.has(node.id)) return { w0: Math.min(w, portCap), w1: Math.min(w * 0.7, portCap) };
     return { w0: node.depth === 1 && !holderOf.has(node.id) ? w * 1.15 : w, w1: w * 0.7 };
   };
   // A dotted line to a daughter's husband (or a knot) in the same dots as
@@ -3352,7 +3445,10 @@ function layoutAttempt(
       const C: Vec = { x: node.x, y: node.y };
       const dv = norm(sub(C, P));
       lineSpec.set(node.id, {
-        P, C, gP, rayDir: node.ray !== undefined ? dirOf(node.ray) : leaf ? dv : UP,
+        // (a side branch's first name, with no ray of its own, is reached
+        // along the way out from its spur: arriving upwards, the line dived
+        // under the name and rose to it, across a brother's stub below)
+        P, C, gP, rayDir: node.ray !== undefined ? dirOf(node.ray) : leaf || spurOf.has(node.id) ? dv : UP,
         follow: 0.5 * (1 - 0.8 * fan), reach0: 0.38 - 0.16 * fan, leaf, organicOn: !holder && !forked, node,
       });
       const { c, e0 } = shapeCurve(node.id, SHAPES[0]);
@@ -3394,6 +3490,100 @@ function layoutAttempt(
     return ids;
   };
 
+  // Sons of one ancestor on one side, now that their names are placed: on
+  // his badge in the order their lines go, the one going highest leaving
+  // highest (or their lines crossed just out of the bark); then the stubs'
+  // lines, each from its spur, level, turning to its name.
+  {
+    const groups = new Map<string, (typeof visibleOffshoots)[number][]>();
+    visibleOffshoots.forEach((o, i) => {
+      const key = `${o.anchor.data.member!.id}|${(i % 2 === 0) === rtl ? 1 : -1}`;
+      groups.set(key, [...(groups.get(key) ?? []), o]);
+    });
+    for (const [key, group] of groups) {
+      if (group.length < 2) continue;
+      const side = +key.split("|")[1];
+      const by = labelY.get(group[0].anchor.data.member!.id)!;
+      const rise = (o: (typeof visibleOffshoots)[number]) => {
+        const t = byId.get(o.node.data.member!.id) ?? stubDraw.get(o.node.data.member!.id)?.end;
+        return t ? Math.atan2(by - t.y, side * (t.x - origin.x)) : 0;
+      };
+      group.sort((a, b) => rise(b) - rise(a));
+      const step = Math.min(trunkFont * 0.4, trunkFont / (group.length - 1));
+      // (that order unless another clears more: a stub's name near the
+      // trunk can stand in the way of a brother's line set out above it,
+      // which then bows round it and across the stub's own line; each order
+      // judged by straight lines from the spurs to the names)
+      const stubLine = (o: (typeof visibleOffshoots)[number], from: Vec): Vec[] => {
+        const d = stubDraw.get(o.node.data.member!.id)!;
+        const sd: Vec = { x: d.side * Math.cos(d.th), y: -Math.sin(d.th) };
+        return sample({ p0: from, c1: add(from, { x: d.side * d.reachS * 0.35, y: 0 }), c2: sub(d.end, scale(sd, d.reachS * 0.3)), p1: d.end }, 12);
+      };
+      const costOf = (order: (typeof visibleOffshoots)[number][]) => {
+        const paths = order.map((o, k) => {
+          const y = by + (k - (order.length - 1) / 2) * step;
+          const from: Vec = { x: origin.x + side * (trunkWidth / 2 + portCap / 2), y };
+          const id = o.node.data.member!.id;
+          const t = byId.get(id);
+          return { id, pts: stubDraw.has(id) ? stubLine(o, from) : t ? [from, { x: t.x, y: t.y }] : [from], box: stubDraw.has(id) ? byId.get(id) : undefined };
+        });
+        let cost = 0;
+        for (let a = 0; a < paths.length; a++) {
+          for (let b = a + 1; b < paths.length; b++) {
+            const P = paths[a].pts, Q = paths[b].pts;
+            let crossed = false;
+            for (let i = 1; i < P.length && !crossed; i++) for (let j = 1; j < Q.length; j++) if (segmentsCross(P[i - 1], P[i], Q[j - 1], Q[j])) { crossed = true; break; }
+            if (crossed) cost++;
+          }
+          // a line passing under a brother's stub name
+          for (const q of paths) {
+            if (q === paths[a] || !q.box) continue;
+            const bx = q.box;
+            if (paths[a].pts.some((p0, i) => i > 0 && [0.25, 0.5, 0.75].some((t) => {
+              const p = add(paths[a].pts[i - 1], scale(sub(p0, paths[a].pts[i - 1]), t));
+              return Math.abs(p.x - bx.x) < bx.w / 2 && Math.abs(p.y - bx.y) < bx.h / 2;
+            }))) cost++;
+          }
+        }
+        return cost;
+      };
+      if (group.length <= 4) {
+        const perms = (xs: typeof group): (typeof group)[] => xs.length <= 1 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((r) => [x, ...r]));
+        let best = [...group], bestCost = costOf(group);
+        for (const order of perms(group)) {
+          if (!bestCost) break;
+          const c = costOf(order);
+          if (c < bestCost) { best = order; bestCost = c; }
+        }
+        group.splice(0, group.length, ...best);
+      }
+      group.forEach((o, k) => {
+        portShift.set(o.node, (k - (group.length - 1) / 2) * step);
+        const id = o.node.data.member!.id;
+        if (stubDraw.has(id)) {
+          spurOf.set(id, portOf(o, side, TW * 0.2));
+        } else {
+          const port = portOf(o, side, portCap / 2);
+          spurOf.set(id, port);
+          stemStart.set(id, port.to);
+        }
+      });
+    }
+    const sw = Math.min(TW * 0.2, portCap);
+    for (const [id, d] of stubDraw) {
+      const port = spurOf.get(id)!;
+      const start = port.to;
+      const sd: Vec = { x: d.side * Math.cos(d.th), y: -Math.sin(d.th) };
+      const curve: Cubic = {
+        p0: start, c1: add(start, { x: d.side * d.reachS * 0.35, y: 0 }),
+        c2: sub(d.end, scale(sd, d.reachS * 0.3)), p1: d.end,
+      };
+      // (spur and line one shape: drawn apart, each with its paper edge, a
+      // seam crossed the branch where the bark ends)
+      branchesOut.push({ d: shaded(spurCurve(port), sw, sw, 4, 1).d + shaded(curve, sw, TW * 0.1).d, w: trunkWidth });
+      edges.push({ parentId: d.o.anchor.data.member!.id, childId: id, points: [port.from, ...sample(curve)], w0: sw, w1: TW * 0.1 });
+    }
+  }
   // Leaves point away from where their parent actually ended up (a mirror
   // keeps the same footprint, so no new overlaps).
   for (const node of growingNodes) {
@@ -3775,6 +3965,15 @@ function layoutAttempt(
     } else {
       const w = widthOf(node.leafCount);
       const mainLimb = node.region === "crown" && node.depth === 1 && !node.terminal && !holder;
+      const spur = spurOf.get(node.id);
+      if (spur) {
+        // a side branch: from its ancestor's badge, level across the bark,
+        // no wider than its spur, then widening a little to its family
+        const sw = Math.min(w, portCap);
+        branches.push({ d: shaded(spurCurve(spur), sw, sw, 4, 1).d + shaded(c, sw, Math.min(w * 0.7, sw), 14, 2).d, w: sw, lineage: node.lineage ?? null });
+        edges.push({ parentId: from, childId: node.id, points: [spur.from, ...sample(c)], w0: sw, w1: Math.min(w * 0.7, sw), lineage: node.lineage ?? null });
+        continue;
+      }
       const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : node.depth === 1 && !holder ? w * 1.15 : w;
       branches.push({ ...shaded(c, w0, w * 0.7, 14, mainLimb ? 4 : 2), lineage: node.lineage ?? null });
       // (the line's own width, for the clarity check: a main limb's wide
