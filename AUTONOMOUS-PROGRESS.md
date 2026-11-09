@@ -260,3 +260,30 @@ inspections, `quote/` quotation renders).
     defect fixed on B (`1f10f91`).
   - Driver fix (load the installed Playwright): A `6289b44`, B `e652b9c`.
 - Dev server for the export run (port 3107) stopped by exact PIDs.
+
+### 03:40 — Check-in 3: export stage for the middle families; B fixes the swing
+- The container restarted again (about 03:13); the matrix runner was
+  resumed ("restart (4)" in `progress.log`).
+- **Export stage, A's engine.** Daughters, sons and medium at A1,
+  spouses at A2, all 7 designs: **28 of 28 pass**. One PDF page at the
+  paper's size; SVG at the paper's size with its viewBox; every font
+  embedded; no page errors. Layout in the editor takes 6.7–39.9 s.
+  - Contact sheet: `scratchpad/stress/export/export-mid-sheet.png`.
+- **Visual inspection** (A's engine):
+  - Sons and daughters: the canopy swings far to one side in every
+    design (the grader's "one side heavier" and "crown swung aside").
+  - Medium: the canopy base is a huge disc, because the founder's long
+    name with honorific («عثمان الملقب بالأمين») sets its medallion size.
+    Same cause as H3, which strengthens that proposal.
+  - Spouses: balanced.
+- **Same posters on B's engine** (`1f10f91`, refined, A1, all shown):
+
+  | Family | A: names left:right | A: balance | A: names | B: names left:right | B: balance | B: names |
+  |---|---|---|---|---|---|---|
+  | Sons | 14:63 | −0.83 | 4.14 mm | 43:34 | +0.16 | 8.16 mm |
+  | Daughters | 18:81 | −0.81 | 4.81 mm | 32:65 | −0.55 | 5.06 mm |
+
+  B's trunk fix largely cures the sons swing and doubles its name size.
+  Daughters improves but stays lopsided; I have not yet separated the
+  part that is structural (families grouped by mother) from layout.
+- The dev server was stopped by exact PIDs.
