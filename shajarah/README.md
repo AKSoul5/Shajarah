@@ -480,6 +480,13 @@ works the other way round in a mother's-line tree.
   share one dotted line from her to a small bead, where their lines part
   (as they would at a husband's cartouche), instead of all running out of
   her side by side like a rope (tests/husbands-and-badges.test.ts).
+  - The layout's own check reads each such line as drawn, from the
+    daughter through the shared stem. It used to read it from the bead
+    alone, as a line starting off her name: dozens of false problems on
+    every try, so lines were never bent clear and names never moved, however
+    few real problems were left. Dense families shown through daughters
+    (60 and 90 people, A1): 4 of 16 had problems that are now gone, none
+    got worse (tests/families-through-daughters-are-checked-as-drawn.test.ts).
 - **A daughter keeps her colour** when she has children of another family
   (with a parent's gold rim); only the line's own parents are ivory.
 
