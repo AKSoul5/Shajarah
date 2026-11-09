@@ -3324,12 +3324,10 @@ function layoutAttemptFresh(
     for (const l of lines.values()) {
       const sp = lineSpec.get(l.id);
       if (!sp || !targets.has(l.id) || !rimStart(sp.node)) continue;
-      const now = costOf(l, l.pts);
-      if (!now) continue;
-      const toward = Math.atan2(sp.node.y - origin.y, sp.node.x - origin.x);
-      const saved = { P: sp.P, gP: sp.gP };
       // (outside the base's oval, it may cross none of its brothers' and
-      // sisters' lines: the quick cost above passes over some near the base)
+      // sisters' lines: the quick cost passes over some near the base, where
+      // a sister's limb rising from the centre crossed a childless sister's
+      // line just out of the rim, and the line was left as it was)
       const inOval = (p: Vec) => ((p.x - origin.x) / baseOval.rx) ** 2 + ((p.y - origin.y) / baseOval.ry) ** 2 < 1.05;
       const kin = [...lines.values()].filter((o) => o !== l && o.from === l.from);
       const crossesKin = (pts: Vec[]) => kin.some((o) => {
@@ -3342,6 +3340,10 @@ function layoutAttemptFresh(
         }
         return false;
       });
+      const now = costOf(l, l.pts) + (crossesKin(l.pts) ? 1 : 0);
+      if (!now) continue;
+      const toward = Math.atan2(sp.node.y - origin.y, sp.node.x - origin.x);
+      const saved = { P: sp.P, gP: sp.gP };
       let best: { c: Cubic; pts: Vec[]; cost: number; P: Vec; gP: Vec } | null = null;
       for (const deg of [10, -10, 20, -20, 30, -30, 45, -45]) {
         const a = toward + (deg * Math.PI) / 180;
@@ -3573,7 +3575,18 @@ function layoutAttemptFresh(
     const validate = () => {
       const drawnEdges: Edge[] = [
         ...edges,
-        ...growingNodes.map((n) => ({ parentId: holderOf.get(n.id)?.id ?? parentIdOf(n), childId: n.id, points: sample(curveOf.get(n.id)!), ...nodeWidths(n) })),
+        // (a dotted line from a fork starts, as drawn, with the shared stem
+        // from its parent: checked from the fork alone it read as starting
+        // off its parent's box, and every check of a family shown through a
+        // daughter found dozens of such misattached lines, so none was ever
+        // bent clear of a sister's, however few real problems were left)
+        ...growingNodes.map((n) => {
+          const from = holderOf.get(n.id)?.id ?? parentIdOf(n);
+          const c = curveOf.get(n.id)!;
+          const fork = dotted.has(n.member.id) ? forks.get(from) : undefined;
+          const stem = fork && len(sub(fork.at, c.p0)) < 0.5 ? [fork.from, add(fork.from, scale(sub(fork.at, fork.from), 0.5))] : [];
+          return { parentId: from, childId: n.id, points: [...stem, ...sample(c)], ...nodeWidths(n) };
+        }),
         ...holders.map((h) => ({ parentId: h.partnerId, childId: h.id, points: sample(holderCurve.get(h.id)!), ...holderWidths(h) })),
       ];
       const provisional = {
@@ -3840,7 +3853,11 @@ function layoutAttemptFresh(
       if (a.region === "fixed" && b.region === "fixed") continue;
       // (with what each name draws past its box: the new designs' rings)
       const pads = (a.pad ?? 0) + (b.pad ?? 0);
-      if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pads - 0.5 && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pads - 0.5) overlaps++;
+      // (half a unit allowed for rounding where boxes meet; none where the
+      // designs' drawings meet: their rims touching by a fraction of a unit
+      // passed here and failed the layout QA's decor check)
+      const slack = pads > 0 ? 0 : 0.5;
+      if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 + pads - slack && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + pads - slack) overlaps++;
     }
   }
 
