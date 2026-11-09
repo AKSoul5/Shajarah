@@ -175,3 +175,45 @@ without the owner).
   3. Drop the file and keep the finding in the notes only.
 - **Recommendation:** 1, with 2 in the meantime if A must merge before.
 - **Blocked by it:** merging A (and B, which contains A).
+
+---
+
+## H6. Lines to a canopy base's spouses' boxes run together or cross
+
+**ON HOLD — NEEDS A PLACEMENT STRATEGY CHANGE (owner's go-ahead)**
+
+- **What:** with spouses' boxes shown, the lines from a canopy base to his
+  wives' boxes, and from a box to her children, can run together with
+  the base's other lines, or cross another wife's line.
+- **Seen:**
+  - The owner's family, everyone shown: 5 merges at the canopy base (17
+    children: 9 by one wife, 3 by another, 5 sons with no mother
+    recorded). The other 12 variants are clean.
+  - Invented families (`twoWives`, see
+    `tests/brothers-lines-from-one-place-do-not-cross.test.ts`):
+    - family 4 at fixed size 0.45: the base's lines to his two wives'
+      boxes merge;
+    - family 11, classic A0 and refined 2A0 with spouses: the base's
+      line to one wife's box crosses the other wife's line to her son.
+      Same on the old engine.
+- **Geometric cause:**
+  - A wife's box is placed by straight-line tests: clear of names and
+    boxes, and no straight crossing.
+  - The lines actually drawn are curves that rise out of the base before
+    turning, so two boxes on one side, just outside the base's oval, get
+    curves that run together or cross. The placement never sees this.
+  - Lines to boxes are also not among those the line-bending step can
+    reshape.
+- **Tried and dropped:** a straight-line "runs alongside" test in box
+  placement.
+  - It fixed the owner's 5 merges.
+  - Across 480 invented layouts it changed 2, both for the worse, so it
+    is not on the canopy branch.
+- **Proposal:**
+  - Judge a box's spot by the curves as drawn: place, build the curves,
+    re-place the box where a curve merges or crosses (as is already done
+    when a bent line passes under a box).
+  - Make the lines to boxes reshapeable like the others.
+- **Why on hold:** both change how spouses' boxes are placed (a separate
+  strategy, with its own QA run), per the owner's instruction.
+- **Blocked by it:** the owner's "everyone shown" variant only.
