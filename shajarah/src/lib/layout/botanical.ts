@@ -726,9 +726,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // (siblings' lines crossing are counted pair by pair: one line out of
   // order among its brothers and sisters is as many ambiguities as lines it
   // crosses, but one tangle to untangle)
-  const oneTangle = (l: PosterLayout) => l.clarity.issues.length <= 12
-    && l.clarity.issues.every((i) => i.detail === "between siblings")
-    && new Set(l.clarity.issues.map((i) => i.edge?.[0])).size <= 2;
+  const oneTangle = (l: PosterLayout) => isOneTangle(l.clarity.issues);
   const medianName = (l: PosterLayout) => l.nodes.map((n) => n.fontSize).sort((a, b) => a - b)[l.nodes.length >> 1] ?? 0;
   const small = isClean(best.layout) && best.layout.legibility.ok && best.chosen < UPWARD_BELOW;
   if ((!isClean(best.layout) || small) && best.layout.ringLoad > 1) {
@@ -1067,6 +1065,24 @@ const MIN_SCALE = 0.05;
 const CHECKS = 30;
 /** The most moves the untangling checks for one issue. */
 const MOVES = 12;
+
+/**
+ * A few problems that one untangling can take on, however many: lines from
+ * one or two places crossing one another, or every problem among the lines
+ * of one person and his spouses' boxes. (A canopy base's lines to his two
+ * wives' boxes and to his sons with no mother recorded once ran together in
+ * five places, more than the four the untangling takes on otherwise, and
+ * were never untangled; moving one wife's box cleared all five.)
+ */
+export function isOneTangle(issues: ClarityReport["issues"]): boolean {
+  if (issues.length > 12) return false;
+  if (issues.every((i) => i.detail === "between siblings") && new Set(issues.map((i) => i.edge?.[0])).size <= 2) return true;
+  const partnerOf = (id?: string) => (id?.startsWith("spouse:") ? id.split(":")[1] : id);
+  const ids = (i: (typeof issues)[number]) => [i.edge?.[0], i.edge?.[1], ...(Array.isArray(i.other) ? i.other : [])];
+  return issues.every((i) => i.kind === "merge" || i.kind === "crossing" || i.kind === "junction")
+    && issues.some((i) => ids(i).some((id) => id?.startsWith("spouse:")))
+    && new Set(issues.flatMap((i) => [partnerOf(i.edge?.[0]), ...(Array.isArray(i.other) ? [partnerOf(i.other[0])] : [])])).size === 1;
+}
 
 /** Most ambiguous connections a poster may have before it counts as too dense for its paper. */
 export const CLARITY_LIMIT = 5;
