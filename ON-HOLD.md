@@ -180,51 +180,34 @@ without the owner).
 
 ## H6. Spouses' boxes when one man's children by two wives are interleaved
 
-**NO DECISION NEEDED; the crossing itself is still open** (09 Nov, late
-evening). The earlier
-diagnosis was wrong, and the sibling order is unchanged.
+**RESOLVED in engineering (10 Nov); release waits on H8.** No sibling-order
+decision was needed.
 
-- **What was wrong in the diagnosis:** the engine already draws a man's
-  children grouped by mother when spouses' boxes are shown ("half-siblings
-  stay together"; each group in birth order). Forcing the grouping
-  explicitly gives the identical poster, one crossing included. See
-  `scratchpad/h6cmp/h6-comparison.png`:
-  1. birth order with spouses' boxes;
-  2. grouped by mother with spouses' boxes;
-  3. birth order without boxes (clean, names 8.42 mm).
-  Panels 1 and 2 are the same drawing.
-- **Cause:** the crossing is in where the two boxes are placed. Both are
-  placed in one pass, and each was checked only against the lines drawn
-  last time, where the other box had been.
-- **Fix attempt, NOT READY:** branch `layout/spouse-boxes-lines-never-cross`
-  (`fbf20fc`, from `main`). Checks pass, but the render is worse (see
-  below). The crossing is therefore still open, as an engineering defect,
-  not a decision for you.
-  Each box is now also checked against the lines of the box placed with it.
-  - Family 11, refined 2A0: 1 crossing → clean (names 5.16 → 4.13 mm; the
-    old poster was never clean at any size).
-  - Family 11, classic A0: still 1 crossing, but now away from the names
-    (names 3.27 → 4.82 mm). Kept as a known defect in the branch's test,
-    not hidden.
-  - 30 invented families of this make, at emerald A1 and classic A0 (60
-    layouts): 59 are identical to `main`. The 60th is family 11 on classic
-    A0, with larger names as above. No family is worse. Family 1 has 1 to 2
-    problems on `main` and on the fix alike: a separate, existing defect,
-    not yet investigated.
-- **Render inspected:** the clean refined 2A0 poster is worse to read than
-  the old one with its crossing:
-  - one wife's box swings far down and left of the canopy base;
-  - her limb runs out sideways along the canopy's lower edge;
-  - two thin lines run alongside thick limbs, which the check does not
-    flag.
-
-  Next: keep the box near its own children's side, and look at the
-  "running alongside" gap in the check.
-- **Sibling order:** unchanged, chronological. Nothing was changed without you.
-- **Separate finding:** with spouses' boxes shown, this family's names are
-  much smaller than without them (3.27 mm against 8.42 mm on classic A0).
-  The boxes and their lines crowd the canopy base. Not a decision yet;
-  recorded for the next round.
+- **Cause (corrected twice):** with spouses shown, a man's children are in
+  birth order with each mother's together, and the son whose branch holds
+  the most people is centred. The centring set him between his elder and
+  younger brothers, or moved him among them to balance the sides. That could
+  put him apart from his full brothers, with his half-brothers between them
+  (family 11: r29, then the other wife's three, then him). Each wife's box
+  fans to her own children, so two fans whose children interleave must
+  cross: no placement of the boxes can avoid it. (The box-placement attempt
+  `fbf20fc` only bent the drawing out of shape.)
+- **Fix:** branch `layout/spouse-boxes-lines-never-cross`, `ae73f45`. The centred son
+  is set among his brothers where each mother's children stay together,
+  never between two of one mother's other children. His brothers keep
+  their order; only his own place follows his mother's children (the
+  engine already moved him among them to balance the sides).
+- **Measured:** 30 invented two-wife families, emerald A1 and classic A0
+  (60 layouts): 3 families better, none worse.
+  - Family 1: 1 and 2 problems → 0; names 4.51 → 7.33 and 4.23 → 5.69 mm.
+  - Family 11: 1 → 0; names 3.27 → 7.28 and 4.18 → 5.14 mm (refined 2A0:
+    5.16 → 10.97).
+  - Family 26: names 7.18 → 9.77 and 3.96 → 6.97 mm.
+- **Render inspected:** each box sits by its own children, no crossings,
+  no thin line riding a limb (the new `linesAlongside` measure finds none;
+  it finds both faults on `fbf20fc`). Families 1, 11 and 26 read as
+  ordinary trees; on `main`, 26's refined 2A0 canopy was a small knot with
+  one limb curling round it.
 
 ---
 
@@ -273,3 +256,52 @@ statement that the paragraph text takes height from the canopy was wrong)
   setting, far above anything else measured. It may be a fault in the
   measure (a ring whose median distance is near zero) rather than in the
   poster.
+
+- **Experiment (10 Nov), option 3:** branch `exp/h7-ring-spacing`
+  (`62597d8`, WIP, not for merging; results in
+  `docs/experiments/h7-ring-fill.md` there).
+  - The kink is one name at the end of a crowded ring stepping out (long
+    lineage A0: ring 4 of 25 names). The rings themselves have no spare
+    room at the larger size: rings 1–4 sit where their names need, 5–14
+    at the minimum gap.
+  - Giving crowded rings more radius (fill 0.85 → 0.70–0.80) is erratic.
+    At 0.75, the long lineage is smooth (0.59 → 0.107) with names larger
+    (3.44 → 3.53, 4.82 → 4.99, 6.52 → 7.06 mm), but the 350-person family
+    without a lineage loses 0.01 mm at 2A0 and roughens there (0.001 →
+    0.123). 0.80 and 0.77 stay rough; 0.72 and 0.70 are smooth but with
+    smaller names.
+  - **Not adopted.** The two expected-failure marks stay. Options 1 and 2
+    remain your decision; no further engineering option is known to work
+    without costing name size somewhere.
+
+---
+
+## H8. Release order: poster fixes before 1.0.53 (data protection)?
+
+**ON HOLD — USER INPUT REQUIRED** (10 Nov)
+
+- **Decision:** whether finished poster fixes may be released now, ahead
+  of the roadmap's binding order.
+- **Why it needs you:**
+  - Your instruction of 10 Nov says to merge and release items that pass
+    their checks and visual review.
+  - ROADMAP.md, approved on 8 Nov and binding, puts data protection first:
+    1.0.53 is S2, and poster branches are planned for 1.0.58.
+  - On this repository, merging to `main` is the release step: any push
+    touching `shajarah/` runs the pipeline and drafts the next version.
+- **Ready now (all checks green, renders inspected):**
+  1. `layout/spouse-boxes-lines-never-cross` (`ae73f45`, from `main`): spouse boxes
+     by their own children, and the `linesAlongside` measure.
+  2. `layout/side-branch-stubs-clear` (`e40b4df`): childless sons' lines
+     clear. It is built on `layout/side-branches-from-their-badge`
+     (`6dcbfa8`), whose formal design review has not been done, so it
+     cannot go in without that branch.
+- **Options:**
+  1. Release them now, as 1.0.53, and move data protection to 1.0.54.
+  2. Merge them into an integration branch, not `main`, and release with
+     1.0.58 as planned.
+  3. Release (1) now, and hold (2) until the side-branch package is
+     accepted.
+- **Recommendation:** 2, unless you want them out now; then 3.
+- **Blocked by it:** the merge and release of the two branches only.
+

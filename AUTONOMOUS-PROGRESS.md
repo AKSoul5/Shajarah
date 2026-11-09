@@ -470,3 +470,51 @@ Each fix is on its own branch; none is merged or released.
 - **Installer (item 6):** run 42568503669, re-run once (attempt 3):
   everything green (build, 20 upgrade jobs, draft job). The draft release
   was created and not published. The workflow is unchanged.
+
+## 10 Nov — round 5: three open items (nothing merged; see H8)
+
+| Item | Branch | Head | Result |
+|---|---|---|---|
+| Spouse boxes | `layout/spouse-boxes-lines-never-cross` (from `main`) | `ae73f45` | **Ready.** Suite 614, QA 448/448, start-up 19/19 (PG 16, non-root); red on `main` |
+| English stubs | `layout/side-branch-stubs-clear` (on `6dcbfa8`) | `e40b4df` | **Ready** (once the side-branch base is accepted). Suite 617, QA 448/448, start-up 19/19; red on `6dcbfa8` |
+| H7 ring spacing | `exp/h7-ring-spacing` (on `56d973f`) | `62597d8` | **Experiment, not adopted.** Two expected-failure marks kept |
+
+**Spouse boxes**
+- `fbf20fc` (box placement) is reverted in `ae73f45`.
+- The real cause is the centring: the centred son could stand apart from
+  his full brothers, so his mother's fan had to cross the other wife's.
+- He is now set where each mother's children stay together (brothers'
+  order kept).
+- Scan of 30 invented families (60 layouts): 3 better, 0 worse.
+  - The first try regressed family 10 (6.78 → 4.85 mm) by setting him
+    inside his mother's group.
+  - Fixed by keeping the old rule (never between two of one mother's
+    other children) as well.
+- New measure `linesAlongside` (clarity.ts), unit-tested on hand-drawn
+  lines.
+  - It flags both faults in `fbf20fc`'s render and none in `ae73f45`.
+  - It finds 0 to 3 such lines on most QA families on `main` too, so it is
+    reported, not yet a QA failure. Making it one is engine work across
+    all families.
+
+**English stubs**
+- Each childless son's way is chosen clear of the stubs placed before him:
+  turned within his share, then up past it, ending short or further out.
+- English A1: 1 → 0 problems; A2/A3: the stub problem gone.
+- One other problem is left at English A2/A3: a side family's line clips a
+  stub. It is a separate defect, kept as an expected failure; both sizes
+  are below legible for that family.
+- Arabic A1–A3: names unchanged; the two stubs now stand one above the
+  other.
+
+**H7**
+- Ring-fill scan from 0.85 down to 0.70: erratic.
+- At 0.75: long lineage smooth (0.59 → 0.107) with larger names, but
+  another family −0.01 mm and rougher at 2A0. Not adopted.
+
+**Renders:** `scratchpad/round5/` (sent to the owner).
+
+**Merge/release:** not done. ROADMAP's binding order puts data
+protection in 1.0.53, and merging to `main` is the release step. The
+decision is H8 in ON-HOLD.md.
+

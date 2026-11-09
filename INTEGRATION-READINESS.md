@@ -46,7 +46,7 @@ The suite, QA and start-up figures were taken on each branch's own head
 2. **`layout/side-branches-from-their-badge`** (`6dcbfa8`). From main. It waits on the design review, or on the owner accepting the review package without one.
 3. **`layout/canopy-base-crossings`** (`fe9af82`). Fast-forwards over step 2.
 4. **`layout/spouse-box-lines`** (`c9c4ea9`). Resolve the README hunk by keeping both paragraphs. The owner's family was clean in all 13 variants on exactly this combination (scratch merge).
-5. ~~`layout/spouse-boxes-lines-never-cross`~~ (`fbf20fc`): **not ready**. Its checks pass, but the render is worse. Leave it out.
+5. `layout/spouse-boxes-lines-never-cross` (`ae73f45`, from `main`): **ready** (10 Nov), and independent of 1–4. The English stub fix `layout/side-branch-stubs-clear` (`e40b4df`) goes right after step 2. Release order: ON-HOLD H8.
 6. **A** (`1eb61c9`), then **`layout/paragraph-fan-smooth`** (`56d973f`). Bring main in first (3 commits behind).
 7. **B** (`981eb48`), after A: its 4 old fan-test failures disappear only with A's test. Resolve the constants hunk, the comment hunk, and the canopy/B ordering hunk (canopy's pass, then B's), then re-run QA.
 8. **C** (`eae75af`). Resolve its 3 hunks with B.
