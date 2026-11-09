@@ -180,31 +180,38 @@ without the owner).
 
 ## H6. Spouses' boxes when one man's children by two wives are interleaved
 
-**ON HOLD — USER INPUT REQUIRED** (the rest of the former H6 is being
-fixed: see AUTONOMOUS-PROGRESS.md)
+**RESOLVED: no decision needed** (09 Nov, late evening). The earlier
+diagnosis was wrong, and the sibling order is unchanged.
 
-- **Decision:** with spouses' boxes shown, how to order a man's children
-  whose mothers alternate by birth (wife A, wife B, wife A).
-- **Why it needs you:** it changes the order of brothers and sisters on
-  the poster, which today follows birth order (or the order you set).
-- **Evidence:** invented family 11 (`twoWives(11)` in
-  `tests/brothers-lines-from-one-place-do-not-cross.test.ts`), classic A0
-  and refined 2A0 with spouses: one crossing. One wife's son stands
-  between the other wife's two sons; each wife's children leave her box,
-  so the second wife's line must cross into the first wife's fan,
-  wherever the boxes go (old and new engines alike). No box placement
-  can remove it.
-- **Options:**
-  1. When spouses' boxes are shown, group a man's children by mother
-     (each group in birth order; the groups in the order of their eldest).
-  2. Keep birth order; accept the crossing, and say so in the editor
-     ("children of different mothers alternate").
-  3. Keep birth order; draw such a man's children from him directly (no
-     boxes) when they alternate.
-- **Recommendation:** 1, as a setting that is on by default only when
-  spouses' boxes are shown; birth order unchanged everywhere else.
-- **Blocked by it:** posters with spouses shown where one man's children
-  by two wives alternate. Nothing else.
+- **What was wrong in the diagnosis:** the engine already draws a man's
+  children grouped by mother when spouses' boxes are shown ("half-siblings
+  stay together"; each group in birth order). Forcing the grouping
+  explicitly gives the identical poster, one crossing included. See
+  `scratchpad/h6cmp/h6-comparison.png`:
+  1. birth order with spouses' boxes;
+  2. grouped by mother with spouses' boxes;
+  3. birth order without boxes (clean, names 8.42 mm).
+  Panels 1 and 2 are the same drawing.
+- **Cause:** the crossing is in where the two boxes are placed. Both are
+  placed in one pass, and each was checked only against the lines drawn
+  last time, where the other box had been.
+- **Fix:** branch `layout/spouse-boxes-lines-never-cross` (from `main`).
+  Each box is now also checked against the lines of the box placed with it.
+  - Family 11, refined 2A0: 1 crossing → clean (names 5.16 → 4.13 mm; the
+    old poster was never clean at any size).
+  - Family 11, classic A0: still 1 crossing, but now away from the names
+    (names 3.27 → 4.82 mm). Kept as a known defect in the branch's test,
+    not hidden.
+  - 30 invented families of this make, at emerald A1 and classic A0 (60
+    layouts): 59 are identical to `main`. The 60th is family 11 on classic
+    A0, with larger names as above. No family is worse. Family 1 has 1 to 2
+    problems on `main` and on the fix alike: a separate, existing defect,
+    not yet investigated.
+- **Sibling order:** unchanged, chronological. Nothing was changed without you.
+- **Separate finding:** with spouses' boxes shown, this family's names are
+  much smaller than without them (3.27 mm against 8.42 mm on classic A0).
+  The boxes and their lines crowd the canopy base. Not a decision yet;
+  recorded for the next round.
 
 ---
 

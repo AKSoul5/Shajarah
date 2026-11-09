@@ -424,3 +424,44 @@ Each fix is on its own branch; none is merged or released.
 - On hold for the owner: H6 (interleaved children of two wives), H7
   (paragraph foundation: smooth fan or larger names), H1 (pipeline 504 on
   the installer download).
+
+## 09 Nov, late evening — owner's round 4 (no merges, nothing published)
+
+- **Spouse-box fixture (item 2):** `layout/spouse-box-lines` `c9c4ea9`.
+  - What it adds: an invented family, `src/lib/samples/twoWivesCanopy.ts`
+    (one man, two wives, 17 children, daughters' families), and
+    `tests/two-wives-canopy-keeps-its-lines-apart.test.ts`.
+  - Views covered: the family view, and everyone shown at refined 8A0,
+    emerald + paragraph 8A0, and emerald + paragraph A0.
+  - Checks: the SVG geometry (no two lines running together), both boxes
+    drawn, their names in the SVG.
+  - Red on `main` and on `6dcbfa8`; green on the branch. Poster inspected.
+- **H6 (item 3):** resolved, with no decision needed. See ON-HOLD.md for
+  the comparison and `scratchpad/h6cmp/h6-comparison.png`.
+  - The engine already groups by mother, so the crossing was in the box
+    placement.
+  - The fix is on the new branch `layout/spouse-boxes-lines-never-cross`
+    (from `main`). Its head is recorded below once committed.
+  - Scan of 30 invented families at emerald A1 and classic A0 (60
+    layouts): 59 identical to `main`; family 11 classic A0 has larger names
+    (3.27 → 4.82 mm) and still has 1 crossing (known defect, kept as an
+    expected failure).
+  - Family 11 refined 2A0: 1 crossing → clean.
+  - Family 1: 1 to 2 problems on `main` and on the branch alike. An
+    existing defect, not yet looked at.
+- **H7 (item 1):** the premise was wrong. The paragraph text is the
+  shortest of the six foundations (corrected in ON-HOLD, `0a8e64d`).
+  - Reducing its height makes the canopy taller still and does not help.
+  - The two expected-failure marks stay; thresholds are unchanged.
+  - Option 3 (smoother dense-ring spacing) is not yet tried.
+- **Side-branch review package (item 4):** sheets 01–04 and
+  `REVIEW-PACKAGE.md` in `scratchpad/review-side/pkg/` (sent to the owner).
+  - **Not design-reviewed:** the reviewer agent is unavailable.
+  - The earlier A1 and 2A0 evidence in `scratchpad/review-side/ev/` is
+    kept as it was.
+  - Remaining imperfection: English stubs (1 to 2 problems).
+- **Integration (item 5):** `INTEGRATION-READINESS.md`. It covers heads,
+  dependencies, trial-merge conflicts and a proposed order. Nothing merged.
+- **Installer (item 6):** run 42568503669, re-run once (attempt 3):
+  everything green (build, 20 upgrade jobs, draft job). The draft release
+  was created and not published. The workflow is unchanged.
