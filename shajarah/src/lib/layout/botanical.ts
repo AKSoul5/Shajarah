@@ -519,13 +519,32 @@ const isCleanPoster = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
  * less clean (a clean poster is never traded for one with ambiguities).
  */
 function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
-  const layout = layoutOnce(tree, opts);
-  if (layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout))) {
-    const plain = layoutOnce(tree, { ...opts, soilKeep: false });
-    if (plain.legibility.ok && (isCleanPoster(plain) || !isCleanPoster(layout))) return plain;
-    // (both clean, neither legible: the larger names)
-    if (isCleanPoster(plain) && isCleanPoster(layout) && !layout.legibility.ok && plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.05) return plain;
+  // (the first pass's attempts that kept no nearest ancestors are the same
+  // in the retry: reused, not laid out again, see attemptCache)
+  if (!layoutInternals.reuseRetryAttempts) {
+    const layout = layoutOnce(tree, opts);
+    if (!(layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout)))) return layout;
+    return chooseGuarded(layout, layoutOnce(tree, { ...opts, soilKeep: false }));
   }
+  const outer = attemptCache;
+  const store = new Map<string, PosterLayout>();
+  try {
+    attemptCache = { store, replay: false };
+    const layout = layoutOnce(tree, opts);
+    if (!(layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout)))) return layout;
+    attemptCache = { store, replay: true };
+    const plain = layoutOnce(tree, { ...opts, soilKeep: false });
+    return chooseGuarded(layout, plain);
+  } finally {
+    attemptCache = outer;
+  }
+}
+
+/** keepGuarded's choice between the poster that keeps the nearest ancestors and the one with the cut that fits. */
+function chooseGuarded(layout: PosterLayout, plain: PosterLayout): PosterLayout {
+  if (plain.legibility.ok && (isCleanPoster(plain) || !isCleanPoster(layout))) return plain;
+  // (both clean, neither legible: the larger names)
+  if (isCleanPoster(plain) && isCleanPoster(layout) && !layout.legibility.ok && plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.05) return plain;
   return layout;
 }
 
@@ -1075,9 +1094,44 @@ const MOVES = 12;
 export const CLARITY_LIMIT = 5;
 
 
+type AttemptBudget = { checks: number; fit?: number; crossings?: boolean; fan?: number; ends?: boolean };
+
+/**
+ * The attempts of keepGuarded's first pass, kept for its retry (see there):
+ * the retry differs only in soilKeep, which changes nothing in an attempt
+ * that kept none of the nearest ancestors, so such an attempt is the same
+ * layout and is reused (a copy, so the retry's own changes to it, its
+ * clarity report, cannot reach the first poster) instead of laid out again.
+ * Set only while keepGuarded runs.
+ */
+let attemptCache: { store: Map<string, PosterLayout>; replay: boolean } | null = null;
+
+/** Internal switches for tests (tests/retry-reuses-attempts.test.ts compares the posters with reuse on and off). */
+export const layoutInternals = { reuseRetryAttempts: true };
+
 function layoutAttempt(
   tree: TreeDTO, opts: LayoutOptions, fontScale: number, final = true, strictFamilies = false, dense = false,
-  budget: { checks: number; fit?: number; crossings?: boolean; fan?: number; ends?: boolean } = { checks: CHECKS },
+  budget: AttemptBudget = { checks: CHECKS },
+): PosterLayout {
+  const cache = attemptCache;
+  if (!cache) return layoutAttemptFresh(tree, opts, fontScale, final, strictFamilies, dense, budget);
+  const { soilKeep: _soilKeep, ...rest } = opts;
+  const key = JSON.stringify([rest, fontScale, final, strictFamilies, dense, budget]);
+  if (cache.replay) {
+    const kept = cache.store.get(key);
+    if (kept) return structuredClone(kept);
+    return layoutAttemptFresh(tree, opts, fontScale, final, strictFamilies, dense, budget);
+  }
+  const layout = layoutAttemptFresh(tree, opts, fontScale, final, strictFamilies, dense, budget);
+  // (kept as it is, copied only if the retry reuses it: most first passes
+  // need no retry, and a copy of every attempt cost more than it saved)
+  if (!layout.soilKeptNearest) cache.store.set(key, layout);
+  return layout;
+}
+
+function layoutAttemptFresh(
+  tree: TreeDTO, opts: LayoutOptions, fontScale: number, final = true, strictFamilies = false, dense = false,
+  budget: AttemptBudget = { checks: CHECKS },
 ): PosterLayout {
   const W = opts.width ?? 2400;
   const H = opts.height ?? Math.round(W * Math.SQRT2);
