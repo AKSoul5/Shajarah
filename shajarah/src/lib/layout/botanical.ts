@@ -3632,7 +3632,19 @@ function layoutAttempt(
     const validate = () => {
       const drawnEdges: Edge[] = [
         ...edges,
-        ...growingNodes.map((n) => ({ parentId: holderOf.get(n.id)?.id ?? parentIdOf(n), childId: n.id, points: sample(curveOf.get(n.id)!), ...nodeWidths(n) })),
+        // (a dotted line from a fork starts, as drawn, with the shared stem
+        // from its parent: checked from the fork alone it read as starting
+        // off its parent's box. Every check of a family shown through a
+        // daughter then found dozens of such misattached lines, more than the
+        // line bending (30) and the untangling (15) take on, so neither ran,
+        // however few real problems were left.)
+        ...growingNodes.map((n) => {
+          const from = holderOf.get(n.id)?.id ?? parentIdOf(n);
+          const c = curveOf.get(n.id)!;
+          const fork = dotted.has(n.member.id) ? forks.get(from) : undefined;
+          const stem = fork && len(sub(fork.at, c.p0)) < 0.5 ? [fork.from, add(fork.from, scale(sub(fork.at, fork.from), 0.5))] : [];
+          return { parentId: from, childId: n.id, points: [...stem, ...sample(c)], ...nodeWidths(n) };
+        }),
         ...holders.map((h) => ({ parentId: h.partnerId, childId: h.id, points: sample(holderCurve.get(h.id)!), ...holderWidths(h) })),
       ];
       const provisional = {
