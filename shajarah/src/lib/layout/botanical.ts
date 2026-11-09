@@ -3173,7 +3173,7 @@ function layoutAttempt(
     return { c: sp.organicOn ? organic(sp.node, raw, followAlt === null ? 1 : followAlt) : raw, e0 };
   };
   /** Bends the given lines (the ones the clarity check found a problem with) where another shape does better. */
-  const refineLines = (targets: Set<string>) => {
+  const refineLines = (targets: Set<string>, pairsOnly = false) => {
     // every drawn connection, as the clarity check sees it
     const lines = new Map<string, Line>();
     for (const n of growingNodes) {
@@ -3240,7 +3240,7 @@ function layoutAttempt(
       }
       return cost;
     };
-    for (let pass = 0; pass < 2; pass++) {
+    for (let pass = 0; pass < (pairsOnly ? 0 : 2); pass++) {
       let changed = false;
       for (const l of lines.values()) {
         if (!lineSpec.has(l.id) || !targets.has(l.id)) continue;
@@ -3264,6 +3264,52 @@ function layoutAttempt(
       }
       if (!changed) break;
     }
+    // Two lines from one place still crossing (a canopy base's sons' limbs,
+    // both from its centre): each bent alone cannot part them, for the one
+    // set off in the wrong order is never the one bent. Their shapes are
+    // tried together, keeping the pair that leaves the fewest problems.
+    const crosses = (a: Vec[], b: Vec[]) => {
+      for (let i = 1; i < a.length; i++) for (let j = 1; j < b.length; j++) if (segmentsCross(a[i - 1], a[i], b[j - 1], b[j])) return true;
+      return false;
+    };
+    const paired = new Set<string>();
+    for (const l of pairsOnly ? lines.values() : []) {
+      const sp = lineSpec.get(l.id);
+      if (!sp || !targets.has(l.id) || paired.has(l.id)) continue;
+      const box = boxById.get(l.from);
+      for (const o of lines.values()) {
+        const so = lineSpec.get(o.id);
+        if (o === l || !so || o.from !== l.from || paired.has(o.id) || len(sub(so.P, sp.P)) > 0.5) continue;
+        if (!crosses(leavingParent(l.pts, box, l.w, o.w), leavingParent(o.pts, box, l.w, o.w))) continue;
+        const now = costOf(l, l.pts) + costOf(o, o.pts);
+        const saved = { l: { pts: l.pts, c: curveOf.get(l.id)! }, o: { pts: o.pts, c: curveOf.get(o.id)! } };
+        const put = (x: Line, pts: Vec[], c: Cubic) => { dropLine(x); x.pts = pts; x.bb = bbOf(pts); addLine(x); curveOf.set(x.id, c); };
+        let best: { cost: number; a: { pts: Vec[]; c: Cubic }; b: { pts: Vec[]; c: Cubic } } | null = null;
+        search: for (const sa of SHAPES) {
+          const ca = shapeCurve(l.id, sa).c;
+          const pa = sample(ca, 24);
+          put(l, pa, ca);
+          for (const sb of SHAPES) {
+            const cb = shapeCurve(o.id, sb).c;
+            const pb = sample(cb, 24);
+            put(o, pb, cb);
+            if (crosses(leavingParent(pa, box, l.w, o.w), leavingParent(pb, box, l.w, o.w))) continue;
+            const cost = costOf(l, pa) + costOf(o, pb);
+            if (cost < (best?.cost ?? Infinity)) best = { cost, a: { pts: pa, c: ca }, b: { pts: pb, c: cb } };
+            if (!cost) break search;
+          }
+        }
+        if (best && best.cost < now) {
+          put(l, best.a.pts, best.a.c);
+          put(o, best.b.pts, best.b.c);
+          paired.add(l.id).add(o.id);
+          break;
+        }
+        put(l, saved.l.pts, saved.l.c);
+        put(o, saved.o.pts, saved.o.c);
+      }
+    }
+    if (pairsOnly) return;
     // A line from the rim of the base's oval still crossing a brother's (a
     // childless son's thin line, set out towards his name, crossed by a
     // branch rising from the base's centre and turning his way): it leaves
@@ -3649,6 +3695,19 @@ function layoutAttempt(
           refineLines(linesIn(validate()));
         }
         out = validate();
+        // Two lines from one place still crossing: their shapes tried
+        // together, kept only if the drawing then has fewer problems
+        if (out.some((i) => i.kind === "crossing" && i.detail === "between siblings")) {
+          const savedCurves = new Map(curveOf);
+          const savedReport = lastReport;
+          refineLines(linesIn(out), true);
+          const again = validate();
+          if (again.length < out.length) out = again;
+          else {
+            for (const [k, v] of savedCurves) curveOf.set(k, v);
+            lastReport = savedReport;
+          }
+        }
       }
       return out;
     };
@@ -4409,4 +4468,15 @@ export function relax<T extends Body>(nodes: T[], constrain: (n: T) => void, ite
   // the separation would never settle.
   for (let it = 0; it < 200 && separate() > 0; it++);
   if (bound) for (const n of nodes) bound(n);
+}
+
+/**
+ * One layout at a given name size, checked, without the search for the
+ * largest clean size (for tests: a defect the search would step round by
+ * setting the names smaller is seen where it happens).
+ */
+export function layoutAtScale(tree: TreeDTO, opts: LayoutOptions, fontScale: number): PosterLayout {
+  const layout = layoutAttempt(tree, opts, fontScale);
+  layout.clarity = validateRelationships(layout, tree);
+  return layout;
 }

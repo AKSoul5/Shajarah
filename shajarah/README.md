@@ -607,6 +607,14 @@ on any member's panel:
     badge.) Two sons of one ancestor on one side leave his badge a little
     apart, in the order their lines go; childless sons' medallions keep
     clear of each other (tests/side-branches-start-at-their-badge.test.ts).
+- **Sons' lines from one place do not cross:** a canopy base's sons with
+  families of their own all leave from its centre. Where one set off in
+  the wrong order (his name further round, his line leaving above his
+  brother's and running down across it), bending each line on its own
+  could not part them. Their shapes are now tried together, and kept only
+  when the drawing has fewer problems. A 340-person family with daughters
+  shown went from 1 crossing to none, names 8.9 mm to 10.0 mm on its
+  1024A0 (tests/brothers-lines-from-one-place-do-not-cross.test.ts).
 - **A daughter's several husbands:** their boxes stand around her in the
   same order as their children, each on the way to his own. A box turned
   aside to find room may not pass another (one daughter's four husbands
