@@ -205,3 +205,38 @@ fixed: see AUTONOMOUS-PROGRESS.md)
   spouses' boxes are shown; birth order unchanged everywhere else.
 - **Blocked by it:** posters with spouses shown where one man's children
   by two wives alternate. Nothing else.
+
+---
+
+## H7. The paragraph foundation: smooth fan or larger names, for a long lineage
+
+**ON HOLD — USER INPUT REQUIRED**
+
+- **Decision:** for a long lineage drawn with the paragraph foundation
+  (default design and Mono), which comes first: an even fan or name size.
+- **Why it needs you:** each remedy costs readability or changes a
+  design. Both are your call, under the rule that readability is not
+  lowered.
+- **Evidence** (`kalaliFilledTree`, A0, refined):
+  - The paragraph text block takes height from the canopy.
+  - The normal layout is smooth (ring measure 0.035), but its smallest
+    names are 3.27 mm (typical 11.4 mm).
+  - The engine therefore takes its "dense" layout: smallest names 4.82 mm
+    (typical 16.8 mm), with the inner four generations pushed outward and
+    the other ten squeezed to a twentieth of the reach apart. Two crowded
+    names step off their rings: 0.585 against the column foundation's
+    0.200.
+  - This is the defect still marked as a temporary expected failure on
+    branch A.
+- **Options:**
+  1. Keep the larger names and accept the stepped fan for such posters
+     (the expected-failure marker stays, documented).
+  2. Prefer the smooth fan: names a third smaller (3.27 mm, near the
+     legible minimum).
+  3. Give the paragraph foundation less height for long lineages
+     (condensed text, or a smaller type size in the paragraph), so the
+     normal layout's names grow; a design change to that foundation.
+- **Recommendation:** 3, trying a smaller paragraph type size first, kept
+  only if the names grow and the paragraph stays legible.
+- **Blocked by it:** the two expected-failure cases in
+  `tests/even-fans-in-every-design.test.ts`. Nothing else.
