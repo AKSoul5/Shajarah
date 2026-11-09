@@ -7,7 +7,10 @@
 //
 //   node tests/stress/export.mjs <base url> <cases.json> <out dir>
 // cases.json: [{ "family": "huge", "lang": "ar", "preset": "refined", "paper": "2A0" }, ...]
-import { chromium } from "playwright";
+// (Playwright is not one of the app's dependencies: the installed one, or PLAYWRIGHT_MODULE, as scripts/font-metrics.mjs)
+import { createRequire } from "node:module";
+const pw = process.env.PLAYWRIGHT_MODULE ? await import(process.env.PLAYWRIGHT_MODULE) : createRequire(import.meta.url)("playwright");
+const { chromium } = pw.chromium ? pw : pw.default;
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, statSync, existsSync } from "node:fs";
 
