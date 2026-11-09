@@ -26,7 +26,10 @@ Assigned automatically:
 
 - **Medallions**, by role. This is the one place where shape carries
   meaning: a branch head. It predates this work, is explained by the
-  poster's structure, and is kept.
+  poster's structure, and is kept. Its size: `max(2.7 fs, name + 0.9 fs)`
+  across; a long name on two lines (`PosterNode.labelLines`,
+  `MEDALLION_LINE` apart) when the circle holding that block, corner to
+  corner, is at least a tenth smaller.
 - **Pills**, by mode.
 - **"Daughters as gold capsules"**, by gender. This is an explicit
   ornament option the user turns on.

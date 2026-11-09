@@ -3,7 +3,7 @@
 import { forwardRef, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SVGProps } from "react";
 import type { PosterLayout, PosterNode, SpouseHolder } from "@/lib/layout/botanical";
 import { soilStyle, type SoilContext, type SoilInk, type SoilStyleId } from "@/lib/layout/soil";
-import { textWidth } from "@/lib/layout/botanical";
+import { MEDALLION_LINE, textWidth } from "@/lib/layout/botanical";
 import { titleEms } from "@/lib/layout/textMetrics";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
@@ -548,10 +548,19 @@ function Medallion({ node, pal, onClick, strong, ring }: { node: PosterNode; pal
           <ellipse rx={rx - inset} ry={ry - inset} fill="none" stroke={pal.ornament} strokeWidth={fs * 0.03} />
         </>
       )}
-      <text y={nameY(node)} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={700} fill={own && !pal.mono ? own.text : pal.ink}>
-        {node.label}
-      </text>
-      <SubLines node={node} y={fs * 0.6} fontSize={fs * 0.68} fill={own && !pal.mono ? own.text : pal.ink} opacity={0.8} />
+      {node.labelLines ? (
+        // (a long name on two lines, the block centred: see PosterNode.labelLines)
+        node.labelLines.map((line, i) => (
+          <text key={i} y={nameY(node) + (i - 0.5) * fs * MEDALLION_LINE} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={700} fill={own && !pal.mono ? own.text : pal.ink}>
+            {line}
+          </text>
+        ))
+      ) : (
+        <text y={nameY(node)} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={700} fill={own && !pal.mono ? own.text : pal.ink}>
+          {node.label}
+        </text>
+      )}
+      <SubLines node={node} y={fs * 0.6 + (node.labelLines ? (fs * MEDALLION_LINE) / 2 : 0)} fontSize={fs * 0.68} fill={own && !pal.mono ? own.text : pal.ink} opacity={0.8} />
     </g>
   );
 }

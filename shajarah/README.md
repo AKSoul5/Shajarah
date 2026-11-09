@@ -817,7 +817,13 @@ reserved height matches what it draws.
 - **Fathers:** members with descendants are ivory capsules with a gold
   rim.
 - **Branch heads:** ivory medallions with a fine double gold ring. The
-  crown base gets a scalloped outer ring.
+  crown base gets a scalloped outer ring. A long name (with its titles) is
+  set on two lines, split at the space nearest its middle, when that makes
+  the medallion at least a tenth smaller: on one line the disc grew with
+  the name, to three times its brothers' size, and their lines ran under
+  it. With the titles families at A1, such medallions are 15-45% smaller
+  and every poster's names larger or the same, up to 46%
+  (tests/long-names-in-medallions.test.ts).
 - **Branches:** clean, flat bronze, with no shadows or textures.
 - **Type:** the title is gilded Aref Ruqaa; names are Amiri.
 - **Footer:** one quiet line with the key and the family counts.

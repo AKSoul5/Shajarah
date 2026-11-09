@@ -182,6 +182,13 @@ export interface PosterNode {
   fontSize: number;
   shape: PosterShape;
   label: string;
+  /**
+   * A medallion's name set on two lines (split at the space nearest its
+   * middle), when that makes the medallion at least a tenth smaller: a long
+   * name with its honorifics on one line made a disc three times the size of
+   * its brothers', and their lines ran under it. Absent: one line.
+   */
+  labelLines?: [string, string];
   /** A quieter second line (on round holders it may be two, split by "\n"). */
   subLabel: string | null;
   /** True for members without (visible) children. */
@@ -991,6 +998,9 @@ const RING_TRIES: { step: number; ends?: boolean }[] = [{ step: 0.6 }, { step: 0
 const HOLDER_TOUCH = 0.2;
 /** Above this many names, fewer of RING_TRIES are tried. */
 const HUGE_FAMILY = 300;
+/** The distance between a two-line medallion name's lines, in font sizes (see PosterNode.labelLines). */
+export const MEDALLION_LINE = 1.16;
+
 /** A fan this smooth (see fanKink) is not laid out again. */
 const FAN_SMOOTH = 0.1;
 
@@ -2120,10 +2130,24 @@ function layoutAttemptFresh(
     const subH = subLabel ? fs * 0.8 * subLines.length : 0;
     let shape: PosterShape;
     let w: number, h: number, angle = 0, leafLength = 0, leafWidth = 0;
+    let labelLines: [string, string] | undefined;
     if (medallion) {
       shape = "medallion";
       const tw = Math.max(textWidth(label, fs), subW);
       w = h = Math.max(fs * 2.7, tw + fs * 0.9) + subH * 0.5;
+      // A long name on two lines when that makes the disc at least a tenth
+      // smaller (see PosterNode.labelLines): the disc holds the block of two
+      // lines (MEDALLION_LINE apart) and the second line, corner to corner.
+      const parts = splitInTwo(label).split("\n");
+      if (parts.length === 2) {
+        const bw = Math.max(textWidth(parts[0], fs), textWidth(parts[1], fs), subW);
+        const bh = fs * (1 + MEDALLION_LINE) + subH;
+        const two = Math.max(fs * 2.7, Math.hypot(bw, bh) + fs * 0.5);
+        if (two <= w * 0.9) {
+          w = h = two;
+          labelLines = [parts[0], parts[1]];
+        }
+      }
     } else if (isLeaf(n)) {
       // The leaf points away from its parent but stays close to horizontal
       // (at most 30° up, 12° down), so the name on it always reads easily.
@@ -2167,7 +2191,7 @@ function layoutAttemptFresh(
     }
     const node: LiveNode = {
       id: m.id, member: m, x: p.x, y: p.y, tx: p.x, ty: p.y, depth,
-      generation: genOf(m), w, h, fontSize: fs, shape, label, subLabel, terminal,
+      generation: genOf(m), w, h, fontSize: fs, shape, label, ...(labelLines ? { labelLines } : {}), subLabel, terminal,
       childrenOutside: !terminal && !dotted.has(m.id) && n.children!.every((c) => dotted.has(c.data.member!.id)),
       angle, leafLength, leafWidth, leafCount: n.value ?? 1,
       parentId: n.parent?.data.member?.id ?? null,
