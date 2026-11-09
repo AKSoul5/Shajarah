@@ -306,6 +306,13 @@ export interface PosterLayout {
   soil: SoilInscription | null;
   /** Trunk medallions are staggered in two columns (long trunks). */
   trunkZigzag: boolean;
+  /**
+   * The canopy's fan as the rings are built on it (see ringKink): the fan's
+   * reach from the canopy base, sampled evenly from angle theta0 to theta1,
+   * and r0, where the first ring starts. Generation d sits at
+   * r0 + t * (0.95 * reach(angle) - r0), t the same along a smooth ring.
+   */
+  fan?: { theta0: number; theta1: number; reach: number[]; r0: number };
   base: PosterNode | null;
   stubs: PosterNode[];
   nodes: PosterNode[];
@@ -969,6 +976,47 @@ const RING_STEP = 0.3;
 const RING_TRIES: { step: number; ends?: boolean }[] = [{ step: 0.6 }, { step: 0.7, ends: true }, { step: 0.25 }, { step: 0.8, ends: true }];
 /** Above this many names, fewer of RING_TRIES are tried. */
 const HUGE_FAMILY = 300;
+/** Samples of the fan's reach kept in the layout (PosterLayout.fan). */
+const FAN_SAMPLES = 90;
+
+/**
+ * How far any generation steps off its own ring, measured against the ring
+ * the engine builds (PosterLayout.fan), not against a circle: each name's
+ * place across the fan, t = (r - r0) / (0.95 * reach(angle) - r0), is the
+ * same all along a smooth ring whatever the canopy's shape. The largest
+ * second difference of t between neighbours on a ring, over the ring's
+ * median t. (fanKink measures the distance from the canopy base itself, so
+ * an oval canopy's own curve, taller than wide, counted as steps.)
+ * null when the layout carries no fan.
+ */
+export function ringKink(l: Pick<PosterLayout, "nodes" | "origin" | "fan">): number | null {
+  const fan = l.fan;
+  if (!fan || fan.reach.length < 2) return null;
+  const n = fan.reach.length - 1;
+  const reachAt = (theta: number) => {
+    const u = Math.max(0, Math.min(n, ((theta - fan.theta0) / (fan.theta1 - fan.theta0)) * n));
+    const i = Math.min(n - 1, Math.floor(u));
+    return fan.reach[i] + (fan.reach[i + 1] - fan.reach[i]) * (u - i);
+  };
+  const rings = new Map<number, { ray: number; t: number }[]>();
+  for (const node of l.nodes) {
+    const ray = (node as { ray?: number }).ray;
+    if (ray === undefined || node.depth < 1) continue;
+    const span = 0.95 * reachAt(ray) - fan.r0;
+    if (span <= 1e-6) continue;
+    const t = (Math.hypot(node.x - l.origin.x, node.y - l.origin.y) - fan.r0) / span;
+    rings.set(node.depth, [...(rings.get(node.depth) ?? []), { ray, t }]);
+  }
+  let worst = 0;
+  for (const ring of rings.values()) {
+    if (ring.length < 5) continue;
+    ring.sort((a, b) => a.ray - b.ray);
+    const median = Math.max(1e-6, ring.map((x) => x.t).sort((a, b) => a - b)[ring.length >> 1]);
+    for (let i = 2; i < ring.length; i++) worst = Math.max(worst, Math.abs(ring[i].t - 2 * ring[i - 1].t + ring[i - 2].t) / median);
+  }
+  return worst;
+}
+
 /** A fan this smooth (see fanKink) is not laid out again. */
 const FAN_SMOOTH = 0.1;
 
@@ -3905,6 +3953,7 @@ function layoutAttempt(
     ...empty,
     // geometry may have switched to the tall-base variant
     crown, origin, groundY,
+    fan: { theta0: thetaStart, theta1: thetaEnd, r0, reach: Array.from({ length: FAN_SAMPLES + 1 }, (_, i) => +reach(thetaStart + ((thetaEnd - thetaStart) * i) / FAN_SAMPLES).toFixed(2)) },
     // flaring at the top to meet the canopy base, as a trunk divides into
     // its limbs (no wider than the medallion, which covers the top)
     trunkPath: trunkOutline(
