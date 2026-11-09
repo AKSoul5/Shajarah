@@ -614,6 +614,15 @@ on any member's panel:
     badge.) Two sons of one ancestor on one side leave his badge a little
     apart, in the order their lines go; childless sons' medallions keep
     clear of each other (tests/side-branches-start-at-their-badge.test.ts).
+- **A tangle at one man and his wives' boxes is untangled:** problems that
+  all lie among one man's lines and his wives' boxes (lines running
+  together, crossing or meeting) count as one tangle, which the untangling
+  takes on however many there are (up to 12; otherwise it takes on four).
+  A canopy base's lines to his two wives' boxes and to his sons with no
+  mother recorded ran together in five places on a 340-person family with
+  everyone shown, and were never untangled; now one wife's box moves a
+  little further out and all five are gone
+  (tests/a-tangle-at-one-man-and-his-wives-is-untangled.test.ts).
 - **A daughter's several husbands:** their boxes stand around her in the
   same order as their children, each on the way to his own. A box turned
   aside to find room may not pass another (one daughter's four husbands
