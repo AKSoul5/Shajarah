@@ -180,7 +180,8 @@ without the owner).
 
 ## H6. Spouses' boxes when one man's children by two wives are interleaved
 
-**RESOLVED: no decision needed** (09 Nov, late evening). The earlier
+**NO DECISION NEEDED; the crossing itself is still open** (09 Nov, late
+evening). The earlier
 diagnosis was wrong, and the sibling order is unchanged.
 
 - **What was wrong in the diagnosis:** the engine already draws a man's
