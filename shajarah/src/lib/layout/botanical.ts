@@ -1930,7 +1930,43 @@ function layoutAttempt(
       const sideL = others.slice(0, c).reduce((sum, i) => sum + side(i), 0);
       const sideR = others.slice(c).reduce((sum, i) => sum + side(i), 0);
       let cut = c;
-      if (Math.min(sideL, sideR) < Math.max(sideL, sideR) * LOPSIDED) {
+      // Where mothers' boxes are drawn, each mother's children together:
+      // her box's lines fan out to her children only, and a line to one of
+      // another mother's children, or straight from the father, between
+      // two of hers crosses her fan wherever her box goes. Set between
+      // his elder and younger brothers, a centred son could stand apart
+      // from his full brothers, with his half-brothers between them (a
+      // man with two wives at the canopy base, his eldest by the second
+      // wife centred: one crossing at every size). He is set among his
+      // brothers where each mother's children stay together, the place
+      // nearest to balanced; his brothers keep their order. (Only where
+      // there is such a place, and the elder/younger place has none.)
+      const motherOfKid = (k: HNode) => {
+        const m = k.data.member;
+        return m ? (m.fatherId === node.data.member?.id ? m.motherId : m.fatherId) ?? null : null;
+      };
+      const boxesHere = !!opts.motherNames || through.has(node.data.member?.id ?? "");
+      const together = (k: number) => {
+        const seq = [...others.slice(0, k).map((i) => kids[i]), kids[c], ...others.slice(k).map((i) => kids[i])].map(motherOfKid);
+        const seen = new Set<string>();
+        for (let i = 0; i < seq.length; i++) {
+          const m = seq[i];
+          if (m === null) continue;
+          if (seen.has(m) && seq[i - 1] !== m) return false;
+          seen.add(m);
+        }
+        return true;
+      };
+      if (boxesHere && motherOfKid(kids[c]) !== null && !together(cut)) {
+        const edgeOk = (k: number) => !(k > 0 && k < others.length && motherOfKid(kids[others[k - 1]]) !== null && motherOfKid(kids[others[k - 1]]) === motherOfKid(kids[others[k]]));
+        const anyBoth = Array.from({ length: others.length + 1 }, (_, k) => k).some((k) => together(k) && edgeOk(k));
+        let best = Infinity, acc = 0;
+        for (let k = 0; k <= others.length; k++) {
+          const diff = Math.abs(sideL + sideR - 2 * acc);
+          if (together(k) && (!anyBoth || edgeOk(k)) && diff < best) { best = diff; cut = k; }
+          if (k < others.length) acc += side(others[k]);
+        }
+      } else if (Math.min(sideL, sideR) < Math.max(sideL, sideR) * LOPSIDED) {
         // (never between two children of one mother: her box sits on one
         // side, and lines to a child of hers on the other side crossed the
         // centred line)
@@ -1942,10 +1978,24 @@ function layoutAttempt(
         // daughter's family through her)
         const boxesDrawn = !!opts.motherNames || through.has(node.data.member?.id ?? "");
         const splitsMother = (k: number) => k > 0 && k < others.length && motherOf(k - 1) !== null && motherOf(k - 1) === motherOf(k);
+        // (and, where they can be, every mother's children together with
+        // the centred son among them: moved past his half-brothers, he
+        // stood apart from his full brothers, and his mother's lines
+        // crossed the other mother's fan)
+        // (still never between two of one mother's other children: set in
+        // the middle of his mother's children, he took a slice of their
+        // room and the canopy came out smaller)
+        const ks = Array.from({ length: others.length + 1 }, (_, k) => k);
+        const both = (k: number) => together(k) && !splitsMother(k);
+        const rule = !boxesDrawn ? () => true
+          : motherOfKid(kids[c]) !== null && ks.some(both) ? both
+          : motherOfKid(kids[c]) !== null && ks.some(together) ? together
+          : (k: number) => !splitsMother(k);
         let best = Infinity, acc = 0;
         for (let k = 0; k <= others.length; k++) {
           const diff = Math.abs(sideL + sideR - 2 * acc);
-          if (diff < best && !(boxesDrawn && splitsMother(k))) { best = diff; cut = k; }
+          const allowed = rule(k);
+          if (diff < best && allowed) { best = diff; cut = k; }
           if (k < others.length) acc += side(others[k]);
         }
       }

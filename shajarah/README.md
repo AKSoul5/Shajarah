@@ -549,6 +549,28 @@ in each design.
 - Where the children fan out sideways from a large name (the founder at the
   base of the canopy), the wife's cartouche is placed beyond the edge of
   his name, never on it.
+- A man's wives' cartouches each stand on the side of their own children:
+  with spouses shown, each mother's children stay together around him,
+  the centred son (the one whose branch holds the most people) among his
+  full brothers. He used to be set between his elder and younger brothers,
+  or moved among them to balance the two sides, and could stand apart from
+  his full brothers with his half-brothers between them: his mother's lines
+  then had to cross the other wife's, wherever her cartouche went. His
+  brothers keep their own order; only his place among them follows his
+  mother's children. Measured on 30 invented families with two wives at
+  the canopy base (emerald A1, classic A0): 3 better (two had 1 or 2
+  crossings, now none; names 3.27 to 7.28 mm, 4.51 to 7.33, 7.18 to 9.77),
+  none worse
+  (tests/spouse-box-lines-do-not-cross-each-other.test.ts).
+- A thin line must not ride along a thick limb. The check of merging lines
+  asked for touching and passed over where brothers' lines leave their
+  father together, so a thin line parting from a brother's limb at a narrow
+  angle, or running inside its father's limb, passed. `linesAlongside`
+  (clarity.ts) finds a thin line (a third of a limb's width or less) that is
+  not a name's height off a sibling's limb two names' heights after coming
+  out from under it, or that never comes out. Measured, not yet counted as
+  a problem in the layout QA: it finds 0 to 3 such lines on most QA
+  families on `main` too (tests/lines-running-alongside-a-limb-are-found.test.ts).
 
 ## The three tiers: foundation, trunk, canopy
 
