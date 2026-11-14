@@ -590,6 +590,36 @@ on any member's panel:
     lowest names, tangled with the canopy base's wife and daughters.)
   - It reaches as far out as its names need, so each generation sits on its
     own ring with room for its names side by side (tests/side-branches.test.ts).
+  - Side branches on one side of the trunk share that side's room, each
+    taking a slice of it, the higher on the trunk the higher its slice,
+    sized by its names. Each once fanned over the whole range from its own
+    badge, so families from neighbouring badges interleaved and crossed: a
+    340-person family with a long trunk had 93 problems, all beside the
+    trunk; now none, its names 141.7 mm instead of 13.5 on its 1024A0.
+  - Every side branch and childless son grows out of his own ancestor's
+    badge: from under the badge's rounded end, level, at the badge's
+    height, across the bark, turning his way only past the trunk's edge,
+    and no wider there than 0.62 of a badge, so branches from neighbouring
+    badges stay a badge's gap apart. Which ancestor a branch comes from is
+    read from the line, not its colour. (They used to start at the bark's
+    edge a little above the badge, a childless son's up to 1.4 lines above,
+    level with the badge above, and a large family's limb was wider than a
+    badge.) Two sons of one ancestor on one side leave his badge a little
+    apart, in the order their lines go; childless sons' medallions keep
+    clear of each other (tests/side-branches-start-at-their-badge.test.ts).
+  - A childless son's line does not run under the name of the childless
+    son of the badge next to his, and his name sits clear of that son's
+    line. With English names, on a 15-ancestor trunk, the line from one
+    badge ran under the medallion of the son of the badge below (A1 to A3):
+    each one's angle is a share of his own badge's range, so the son from
+    the higher badge was aimed lower. His way is now chosen clear of the
+    childless sons placed before him, turned within his share or, if
+    nothing there clears, a little up past it. English A1: 1 problem to 0,
+    names unchanged (3.78 mm); Arabic A1 to A3 unchanged in size, the two
+    such sons now one above the other
+    (tests/childless-sons-lines-clear-each-others-names.test.ts). Still
+    open: in English on A2 and A3 (below the legible size, so not offered
+    for that family) a side family's line clips a childless son's medallion.
 - **A daughter's several husbands:** their boxes stand around her in the
   same order as their children, each on the way to his own. A box turned
   aside to find room may not pass another (one daughter's four husbands
