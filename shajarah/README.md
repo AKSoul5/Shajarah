@@ -549,6 +549,28 @@ in each design.
 - Where the children fan out sideways from a large name (the founder at the
   base of the canopy), the wife's cartouche is placed beyond the edge of
   his name, never on it.
+- A man's wives' cartouches each stand on the side of their own children:
+  with spouses shown, each mother's children stay together around him,
+  the centred son (the one whose branch holds the most people) among his
+  full brothers. He used to be set between his elder and younger brothers,
+  or moved among them to balance the two sides, and could stand apart from
+  his full brothers with his half-brothers between them: his mother's lines
+  then had to cross the other wife's, wherever her cartouche went. His
+  brothers keep their own order; only his place among them follows his
+  mother's children. Measured on 30 invented families with two wives at
+  the canopy base (emerald A1, classic A0): 3 better (two had 1 or 2
+  crossings, now none; names 3.27 to 7.28 mm, 4.51 to 7.33, 7.18 to 9.77),
+  none worse
+  (tests/spouse-box-lines-do-not-cross-each-other.test.ts).
+- A thin line must not ride along a thick limb. The check of merging lines
+  asked for touching and passed over where brothers' lines leave their
+  father together, so a thin line parting from a brother's limb at a narrow
+  angle, or running inside its father's limb, passed. `linesAlongside`
+  (clarity.ts) finds a thin line (a third of a limb's width or less) that is
+  not a name's height off a sibling's limb two names' heights after coming
+  out from under it, or that never comes out. Measured, not yet counted as
+  a problem in the layout QA: it finds 0 to 3 such lines on most QA
+  families on `main` too (tests/lines-running-alongside-a-limb-are-found.test.ts).
 
 ## The three tiers: foundation, trunk, canopy
 
@@ -590,6 +612,36 @@ on any member's panel:
     lowest names, tangled with the canopy base's wife and daughters.)
   - It reaches as far out as its names need, so each generation sits on its
     own ring with room for its names side by side (tests/side-branches.test.ts).
+  - Side branches on one side of the trunk share that side's room, each
+    taking a slice of it, the higher on the trunk the higher its slice,
+    sized by its names. Each once fanned over the whole range from its own
+    badge, so families from neighbouring badges interleaved and crossed: a
+    340-person family with a long trunk had 93 problems, all beside the
+    trunk; now none, its names 141.7 mm instead of 13.5 on its 1024A0.
+  - Every side branch and childless son grows out of his own ancestor's
+    badge: from under the badge's rounded end, level, at the badge's
+    height, across the bark, turning his way only past the trunk's edge,
+    and no wider there than 0.62 of a badge, so branches from neighbouring
+    badges stay a badge's gap apart. Which ancestor a branch comes from is
+    read from the line, not its colour. (They used to start at the bark's
+    edge a little above the badge, a childless son's up to 1.4 lines above,
+    level with the badge above, and a large family's limb was wider than a
+    badge.) Two sons of one ancestor on one side leave his badge a little
+    apart, in the order their lines go; childless sons' medallions keep
+    clear of each other (tests/side-branches-start-at-their-badge.test.ts).
+  - A childless son's line does not run under the name of the childless
+    son of the badge next to his, and his name sits clear of that son's
+    line. With English names, on a 15-ancestor trunk, the line from one
+    badge ran under the medallion of the son of the badge below (A1 to A3):
+    each one's angle is a share of his own badge's range, so the son from
+    the higher badge was aimed lower. His way is now chosen clear of the
+    childless sons placed before him, turned within his share or, if
+    nothing there clears, a little up past it. English A1: 1 problem to 0,
+    names unchanged (3.78 mm); Arabic A1 to A3 unchanged in size, the two
+    such sons now one above the other
+    (tests/childless-sons-lines-clear-each-others-names.test.ts). Still
+    open: in English on A2 and A3 (below the legible size, so not offered
+    for that family) a side family's line clips a childless son's medallion.
 - **A daughter's several husbands:** their boxes stand around her in the
   same order as their children, each on the way to his own. A box turned
   aside to find room may not pass another (one daughter's four husbands
