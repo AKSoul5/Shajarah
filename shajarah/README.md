@@ -1048,8 +1048,10 @@ first and the others are capped against it on every poster:
 - trunk names and side-branch heads at most 1.3 times (1.15 where the step
   above keeps the poster clean); a side branch's head never larger than the
   trunk's names;
-- the canopy base at most 1.8 times, its oval sized to its name (the space
-  round it, which places the first ring, is unchanged);
+- the canopy base at most 1.8 times, its oval drawn to its name's size on a
+  disc of bark that fills the oval's old place (the place itself, where its
+  lines start and what other names keep clear of, is unchanged: a smaller
+  oval there set one family's whole canopy a third smaller);
 - never below the legible size.
 
 Only the names change: the trunk keeps its rows' spacing and its width,

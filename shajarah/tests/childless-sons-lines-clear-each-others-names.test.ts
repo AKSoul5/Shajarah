@@ -106,12 +106,17 @@ describe("a childless son's line clears his neighbours' names", () => {
       });
     }
   }
-  // Not yet fixed: in English on A2 and A3 (both below the legible size, so
-  // not offered for this family) a side family's line, to its leaf
-  // "Mubarak 2", clips the medallion of the childless son "Salim 2" next to
-  // it. A separate defect (a side branch's line, not a stub's); when fixed,
-  // this expected failure fails and must become an ordinary check.
-  for (const paper of ["A2", "A3"]) {
+  // In English on A2 and A3 (both below the legible size, so not offered
+  // for this family) a side family's line, to its leaf "Mubarak 2", clipped
+  // the medallion of the childless son "Salim 2" next to it (a side branch's
+  // line, not a stub's). Fixed on A2 once a side branch's head was set at
+  // most the trunk's names' size (one scale for names); still open on A3.
+  it("en, A2: no line under a childless son's name", { timeout: 600_000 }, () => {
+    const l = lay(english(crowdedTrunk()), "A2");
+    const stubIds = new Set(l.stubs.map((s) => s.id));
+    expect(l.clarity.issues.filter((i) => stubIds.has(String(i.other)))).toEqual([]);
+  });
+  for (const paper of ["A3"]) {
     it.fails(`en, ${paper}: no line under a childless son's name (known defect)`, { timeout: 600_000 }, () => {
       const l = lay(english(crowdedTrunk()), paper);
       const stubIds = new Set(l.stubs.map((s) => s.id));

@@ -195,6 +195,11 @@ export interface PosterNode {
   leafCount: number;
   parentId: string | null;
   /**
+   * The canopy base only: the oval as drawn, when smaller than its place in
+   * the layout (w, h). The place is then drawn as a disc of bark.
+   */
+  oval?: { w: number; h: number };
+  /**
    * Which major lineage this person belongs to (index, in order around the
    * canopy), for branch colouring; null for the trunk, the crown base and
    * childless sons of the crown base.
@@ -800,7 +805,8 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   if (isClean(best.layout) && best.layout.legibility.ok && !best.untangle && best.chosen < 0.95) {
     const scale = Math.min(1, best.chosen * STEP_LARGER);
     const l = best.attempt(scale, false, best.strict, untangleChecks);
-    if (isClean(l) && l.legibility.ok) best = { ...best, layout: l, chosen: scale, untangle: untangleChecks };
+    // (and no rougher a fan: untangling can step a name out of its arc)
+    if (isClean(l) && l.legibility.ok && fanKink(l) <= fanKink(best.layout) + 0.01) best = { ...best, layout: l, chosen: scale, untangle: untangleChecks };
   }
   // Proportion: the names on the branches matter as much as those on the
   // trunk, so the trunk's are set at most TRUNK_TO_CANOPY times the
@@ -1773,8 +1779,14 @@ function layoutAttempt(
   // which places the first ring, the trunk and the foundation) is unchanged.
   const canopyTypical0 = canopyTypicalFor(f);
   const baseFont = Math.max(floorFor(f), Math.min(f * 1.3, canopyTypical0 * BASE_CAP));
-  const baseOvalR = Math.min(baseMedallionR, baseRForFont(baseFont));
-  const baseOval = { rx: baseOvalR * BASE_OVAL.w, ry: baseOvalR * (baseText.subLabel ? 0.85 : BASE_OVAL.h) };
+  const ovalOf = (r: number) => ({ rx: r * BASE_OVAL.w, ry: r * (baseText.subLabel ? 0.85 : BASE_OVAL.h) });
+  // The oval's place in the layout (where the lines from the base start,
+  // what the other names and lines keep clear of) is as before; only the
+  // oval drawn on it is sized to its name, on a disc of bark. (A smaller
+  // oval in the layout too moved where the base's lines start, and on some
+  // families set the whole canopy a third smaller.)
+  const baseOval = ovalOf(baseMedallionR);
+  const baseOvalDrawn = ovalOf(Math.min(baseMedallionR, baseRForFont(baseFont)));
   const trunkFont = trunkFontFor(f);
   const rowFont = trunkRowFontFor(f);
   const trunkStep = stepFor(f);
@@ -2379,12 +2391,13 @@ function layoutAttempt(
   // several neighbours had branches on one side, which name a branch came
   // from could not be told.) A branch begins no wider than 0.62 of a badge,
   // so the spurs of neighbouring badges keep the badges' own gap apart.
-  const portCap = rowFont * 1.6 * 0.62;
+  const portCap = trunkFont * 1.6 * 0.62;
   const spurOf = new Map<string, { from: Vec; to: Vec }>();
   const visibleOffshoots = offshoots.filter((o) => shownSet.has(o.anchor));
   const portOf = (o: (typeof visibleOffshoots)[number], side: number, w: number) => {
     const y = labelY.get(o.anchor.data.member!.id)! + (portShift.get(o.node) ?? 0);
-    const from: Vec = { x: origin.x + side * Math.max(0, rowWidest / 2 - rowFont * 0.8), y };
+    // (from under the badge as set: a side branch leaves its own ancestor's name)
+    const from: Vec = { x: origin.x + side * Math.max(0, widest / 2 - trunkFont * 0.8), y };
     const to: Vec = { x: origin.x + side * (trunkWidth / 2 + Math.max(w, rowFont * 0.3)), y };
     return { from, to };
   };
@@ -2597,7 +2610,7 @@ function layoutAttempt(
     for (const group of groups.values()) {
       if (group.length < 2) continue;
       group.sort((a, b) => (plan.get(b.node) ?? 0) - (plan.get(a.node) ?? 0));
-      const step = Math.min(rowFont * 0.4, rowFont / (group.length - 1));
+      const step = Math.min(trunkFont * 0.4, trunkFont / (group.length - 1));
       group.forEach((o, k) => portShift.set(o.node, (k - (group.length - 1) / 2) * step));
     }
   }
@@ -3644,7 +3657,7 @@ function layoutAttempt(
         return t ? Math.atan2(by - t.y, side * (t.x - origin.x)) : 0;
       };
       group.sort((a, b) => rise(b) - rise(a));
-      const step = Math.min(rowFont * 0.4, rowFont / (group.length - 1));
+      const step = Math.min(trunkFont * 0.4, trunkFont / (group.length - 1));
       // (that order unless another clears more: a stub's name near the
       // trunk can stand in the way of a brother's line set out above it,
       // which then bows round it and across the stub's own line; each order
@@ -4171,6 +4184,8 @@ function layoutAttempt(
     baseNode = {
       id: m.id, member: m, x: origin.x, y: origin.y, depth: 0, generation: m.generation,
       w: baseOval.rx * 2, h: baseOval.ry * 2, fontSize: fs, shape: "medallion",
+      // drawn smaller than its place when its name is (on a disc of bark filling the place)
+      ...(baseOvalDrawn.rx < baseOval.rx - 1e-6 ? { oval: { w: baseOvalDrawn.rx * 2, h: baseOvalDrawn.ry * 2 } } : {}),
       label: m.name, subLabel, terminal: !base.children,
       angle: 0, leafLength: 0, leafWidth: 0, leafCount: base.value ?? 1,
       parentId: base.parent?.data.member?.id ?? null,
