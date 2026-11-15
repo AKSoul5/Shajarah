@@ -1037,6 +1037,37 @@ recommends is the answer there.)
 (sizes in poster points; tests/themes.test.ts and tests/shape.test.ts hold
 every theme under 1.3.)
 
+**One scale for names.** The step above is kept only where the poster
+stays clean, and on a family with a long trunk and side families it often
+was not: the trunk's names and the canopy base stayed at their own size
+while the canopy's were set smaller to fit, so a 340-person family at 2A0
+had trunk names 2.8 times, side-branch heads 2.3 times and the canopy base
+3.9 times the canopy's typical name. Now the canopy's typical name is set
+first and the others are capped against it on every poster:
+
+- trunk names and side-branch heads at most 1.3 times (1.15 where the step
+  above keeps the poster clean); a side branch's head never larger than the
+  trunk's names;
+- the canopy base at most 1.8 times, its oval sized to its name (the space
+  round it, which places the first ring, is unchanged);
+- never below the legible size.
+
+Only the names change: the trunk keeps its rows' spacing and its width,
+so its side families keep their room (capping those too put lines under
+names). A clean poster found without untangling is also tried one step
+(7.5%) larger, untangled, and kept when it stays clean and legible.
+
+| Family, paper | Canopy typical (mm) | Trunk ÷ typical | Side heads ÷ typical | Base ÷ typical |
+|---|---|---|---|---|
+| a private 340-person family, whole tree, 2A0 | 4.58 → 4.58 | 2.82 → 1.30 | 2.26 → 1.30 | 3.86 → 1.80 |
+| the same, A0 | 3.44 → 3.44 | 2.66 → 1.30 | 2.13 → 1.30 | 3.64 → 1.80 |
+| its focused branch (as saved), 2A0 | 4.58 → 4.92 | 1.15 → 1.15 | – | 2.12 → 1.80 |
+| natural350, A0 / 2A0 | 3.72 → 4.00 | – | – | 4.27 / 6.03 → 1.80 |
+| kalali-filled, 2A0 | 6.64 → 7.18 | 1.15 → 1.15 | – | 1.83 → 1.70 |
+| nouri, A0 | 17.4 → 18.7 | – | – | 1.64 → 1.52 |
+
+Every one stays clean and legible; no canopy name got smaller.
+
 **Filling the page.** A canopy of 30 names or more spreads to the page's
 width, so the names keep their size instead of being set smaller to clear
 their lines. (A tree saved with its own style keeps it: choose the preset

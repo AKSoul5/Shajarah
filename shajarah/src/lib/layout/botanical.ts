@@ -794,6 +794,14 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       if (isClean(l) && l.legibility.ok) best = { layout: l, chosen: near.scale, strict: false, attempt: near.sr.attempt, untangle: untangleChecks };
     }
   }
+  // A step larger: a clean size found without untangling may be clean a
+  // little larger once untangled (the search's steps are coarse there).
+  // Tried once, kept only when clean and as legible: names only grow.
+  if (isClean(best.layout) && best.layout.legibility.ok && !best.untangle && best.chosen < 0.95) {
+    const scale = Math.min(1, best.chosen * STEP_LARGER);
+    const l = best.attempt(scale, false, best.strict, untangleChecks);
+    if (isClean(l) && l.legibility.ok) best = { ...best, layout: l, chosen: scale, untangle: untangleChecks };
+  }
   // Proportion: the names on the branches matter as much as those on the
   // trunk, so the trunk's are set at most TRUNK_TO_CANOPY times the
   // canopy's typical name. The height that frees goes to the canopy, whose
@@ -1025,8 +1033,17 @@ function sideLean(l: PosterLayout): number | null {
 }
 /** Generations above the centred branch whose largest sub-branch is held straight on (see the leader). */
 const LEAD_STEPS = 1;
-/** The trunk's names are at most this many times the canopy's typical name. */
+/** The trunk's names are at most this many times the canopy's typical name, where the poster stays clean (the proportion step). */
 const TRUNK_TO_CANOPY = 1.15;
+/**
+ * One scale for names: whatever the paper, the trunk's names and the side
+ * branches' heads are at most NAME_CAP times the canopy's typical name, the
+ * canopy base's at most BASE_CAP times; never below the legible minimum.
+ */
+const NAME_CAP = 1.3;
+const BASE_CAP = 1.8;
+/** How much larger "a step larger" tries a clean poster's names (see computePosterLayout). */
+const STEP_LARGER = 1.075;
 /** A trunk this much past TRUNK_TO_CANOPY is set in proportion. */
 const PROPORTION_SLACK = 1.05;
 /** Canopies of at least this many names are as wide as the page allows. */
@@ -1455,12 +1472,13 @@ function layoutAttempt(
   // spacing of canopy, trunk and foundation. It is drawn as an oval inside
   // that space (BASE_OVAL), like the other names but larger, with the
   // scalloped double ring that marks the tree's anchor.
-  const baseRFor = (f: number) => {
-    const fb = f * 1.3;
+  // (the space a base name of font fb needs; f alone when there is no base person)
+  const baseRForFont = (fb: number, f = fb / 1.3) => {
     if (!base.data.member) return f;
     const sub = baseText.subLabel ? textWidth(baseText.subLabel, fb * 0.68) / 2 + fb * 0.7 : 0;
     return Math.max(fb * 1.75, textWidth(baseText.label, fb) / 2 + fb * 0.8, sub);
   };
+  const baseRFor = (f: number) => baseRForFont(f * 1.3, f);
   // Trunk: the ancestors in one centred column, one per row, inside the
   // bark (never two staggered columns: the trunk reads as one solid form).
   // budget.fit: the trunk's names at most this many times the canopy's
@@ -1484,14 +1502,21 @@ function layoutAttempt(
   };
   // (see LayoutOptions.compactLower)
   const lowerF = (f: number) => (opts.compactLower && fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
-  const trunkFontFor = (f: number) =>
+  // The trunk's geometry (its rows, height and width, and so the room its
+  // side branches have) is set from trunkRowFontFor: the canopy's typical
+  // name × budget.fit when the proportion step set it, else the trunk's own
+  // size. Its names are set in trunkFontFor, never above NAME_CAP times the
+  // canopy's typical name. (Capping the geometry too squeezed the side
+  // families of a long trunk into lines under names.)
+  const trunkRowFontFor = (f: number) =>
     Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity));
-  const stepFor = (f: number) => trunkFontFor(f) * 1.75;
+  const trunkFontFor = (f: number) => Math.max(floorFor(f), Math.min(trunkRowFontFor(f), canopyTypicalFor(f) * NAME_CAP));
+  const stepFor = (f: number) => trunkRowFontFor(f) * 1.75;
   const trunkSection = (count: number, f: number) => {
     // a bare trunk (no ancestors above the canopy base) still stands tall
     // enough to carry its canopy: at least BARE_TRUNK of the content height
     if (!count) return Math.max(f * 3.5, avail * BARE_TRUNK);
-    const ft = trunkFontFor(f);
+    const ft = trunkRowFontFor(f);
     return ft * 1.4 + (count - 1) * stepFor(f) + ft * 1.5;
   };
   // Foundation: the ancestors older than the trunk, drawn by the chosen
@@ -1510,7 +1535,7 @@ function layoutAttempt(
     text: soilTextFor(p.onTrunk, p.soil),
     custom: !!customSoil,
     trunkName: p.onTrunk[0]?.data.member?.name ?? null,
-    rtl, joiner, f: lowerF(f), nameFont: trunkFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
+    rtl, joiner, f: lowerF(f), nameFont: trunkRowFontFor(f), floor: floorFor(f), maxFont, maxWidth: soilW, avail, textWidth,
   });
 
   type Plan = { onTrunk: HNode[]; soil: HNode[] };
@@ -1743,19 +1768,28 @@ function layoutAttempt(
   crown = { cx: W / 2, cy: top0 + ry, rx, ry, exponent: 2.4 };
   origin = { x: W / 2, y: crown.cy + 0.8 * ry };
   const baseMedallionR = baseRFor(f);
-  // the oval drawn inside the base's space
-  const baseOval = { rx: baseMedallionR * BASE_OVAL.w, ry: baseMedallionR * (baseText.subLabel ? 0.85 : BASE_OVAL.h) };
+  // The canopy base's name, at most BASE_CAP times the canopy's typical
+  // name, and its oval, sized to that name. The base's space (baseMedallionR,
+  // which places the first ring, the trunk and the foundation) is unchanged.
+  const canopyTypical0 = canopyTypicalFor(f);
+  const baseFont = Math.max(floorFor(f), Math.min(f * 1.3, canopyTypical0 * BASE_CAP));
+  const baseOvalR = Math.min(baseMedallionR, baseRForFont(baseFont));
+  const baseOval = { rx: baseOvalR * BASE_OVAL.w, ry: baseOvalR * (baseText.subLabel ? 0.85 : BASE_OVAL.h) };
   const trunkFont = trunkFontFor(f);
+  const rowFont = trunkRowFontFor(f);
   const trunkStep = stepFor(f);
-  const labelTop = origin.y + baseMedallionR + trunkFont * 1.4;
+  const labelTop = origin.y + baseMedallionR + rowFont * 1.4;
   const labelBottom = labelTop + Math.max(0, shownTrunk.length - 1) * trunkStep;
-  groundY = shownTrunk.length ? labelBottom + trunkFont * 1.5 : origin.y + baseMedallionR + trunkSection(0, f) + stemExtra;
-  const badgeW = (n: HNode) => Math.max(textWidth(n.data.member!.name, trunkFont) + trunkFont * 1.7, trunkFont * 3.4);
-  const widest = Math.max(0, ...shownTrunk.map(badgeW));
-  const medianBadge = shownTrunk.length ? shownTrunk.map(badgeW).sort((a, b) => a - b)[shownTrunk.length >> 1] : 0;
+  groundY = shownTrunk.length ? labelBottom + rowFont * 1.5 : origin.y + baseMedallionR + trunkSection(0, f) + stemExtra;
+  const badgeWAt = (ft: number) => (n: HNode) => Math.max(textWidth(n.data.member!.name, ft) + ft * 1.7, ft * 3.4);
+  // the trunk's width and the side branches' ports, from the rows' size (see trunkRowFontFor)
+  const rowWidest = Math.max(0, ...shownTrunk.map(badgeWAt(rowFont)));
+  const medianBadge = shownTrunk.length ? shownTrunk.map(badgeWAt(rowFont)).sort((a, b) => a - b)[shownTrunk.length >> 1] : 0;
   const TW = clamp(medianBadge * 0.85, f * 2.6, W * 0.12);
   // the badges rest inside the bark: the trunk is the widest badge plus a margin of wood
-  trunkWidth = shownTrunk.length ? clamp(widest + trunkFont * 1.6, TW, W * 0.22) : TW;
+  trunkWidth = shownTrunk.length ? clamp(rowWidest + rowFont * 1.6, TW, W * 0.22) : TW;
+  // the badges themselves fit the names as set
+  const widest = Math.max(0, ...shownTrunk.map(badgeWAt(trunkFont)));
 
   // ── 3. Arc-length parameterisation of the crown outline ──────────────
   // Egg-shaped crown, a little narrower at the top than at the bottom.
@@ -2345,13 +2379,13 @@ function layoutAttempt(
   // several neighbours had branches on one side, which name a branch came
   // from could not be told.) A branch begins no wider than 0.62 of a badge,
   // so the spurs of neighbouring badges keep the badges' own gap apart.
-  const portCap = trunkFont * 1.6 * 0.62;
+  const portCap = rowFont * 1.6 * 0.62;
   const spurOf = new Map<string, { from: Vec; to: Vec }>();
   const visibleOffshoots = offshoots.filter((o) => shownSet.has(o.anchor));
   const portOf = (o: (typeof visibleOffshoots)[number], side: number, w: number) => {
     const y = labelY.get(o.anchor.data.member!.id)! + (portShift.get(o.node) ?? 0);
-    const from: Vec = { x: origin.x + side * Math.max(0, widest / 2 - trunkFont * 0.8), y };
-    const to: Vec = { x: origin.x + side * (trunkWidth / 2 + Math.max(w, trunkFont * 0.3)), y };
+    const from: Vec = { x: origin.x + side * Math.max(0, rowWidest / 2 - rowFont * 0.8), y };
+    const to: Vec = { x: origin.x + side * (trunkWidth / 2 + Math.max(w, rowFont * 0.3)), y };
     return { from, to };
   };
   // Alternate sides, starting on the side of the eldest (right in RTL).
@@ -2414,7 +2448,8 @@ function layoutAttempt(
       const slice = sideFan(o.node, start, reachX);
       const th = (slice.hi + slice.lo) / 2;
       if (plan) { plan.set(o.node, th); return; }
-      const fs = Math.max(floorFor(f), trunkFont * 0.8);
+      // (a side branch's head: at most the trunk's names, so at most NAME_CAP times the canopy's)
+      const fs = Math.max(floorFor(f), Math.min(rowFont * 0.8, trunkFont));
       const { label, subLabel } = labelOf(m);
       const size = Math.max(fs * 3.2, textWidth(label, fs) + fs, subLabel ? textWidth(subLabel, fs * 0.68) + fs * 1.4 : 0);
       // (further out along its way while it would touch a stub already
@@ -2562,7 +2597,7 @@ function layoutAttempt(
     for (const group of groups.values()) {
       if (group.length < 2) continue;
       group.sort((a, b) => (plan.get(b.node) ?? 0) - (plan.get(a.node) ?? 0));
-      const step = Math.min(trunkFont * 0.4, trunkFont / (group.length - 1));
+      const step = Math.min(rowFont * 0.4, rowFont / (group.length - 1));
       group.forEach((o, k) => portShift.set(o.node, (k - (group.length - 1) / 2) * step));
     }
   }
@@ -3609,7 +3644,7 @@ function layoutAttempt(
         return t ? Math.atan2(by - t.y, side * (t.x - origin.x)) : 0;
       };
       group.sort((a, b) => rise(b) - rise(a));
-      const step = Math.min(trunkFont * 0.4, trunkFont / (group.length - 1));
+      const step = Math.min(rowFont * 0.4, rowFont / (group.length - 1));
       // (that order unless another clears more: a stub's name near the
       // trunk can stand in the way of a brother's line set out above it,
       // which then bows round it and across the stub's own line; each order
@@ -4131,7 +4166,7 @@ function layoutAttempt(
   let baseNode: PosterNode | null = null;
   if (base.data.member) {
     const m = base.data.member;
-    const fs = f * 1.3;
+    const fs = baseFont;
     const { label, subLabel } = labelOf(m);
     baseNode = {
       id: m.id, member: m, x: origin.x, y: origin.y, depth: 0, generation: m.generation,
@@ -4150,7 +4185,7 @@ function layoutAttempt(
         ...soilDef.layout({
           ...finalSoil!.ctx, cx: W / 2, groundY, trunkWidth, W,
           // the gold thread joining the trunk's ancestors continues from just below the lowest one
-          threadFrom: shownTrunk.length ? labelBottom + trunkFont * 0.75 : groundY - f * 0.2,
+          threadFrom: shownTrunk.length ? labelBottom + rowFont * 0.75 : groundY - f * 0.2,
           trunkBaseY: (spread: number) => trunkBase(groundY, trunkWidth, TW, spread),
         }),
         area: { x: W / 2 - soilW / 2, w: soilW },
