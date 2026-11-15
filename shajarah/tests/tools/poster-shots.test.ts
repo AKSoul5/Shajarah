@@ -61,9 +61,23 @@ function measure(L: PosterLayout, paper: PaperSize) {
   const wife = L.base && centredSon ? L.spouses.find((s) => s.partnerId === L.base!.id && s.childIds.includes(centredSon)) : undefined;
   const son = centredSon ? L.nodes.find((n) => n.id === centredSon) : undefined;
   const angle = (a: { x: number; y: number }, b: { x: number; y: number }) => r2((Math.atan2(b.x - a.x, a.y - b.y) * 180) / Math.PI);
+  // side families: everyone whose line leads to a trunk ancestor, not to the canopy base
+  const trunkIds = new Set(L.trunkLabels.map((t) => t.member.id));
+  const byId = new Map(L.nodes.map((n) => [n.id, n]));
+  const onSide = (n: (typeof L.nodes)[number]) => {
+    for (let p: string | null = n.parentId, guard = 0; p && guard < 200; guard++) {
+      if (trunkIds.has(p)) return true;
+      if (L.base && p === L.base.id) return false;
+      p = byId.get(p)?.parentId ?? null;
+    }
+    return false;
+  };
+  const side = [...L.nodes.filter(onSide), ...L.stubs].map((n) => n.fontSize * mm);
+  const canopyOnly = L.nodes.filter((n) => !onSide(n)).map((n) => n.fontSize * mm);
   return {
     paper,
     mmPerUnit: mm,
+    sideFamilies: side.length ? { count: side.length, smallestMm: r2(Math.min(...side)), typicalMm: r2(median(side)), canopyOnlyTypicalMm: r2(median(canopyOnly)) } : null,
     legible: L.legibility.ok,
     smallestTextMm: r2(L.legibility.smallestTextMm),
     clarityIssues: L.clarity.issues.length,
@@ -100,15 +114,18 @@ function measure(L: PosterLayout, paper: PaperSize) {
 it.skipIf(process.env.POSTER_SHOTS !== "1")("poster shots", () => {
   mkdirSync(OUT, { recursive: true });
   const all: Record<string, unknown> = {};
-  for (const [label, tree] of families()) {
+  const only = process.env.SHOTS_ONLY?.split(",");
+  for (const [label, tree] of families().filter(([l]) => !only || only.includes(l))) {
     for (const paper of PAPERS) {
       const settings = { ...tree.settings, posterSize: paper } as TreeDTO["settings"];
       const t = resolveTheme(settings);
+      const t0 = Date.now();
       const L = computePosterLayout({ ...tree, settings }, { showFemales: settings?.showFemales ?? false, seed: settings?.seed, ...layoutOptionsFor(t, paper) } as never);
+      const ms = Date.now() - t0;
       const svg = renderToStaticMarkup(React.createElement(TreePoster, { layout: L, meta: { title: tree.title ?? tree.name, subtitle: tree.subtitle ?? null, name: "" }, theme: t }));
       const id = `${label}_${paper}`;
       writeFileSync(`${OUT}/${id}.svg`, svg.replace("<svg", '<svg xmlns:xlink="http://www.w3.org/1999/xlink"'));
-      all[id] = measure(L, paper);
+      all[id] = { ...measure(L, paper), layoutSeconds: Math.round(ms / 100) / 10 };
     }
   }
   writeFileSync(`${OUT}/measurements.json`, JSON.stringify(all, null, 2));

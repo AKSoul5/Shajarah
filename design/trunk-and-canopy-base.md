@@ -158,6 +158,12 @@ The "before" figure is the angle the owner's family gives today: record it.
 
 ## Step 3: the trunk divides into the limbs
 
+**Owner's note (15 Nov, on approving step 1).** Step 1 draws the base's
+oval smaller, on a disc of bark that fills the space the oval used to take
+in the layout. That is acceptable only until this step: here the top of the
+trunk must fit the real oval, and the reserved space must go. The disc is
+not the answer.
+
 **What the reader sees.** One tree.
 - The trunk is wide at the ground and narrows as it rises.
 - Above the founder's oval it parts into the main limbs, whose outer edges

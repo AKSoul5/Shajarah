@@ -2974,10 +2974,16 @@ function layoutAttempt(
       const key = `${h.lone ? "lone:" : ""}${h.partnerId}`;
       byPartner.set(key, [...(byPartner.get(key) ?? []), h]);
     }
+    // (a wife whose children include the next name on the centred line, her
+    // husband on it: the canopy base, or a leader of the centred branch)
+    const centredKid = (h: Holder) => (h.lone || !(h.partnerId === base.data.member?.id || centerIds.has(h.partnerId))
+      ? undefined : h.kids.find((k) => centerIds.has(k.id)));
     for (const group of byPartner.values()) {
       const lone = !!group[0].lone;
       const P = fromOf(group[0]);
       const partnerBox = obstacles.find((o) => o.id === group[0].partnerId) ?? { x: P.x, y: P.y, w: 0, h: 0 };
+      // (the canopy base is among the obstacles only as its round space)
+      const baseSpaceBox = group[0].partnerId === base.data.member?.id ? obstacles.find((o) => o.id === "base:obstacle") : undefined;
       for (const h of group) {
         if (lone) {
           // outwards, the way the partner's own branch grows
@@ -2992,7 +2998,7 @@ function layoutAttempt(
       // (holders placed in this pass are judged where they are going, J,
       // not where they were)
       const at = (q: { h: Holder; J?: Vec }) => (q.J ? { ...q.h, x: q.J.x, y: q.J.y } : q.h);
-      const fits = (h: Holder, J: Vec, also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true) => {
+      const fits = (h: Holder, J: Vec, also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true, ownSpace = false) => {
         // (clear of names by a little more than a hairline: a box with a
         // name's rim touching it read as one shape)
         const pad = h.fontSize * 0.4;
@@ -3007,7 +3013,9 @@ function layoutAttempt(
         })) return false;
         if (!linesToo) return true;
         // the partner's line to it, and its lines to the children
-        if (others.some((o) => o !== partnerBox && lineHits(P, J, o, [partnerBox, me]))) return false;
+        // (on the stem, the line from the canopy base leaves its own round space)
+        const pl = others.find((o) => o !== partnerBox && !(ownSpace && o === baseSpaceBox) && lineHits(P, J, o, [partnerBox, me]));
+        if (pl) return false;
         for (const k of h.kids) if (others.some((o) => o !== k && lineHits(J, k, o, [me, k]))) return false;
         // and no line already drawn to another holder runs under it, nor any
         // other line (as drawn last time round)
@@ -3045,6 +3053,21 @@ function layoutAttempt(
       const KNOT_TS = [0.22, 0.28, 0.16, 0.34, 0.4, 0.45, 0.52, 0.6, 0.68, 0.76];
       const DEGS = [0, 8, -8, 16, -16, 24, -24, 32, -32, 42, -42];
       const spot = (h: Holder, ts: number[], also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true, shared = true) => {
+        // The wife who bore the centred branch: first on the line from her
+        // husband to it, so the stem rises straight through her, at a share of
+        // her centred son's distance, or turned 4° either way. (Her box went
+        // the plain average of her children's way, where small children
+        // outvoted the large branch, no nearer than her nearest child: the
+        // stem leaned to reach her.) Where no such spot is clear, she is placed
+        // as before.
+        const ck = centredKid(h);
+        if (ck) {
+          const toward = norm(sub(ck, P)), straight = len(sub(ck, P));
+          for (const deg of [0, 4, -4]) for (const t of ts) {
+            const c = add(P, scale(turned(toward, deg), straight * t));
+            if (fits(h, c, also, linesToo, true)) return c;
+          }
+        }
         // towards her children, turned a little either way, or towards one of them
         const dirs = [...DEGS.map((deg) => turned(h.dir, deg)), ...h.kids.map((k) => norm(sub(k, P)))];
         for (const t of ts) for (const d of dirs) {
