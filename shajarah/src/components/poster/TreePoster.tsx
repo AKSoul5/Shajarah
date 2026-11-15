@@ -530,16 +530,12 @@ function PaperGrain({ W, H, colour, uid }: { W: number; H: number; colour: strin
 /** Ivory disc with a fine double gold ring: branch heads, the crown base, stubs. */
 /** A round medallion (branch heads), or an oval one (the canopy base) when wider than tall. */
 function Medallion({ node, pal, onClick, strong, ring }: { node: PosterNode; pal: Palette; onClick: object; strong?: boolean; ring?: string | null }) {
-  // (the canopy base: its oval on a disc of bark filling its place, when the oval is smaller)
-  const rx = (node.oval?.w ?? node.w) / 2, ry = (node.oval?.h ?? node.h) / 2;
+  const rx = node.w / 2, ry = node.h / 2;
   const fs = node.fontSize;
   const inset = fs * 0.22;
   // a daughter heading a branch keeps her colour (sons' medallions are ivory)
   const own = !strong && node.member.gender === "FEMALE" ? pal.fill(node) : null;
   return (
-    <>
-    {/* (in the page's own coordinates: the trunk's gradient is laid across the page) */}
-    {node.oval && <ellipse cx={node.x} cy={node.y} rx={node.w / 2} ry={node.h / 2} fill={pal.mono ? "#fff" : `url(#${pal.uid}-trunk)`} />}
     <g transform={`translate(${node.x.toFixed(1)} ${node.y.toFixed(1)})`} {...onClick}>
       <title>{node.label}</title>
       {pal.mono ? (
@@ -556,7 +552,6 @@ function Medallion({ node, pal, onClick, strong, ring }: { node: PosterNode; pal
       </text>
       <SubLines node={node} y={fs * 0.6} fontSize={fs * 0.68} fill={own && !pal.mono ? own.text : pal.ink} opacity={0.8} />
     </g>
-    </>
   );
 }
 

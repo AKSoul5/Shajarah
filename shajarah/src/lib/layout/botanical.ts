@@ -195,11 +195,6 @@ export interface PosterNode {
   leafCount: number;
   parentId: string | null;
   /**
-   * The canopy base only: the oval as drawn, when smaller than its place in
-   * the layout (w, h). The place is then drawn as a disc of bark.
-   */
-  oval?: { w: number; h: number };
-  /**
    * Which major lineage this person belongs to (index, in order around the
    * canopy), for branch colouring; null for the trunk, the crown base and
    * childless sons of the crown base.
@@ -1484,7 +1479,12 @@ function layoutAttempt(
     const sub = baseText.subLabel ? textWidth(baseText.subLabel, fb * 0.68) / 2 + fb * 0.7 : 0;
     return Math.max(fb * 1.75, textWidth(baseText.label, fb) / 2 + fb * 0.8, sub);
   };
-  const baseRFor = (f: number) => baseRForFont(f * 1.3, f);
+  // The canopy base's name: at most BASE_CAP times the canopy's typical
+  // name (see canopyTypicalFor, below), and its space is its own oval: the
+  // trunk rises to it and the limbs leave from round it, with no space
+  // kept round the name beyond that.
+  const baseFontFor = (f: number) => Math.max(floorFor(f), Math.min(f * 1.3, canopyTypicalFor(f) * BASE_CAP));
+  const baseRFor = (f: number) => (base.data.member ? baseRForFont(baseFontFor(f), f) : f);
   // Trunk: the ancestors in one centred column, one per row, inside the
   // bark (never two staggered columns: the trunk reads as one solid form).
   // budget.fit: the trunk's names at most this many times the canopy's
@@ -1774,19 +1774,9 @@ function layoutAttempt(
   crown = { cx: W / 2, cy: top0 + ry, rx, ry, exponent: 2.4 };
   origin = { x: W / 2, y: crown.cy + 0.8 * ry };
   const baseMedallionR = baseRFor(f);
-  // The canopy base's name, at most BASE_CAP times the canopy's typical
-  // name, and its oval, sized to that name. The base's space (baseMedallionR,
-  // which places the first ring, the trunk and the foundation) is unchanged.
-  const canopyTypical0 = canopyTypicalFor(f);
-  const baseFont = Math.max(floorFor(f), Math.min(f * 1.3, canopyTypical0 * BASE_CAP));
+  const baseFont = baseFontFor(f);
   const ovalOf = (r: number) => ({ rx: r * BASE_OVAL.w, ry: r * (baseText.subLabel ? 0.85 : BASE_OVAL.h) });
-  // The oval's place in the layout (where the lines from the base start,
-  // what the other names and lines keep clear of) is as before; only the
-  // oval drawn on it is sized to its name, on a disc of bark. (A smaller
-  // oval in the layout too moved where the base's lines start, and on some
-  // families set the whole canopy a third smaller.)
   const baseOval = ovalOf(baseMedallionR);
-  const baseOvalDrawn = ovalOf(Math.min(baseMedallionR, baseRForFont(baseFont)));
   const trunkFont = trunkFontFor(f);
   const rowFont = trunkRowFontFor(f);
   const trunkStep = stepFor(f);
@@ -4207,8 +4197,6 @@ function layoutAttempt(
     baseNode = {
       id: m.id, member: m, x: origin.x, y: origin.y, depth: 0, generation: m.generation,
       w: baseOval.rx * 2, h: baseOval.ry * 2, fontSize: fs, shape: "medallion",
-      // drawn smaller than its place when its name is (on a disc of bark filling the place)
-      ...(baseOvalDrawn.rx < baseOval.rx - 1e-6 ? { oval: { w: baseOvalDrawn.rx * 2, h: baseOvalDrawn.ry * 2 } } : {}),
       label: m.name, subLabel, terminal: !base.children,
       angle: 0, leafLength: 0, leafWidth: 0, leafCount: base.value ?? 1,
       parentId: base.parent?.data.member?.id ?? null,
@@ -4265,12 +4253,11 @@ function layoutAttempt(
     ...empty,
     // geometry may have switched to the tall-base variant
     crown, origin, groundY,
-    // flaring at the top to meet the canopy base, as a trunk divides into
-    // its limbs (no wider than the medallion, which covers the top)
+    // rising at its own width to the canopy base, where the limbs leave
+    // it; wider at the top only where the base's oval is wider than the
+    // trunk, just enough to hold it on the wood
     trunkPath: trunkOutline(
-      // (a collar: as wide as the canopy base, a little wider than the
-      // trunk, so the limbs visibly grow out of it)
-      origin, groundY, trunkWidth, TW, Math.max(trunkWidth * 1.3, baseOval.rx * 1.9),
+      origin, groundY, trunkWidth, TW, Math.max(trunkWidth, base.data.member ? baseOval.rx * 2.16 : 0),
       soil ? soil.trunkSpread : 1, soil?.trunkTaper ?? 0,
     ),
     trunkWidth,
