@@ -23,6 +23,23 @@ moves the work on. A plan that exists only in a conversation does not count.
 | **Next** | **1.0.54: data protection** (S2) |
 | **Waiting, unmerged** | Branches `wives-lines` and `spouse-align` (poster). They were tested on 1.0.51 and are scheduled for 1.0.59 |
 
+## Current priority: the poster (owner, 15 Nov 2026)
+
+Data protection (1.0.54) is paused on branch `claude/quirky-cannon-1nnx69`,
+unmerged (no customers yet). Prototype rules while the poster work lasts: no
+release per change, work on a branch, judge by before/after images, one full
+layout QA before asking to merge. The owner's own family is the main test
+case, used locally only, never committed.
+
+1. **The trunk and the base of the canopy** (branch `poster/trunk-canopy-base`,
+   brief in `design/trunk-and-canopy-base.md`): one scale for names; the stem
+   rising straight through the centred wife; the trunk dividing into the limbs.
+   Each step shown before/after and approved before the next.
+2. **Queued, starts only after 1 is approved: side families as boughs** with
+   their own small crowns, so the whole poster reads as a tall tree with tiers
+   of boughs (a brief and a rough picture first, then two ways of building it
+   to choose from).
+
 ## Order of work (binding)
 
 **Safety comes first.** Data protection, recovery and relationship integrity

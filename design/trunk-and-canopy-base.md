@@ -223,8 +223,7 @@ The "before" figure is the angle the owner's family gives today: record it.
   design, Platinum and Modern Archive, and in all seven for step 3.
 - **Trunk close-up**: the top and bottom badges, and the side-branch
   departures.
-- Use the same crops before and after, saved in
-  `%TEMP%\shajarah-design\<date>-trunk-canopy-base\`.
+- Use the same crops before and after.
 
 ## Constraints from the design language
 
