@@ -126,6 +126,11 @@ $null = Api $app POST "/api/trees/$id/marriages" @{ spouseAId = $adam; spouseBId
 $before = Describe-Family (Api $app GET "/api/trees/$id")
 "family created by $OldVersion`n$before"
 Stop-App $app
+# from 1.0.52 on, a first start sets up its own folder and names it in active.json
+$pointerFile = Join-Path $data 'database\active.json'
+$pointerBefore = if (Test-Path $pointerFile) { Get-Content -Raw $pointerFile } else { $null }
+$activeRel = if ($pointerBefore) { ($pointerBefore | ConvertFrom-Json).active } else { 'cluster' }
+"database folder in use: $activeRel"
 
 # ── 2. the old program's own updater, from a local feed
 $feed = Start-Process -FilePath 'python' -ArgumentList '-m', 'http.server', '8411', '--bind', '127.0.0.1', '--directory', $CandidateDir -PassThru -WindowStyle Hidden
@@ -162,7 +167,11 @@ $after = Describe-Family (Api $app GET "/api/trees/$id")
 Stop-App $app
 if ($after -ne $before) { "after:`n$after"; throw "The family changed in the upgrade from $OldVersion" }
 "family identical after the upgrade from $OldVersion"
-if (Test-Path (Join-Path $data 'database\active.json')) { throw 'An upgrade must keep using the existing database folder (no active.json)' }
+if ($null -eq $pointerBefore) {
+  if (Test-Path $pointerFile) { throw 'An upgrade must keep using the existing database folder (no active.json)' }
+} elseif (-not (Test-Path $pointerFile) -or (Get-Content -Raw $pointerFile) -ne $pointerBefore) {
+  throw 'An upgrade must keep using the same database folder (active.json changed)'
+}
 
 # ── 4. the candidate on a copy with PG_VERSION missing changes nothing
 if ($Recovery) {
@@ -170,7 +179,7 @@ if ($Recovery) {
   $copy = Join-Path $root 'database'
   New-Item -ItemType Directory -Force -Path $root | Out-Null
   Copy-Item -Recurse (Join-Path $data 'database') $copy
-  Remove-Item (Join-Path $copy 'cluster\PG_VERSION')
+  Remove-Item (Join-Path (Join-Path $copy $activeRel) 'PG_VERSION')
   $fp = Fingerprint $copy
   $env:SHAJARAH_USER_DATA = $root
   $p = Start-Process -FilePath $exe -ArgumentList '--recovery-test' -PassThru -Wait
