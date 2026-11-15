@@ -107,6 +107,11 @@ export interface PosterSettings {
   /** Show one branch only: this member, their ancestors and descendants. */
   focusId?: string | null;
   /**
+   * Generation 1: the person generations are counted from (see
+   * src/lib/family/generations.ts). Unset: the canopy's start, else the root.
+   */
+  referenceId?: string | null;
+  /**
    * Primary lineage: this member's branch is placed at the centre of the
    * canopy (straight above the trunk), its brothers to either side.
    */
