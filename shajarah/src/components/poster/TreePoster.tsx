@@ -231,7 +231,7 @@ export const TreePoster = memo(
             the upper one visibly passes over the lower (never a shared junction) */}
         <g stroke={pal.paper} strokeWidth={W * 0.0018} strokeLinejoin="round" paintOrder="stroke">
           {layout.branches.map((b, i) =>
-            b.dotted ? (
+            b.bare ? null : b.dotted ? (
               // a family shown through a daughter: round dots along the line,
               // evenly from one end to the other (spaced to fit its length)
               b.length ? (
@@ -245,6 +245,9 @@ export const TreePoster = memo(
             ),
           )}
         </g>
+        {/* the limbs' first stretch out of the fork at the top of the trunk,
+            again without the edge, so they grow out of the wood with no seam */}
+        {layout.branches.map((b, i) => (b.bare ? <path key={`bare${i}`} d={b.d} fill={pal.branch(b.lineage)} /> : null))}
 
         {/* The ancestral chain on the trunk, eldest at the bottom, joined by a gold
             thread that runs up the middle of the bark to the canopy base */}
