@@ -389,6 +389,10 @@ export interface PosterLayout {
   centerLine?: string[];
   /** Whether the stem was held upright (see LayoutOptions.stemUpright): false where that cost the poster, and it kept the centred son's own place. */
   stemUpright?: boolean;
+  /** How many whole layouts computePosterLayout made for this poster (1, or 2 where it tried the stem unpinned too). */
+  laidOut?: number;
+  /** Internal: one attempt as this layout was made, with other options and its names `factor` times the size. Not handed on. */
+  probe?: (o: LayoutOptions, factor: number) => PosterLayout;
 }
 
 interface TNode {
@@ -421,42 +425,43 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
-  if (opts.stemUpright !== undefined) return compactGuarded(tree, opts);
+  const done = (l: PosterLayout, n = 1) => {
+    delete l.probe;
+    l.laidOut = n;
+    return l;
+  };
+  if (opts.stemUpright !== undefined) return done(compactGuarded(tree, opts));
   // The stem upright (the centred son straight above the canopy base): laid
-  // out so first. Laid out again without it only where that can pay: the
-  // upright poster unclear (not clean, or a thin line running along a thick
-  // limb) or not legible, or the canopy base with three or more wives'
-  // boxes (holding one wife on the stem pushed the others' families aside:
-  // a family with three, 11.98 to 9.11 mm at A1). Still a line running
-  // alongside: once more with the wives' boxes further out (wivesRoom). The
-  // best is used: the cleanest, then the most legible, then the fewest
-  // lines alongside; then, with three or more wives, the larger names.
-  // (Laying every poster out both ways doubled the time.)
+  // out so first. Laid out again without it only where that can pay:
+  // - its names would be more than STEM_FREE_GAIN larger unpinned: judged
+  //   by one attempt, unpinned, at that much larger a size (clean and
+  //   legible there, the whole layout is made unpinned and compared);
+  // - the upright poster is not legible;
+  // - on a poster otherwise clean, names whose drawn frames touch, with the
+  //   designed name boxes (as the layout QA's design check counts them), or
+  //   a childless child's line
+  //   from the canopy base or one of its wives' boxes running along a
+  //   thicker line from there (it reads as part of that limb).
+  // Not for a poster that is merely not clean: unpinned it rarely did
+  // better, and laying such posters out again (on every paper tried for
+  // the smallest clear one) made dense families three times slower.
+  // Still a line alongside: once more with the wives' boxes further out.
+  // The best is used: the cleanest, then the most legible, then the fewest
+  // frames touching, then the names, if more than STEM_FREE_GAIN larger,
+  // then the fewest lines alongside.
   const typical = (l: PosterLayout) => {
     const sizes = l.nodes.filter((n) => n.depth > 0).map((n) => n.fontSize).sort((a, b) => a - b);
     return sizes.length ? sizes[sizes.length >> 1] : 0;
   };
-  // (count as unclear here too: names whose drawn frames touch, with the
-  // designed name boxes, as the layout QA's design check counts them; and a
-  // childless child's line from the canopy base or one of its wives' boxes
-  // running along a thicker line from there (it reads as part of that
-  // limb), where holding the stem upright moved things about. Not every line alongside anywhere: a family's own tree,
-  // fine upright, was laid out four times over one)
   const alongside = (l: PosterLayout) => linesAlongside(l).length;
   const designed = (l: PosterLayout) => l.nodes.some((n) => isDesignShape(n.shape as never));
   const frames = (l: PosterLayout) => (designed(l) ? framesTouching(l) : 0);
   const inWivesFans = (l: PosterLayout) => linesAlongside(l)
     .filter((a) => (a.edge[0] === l.base?.id || l.spouses.some((h) => h.id === a.edge[0] && h.partnerId === l.base?.id))
       && !!l.nodes.find((n) => n.id === a.edge[1])?.terminal).length;
-  const sound = (l: PosterLayout) => isCleanPoster(l) && l.legibility.ok && frames(l) === 0 && inWivesFans(l) === 0;
   const upright = compactGuarded(tree, { ...opts, stemUpright: true });
   const centred = !!upright.centerLine?.length;
   if (centred) upright.stemUpright = true;
-  const wives = upright.base ? upright.spouses.filter((s) => s.partnerId === upright.base!.id && !s.knot).length : 0;
-  if (sound(upright) && (!centred || wives < STEM_FREE_WIVES)) return upright;
-  // (a crowded poster, far from clean, is not helped by either: a larger
-  // paper is; tried, they made the search for the smallest clear paper slow)
-  if (!nearlyClean(upright) && !(isCleanPoster(upright) && wives >= STEM_FREE_WIVES)) return upright;
   const tried = [upright];
   const lay = (o: LayoutOptions) => {
     const l = compactGuarded(tree, { ...opts, ...o });
@@ -468,18 +473,34 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
     if (a.legibility.ok !== b.legibility.ok) return a.legibility.ok;
     if (a.clarity.issues.length !== b.clarity.issues.length) return a.clarity.issues.length < b.clarity.issues.length;
     if (frames(a) !== frames(b)) return frames(a) < frames(b);
-    // (with three or more wives, the larger names; then the fewer lines alongside)
-    if (wives >= STEM_FREE_WIVES && Math.abs(typical(a) - typical(b)) > typical(b) * 0.001) return typical(a) > typical(b);
+    if (typical(a) > typical(b) * (1 + STEM_FREE_GAIN)) return true;
+    if (typical(b) > typical(a) * (1 + STEM_FREE_GAIN)) return false;
     return alongside(a) < alongside(b);
   };
   const best = () => tried.reduce((x, y) => (better(y, x) ? y : x));
-  if (centred) lay({ stemUpright: false });
-  if (inWivesFans(best()) > 0) lay({ stemUpright: !centred, wivesRoom: true });
-  // (nearly clean, not clean: once more with the base's limbs rising less,
-  // where a limb crossing a childless brother's line beside it is the cause)
-  if (!isCleanPoster(best()) && nearlyClean(best())) lay({ stemUpright: best().stemUpright ?? true, limbsLow: true });
-  return best();
+  const finish = () => {
+    const b = best();
+    for (const l of tried) delete l.probe;
+    return done(b, tried.length);
+  };
+  // (frames and lines alongside only on a poster otherwise clean: a crowded
+  // one has some anywhere, and the cure for it is a larger paper)
+  let free = !upright.legibility.ok || (isCleanPoster(upright) && (frames(upright) > 0 || inWivesFans(upright) > 0));
+  if (centred && !free && isCleanPoster(upright) && upright.probe) {
+    const p = upright.probe({ stemUpright: false }, 1 + STEM_FREE_GAIN);
+    free = isCleanPoster(p) && p.legibility.ok;
+  }
+  if (centred && free) lay({ stemUpright: false });
+  if (isCleanPoster(best()) && inWivesFans(best()) > 0) lay({ stemUpright: !centred, wivesRoom: true });
+  return finish();
 }
+
+/** How much larger the names must be unpinned before the stem gives up being upright (see computePosterLayout). */
+const STEM_FREE_GAIN = 0.03;
+
+/** Whether two of the canopy base's own lines cross. */
+const baseLinesCross = (l: PosterLayout) => l.clarity.issues.some((i) => i.kind === "crossing"
+  && i.edge?.[0] === l.base?.id && Array.isArray(i.other) && i.other[0] === l.base?.id);
 
 /** Pairs of names whose drawn outlines (a design's frame, a ring) touch, as the layout QA's decor check measures them. */
 function framesTouching(l: PosterLayout): number {
@@ -495,9 +516,6 @@ function framesTouching(l: PosterLayout): number {
 
 /** Nearly clean: no names overlapping, a few ambiguities at most (another arrangement may clear them; more is crowding). */
 const nearlyClean = (l: PosterLayout) => l.overlaps === 0 && l.clarity.issues.length <= 4;
-
-/** Wives' boxes at the canopy base from which the stem is also tried unpinned (see computePosterLayout). */
-const STEM_FREE_WIVES = 3;
 
 function compactGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = withBoxRoom(tree, opts);
@@ -750,6 +768,23 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       // was clean (a poster set at half its size). Nearly clean there, a few
       // larger sizes are tried (at most LARGER_TRIES), and the search goes on
       // up from the first clean one.
+      // The canopy base's own lines crossing there (a limb rising past the
+      // line of a childless brother beside it, outside the small oval): one
+      // attempt with the base's limbs rising less (limbsLow), and where that
+      // is clean, the whole search with them so. (Not by default: rising
+      // past a brother's line is common and mostly harmless, and holding
+      // every limb down set a family of several marriages and one with sons
+      // only up to 30% smaller.)
+      if (!opts.limbsLow && legibleScale < 0.999 && !isClean(at(legibleScale)) && at(legibleScale).overlaps === 0
+        && at(legibleScale).clarity.issues.length <= 2 && baseLinesCross(at(legibleScale))) {
+        const low = layoutAttempt(tree, { ...opts, limbsLow: true }, legibleScale, false, false, dense, { checks: 0 });
+        low.clarity = validateRelationships(low, tree);
+        if (isClean(low)) {
+          opts = { ...opts, limbsLow: true };
+          firstAttempt = undefined;
+          return search(dense);
+        }
+      }
       let lifted: number | undefined;
       if (legibleScale < 0.999 && !isClean(at(legibleScale)) && at(legibleScale).overlaps === 0 && at(legibleScale).clarity.issues.length <= 2) {
         for (const k of LARGER_TRIES) {
@@ -1025,6 +1060,14 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const better = (a: PosterLayout, b: PosterLayout) => rank(a) < rank(b)
     || (rank(a) === rank(b) && a.legibility.smallestTextMm > b.legibility.smallestTextMm * 1.05);
   const result = best.layout;
+  // (one attempt as this one was made, at another size or with another
+  // option: see computePosterLayout; removed before the layout is handed on)
+  const found = best;
+  result.probe = (o: LayoutOptions, factor: number) => {
+    const keep = opts;
+    opts = { ...opts, ...o };
+    try { return found.attempt(found.chosen * factor, false, found.strict, found.untangle ?? 0, found.fit); } finally { opts = keep; }
+  };
   result.tooDense = result.clarity.issues.length > CLARITY_LIMIT;
   // The balanced centring (a leader up the centred branch, its brothers
   // split by names) never costs a clean, legible poster either: a poster it
