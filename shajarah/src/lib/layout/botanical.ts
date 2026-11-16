@@ -50,7 +50,7 @@ import {
   add, circlePath, cubicPoint as cubicPointAt, cubicTangent, len, norm, ribbonPath, scale, sub,
   type Cubic, type Vec,
 } from "./geometry";
-import { leavingParent, validateRelationships, type ClarityReport } from "./clarity";
+import { leavingParent, linesAlongside, validateRelationships, type ClarityReport } from "./clarity";
 import { soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from "./soil";
 import { namesOf, shortenSoil, wordsOf } from "./soil/common";
 import { mulberry32 } from "./random";
@@ -105,6 +105,8 @@ export interface LayoutOptions {
    * computePosterLayout).
    */
   stemUpright?: boolean;
+  /** The canopy base's wives' boxes placed clear of the space once kept round its name (see computePosterLayout). */
+  wivesRoom?: boolean;
   /** Moves the middle of the canopy's fan by this share of it (towards the end where u = 1), to even out its two halves. Default: chosen automatically. */
   sideBias?: number;
   /** How far (radians) above horizontal the canopy's sweep starts on each side. Default: SWEEP_LIFT, eased for a very crowded generation. */
@@ -228,8 +230,6 @@ export interface Branch {
   d: string;
   w: number;
   lineage?: number | null;
-  /** Drawn without the pale outline, over the others: a limb's first stretch out of the fork. */
-  bare?: boolean;
   /**
    * A dotted line (a family shown through a daughter): `d` is then the
    * line's centre, to be stroked `w` wide, not a filled outline.
@@ -421,22 +421,53 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
   if (opts.stemUpright !== undefined) return compactGuarded(tree, opts);
   // The stem upright (the centred son straight above the canopy base): laid
-  // out so first, and again without only when that poster is not clean or
-  // not legible, the unpinned one then used where it does better. (Laying
-  // every poster out both ways doubled the time.)
+  // out so first. Laid out again without it only where that can pay: the
+  // upright poster unclear (not clean, or a thin line running along a thick
+  // limb) or not legible, or the canopy base with three or more wives'
+  // boxes (holding one wife on the stem pushed the others' families aside:
+  // a family with three, 11.98 to 9.11 mm at A1). Still a line running
+  // alongside: once more with the wives' boxes further out (wivesRoom). The
+  // best is used: the cleanest, then the most legible, then the fewest
+  // lines alongside; then, with three or more wives, the larger names.
+  // (Laying every poster out both ways doubled the time.)
+  const typical = (l: PosterLayout) => {
+    const sizes = l.nodes.filter((n) => n.depth > 0).map((n) => n.fontSize).sort((a, b) => a - b);
+    return sizes.length ? sizes[sizes.length >> 1] : 0;
+  };
+  const alongside = (l: PosterLayout) => linesAlongside(l).length;
+  const sound = (l: PosterLayout) => isCleanPoster(l) && l.legibility.ok && alongside(l) === 0;
   const upright = compactGuarded(tree, { ...opts, stemUpright: true });
-  if (!upright.centerLine?.length) return upright;
-  upright.stemUpright = true;
-  if (isCleanPoster(upright) && upright.legibility.ok) return upright;
-  const free = compactGuarded(tree, { ...opts, stemUpright: false });
-  const better = (isCleanPoster(free) && !isCleanPoster(upright))
-    || (free.legibility.ok && !upright.legibility.ok)
-    || (isCleanPoster(free) === isCleanPoster(upright) && free.legibility.ok === upright.legibility.ok
-      && free.clarity.issues.length < upright.clarity.issues.length);
-  if (!better) return upright;
-  free.stemUpright = false;
-  return free;
+  const centred = !!upright.centerLine?.length;
+  if (centred) upright.stemUpright = true;
+  const wives = upright.base ? upright.spouses.filter((s) => s.partnerId === upright.base!.id && !s.knot).length : 0;
+  if (sound(upright) && (!centred || wives < STEM_FREE_WIVES)) return upright;
+  // (a crowded poster, far from clean, is not helped by either: a larger
+  // paper is; tried, they made the search for the smallest clear paper slow)
+  if (!nearlyClean(upright) && !(isCleanPoster(upright) && wives >= STEM_FREE_WIVES)) return upright;
+  const tried = [upright];
+  const lay = (o: LayoutOptions) => {
+    const l = compactGuarded(tree, { ...opts, ...o });
+    if (centred) l.stemUpright = o.stemUpright;
+    tried.push(l);
+  };
+  const better = (a: PosterLayout, b: PosterLayout) => {
+    if (isCleanPoster(a) !== isCleanPoster(b)) return isCleanPoster(a);
+    if (a.legibility.ok !== b.legibility.ok) return a.legibility.ok;
+    if (a.clarity.issues.length !== b.clarity.issues.length) return a.clarity.issues.length < b.clarity.issues.length;
+    if (alongside(a) !== alongside(b)) return alongside(a) < alongside(b);
+    return wives >= STEM_FREE_WIVES && typical(a) > typical(b) * 1.001;
+  };
+  const best = () => tried.reduce((x, y) => (better(y, x) ? y : x));
+  if (centred) lay({ stemUpright: false });
+  if (alongside(best()) > 0 && upright.spouses.length) lay({ stemUpright: !centred, wivesRoom: true });
+  return best();
 }
+
+/** Nearly clean: no names overlapping, a few ambiguities at most (another arrangement may clear them; more is crowding). */
+const nearlyClean = (l: PosterLayout) => l.overlaps === 0 && l.clarity.issues.length <= 4;
+
+/** Wives' boxes at the canopy base from which the stem is also tried unpinned (see computePosterLayout). */
+const STEM_FREE_WIVES = 3;
 
 function compactGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = withBoxRoom(tree, opts);
@@ -445,8 +476,14 @@ function compactGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // times larger and taking height the tree needed. Laid out again with
   // them following the names (LayoutOptions.compactLower); that poster is
   // used when it is as clean and as legible, its names no smaller.
-  if (opts.compactLower === undefined && oversizedLower(layout)) {
+  // (and tried for a poster not clean, or whose names are too small to
+  // read, with its foundation at full size: the foundation's room, given to
+  // the tree, can make it clean or legible)
+  if (opts.compactLower === undefined && layout.soil && (oversizedLower(layout) || !layout.legibility.ok || (!isCleanPoster(layout) && nearlyClean(layout)))) {
     const compact = withBoxRoom(tree, { ...opts, compactLower: true });
+    // (correct relationships first, as everywhere: clean where the other is
+    // not, it is used even with smaller names)
+    if (isCleanPoster(compact) && !isCleanPoster(layout)) return compact;
     const asGood = (isCleanPoster(compact) || !isCleanPoster(layout))
       && (compact.legibility.ok || !layout.legibility.ok)
       && compact.overlaps <= layout.overlaps
@@ -1098,11 +1135,6 @@ const WIDE_CANOPY = 30;
 /** The canopy base's oval, as fractions of its round space's radius (wider than tall). */
 const BASE_OVAL = { w: 1, h: 0.66 };
 
-/** The fork's arc at the top of the trunk (see forkGeom): its sweep, in radians, at most. */
-const FORK_SWEEP = 1.2;
-/** How far below its top the fork's arc may end, in heights of the canopy base's oval: its lines all leave at the base's row. */
-const FORK_SAG = 0.8;
-
 /** The stem's shoulders under the wife's box (see stemPath): 1 straight bevels, 2 a quarter ellipse. */
 const STEM_SHOULDER = 1.5;
 
@@ -1687,7 +1719,7 @@ function layoutAttempt(
     const trunkH = trunkSection(p.onTrunk.length, f);
     if (branchMode && trunkH > avail * TRUNK_SHARE) return Infinity;
     const useSoil = p.soil.length > 0 || !!customSoil;
-    return 1.8 * crownDims(f, areaScale).ry + baseRFor(f) + trunkH + (useSoil ? soilFor(f, p).height + soilFoot : f * 0.8);
+    return 1.8 * crownDims(f, areaScale).ry + ringRFor(f) + trunkH + (useSoil ? soilFor(f, p).height + soilFoot : f * 0.8);
   };
   const avail = contentBottom - contentTop;
   // Candidate arrangements, most faithful first.
@@ -1823,7 +1855,7 @@ function layoutAttempt(
   let stemExtra = 0;
   if (branchMode && slack > 0) {
     // a branch poster's canopy reaches for 70% of the page
-    const grow = Math.min(slack / 1.8, Math.max(0, avail * (1 - LOWER_SHARE) - (1.8 * ry + baseRFor(f))) / 1.8, ryMax - ry);
+    const grow = Math.min(slack / 1.8, Math.max(0, avail * (1 - LOWER_SHARE) - (1.8 * ry + ringRFor(f))) / 1.8, ryMax - ry);
     rx = Math.min(rxMax, rx * (1 + grow / ry));
     ry += grow;
     slack -= grow * 1.8;
@@ -1848,9 +1880,9 @@ function layoutAttempt(
   const trunkFont = trunkFontFor(f);
   const rowFont = trunkRowFontFor(f);
   const trunkStep = stepFor(f);
-  const labelTop = origin.y + baseMedallionR + rowFont * 1.4;
+  const labelTop = origin.y + ringRFor(f) + rowFont * 1.4;
   const labelBottom = labelTop + Math.max(0, shownTrunk.length - 1) * trunkStep;
-  groundY = shownTrunk.length ? labelBottom + rowFont * 1.5 : origin.y + baseMedallionR + trunkSection(0, f) + stemExtra;
+  groundY = shownTrunk.length ? labelBottom + rowFont * 1.5 : origin.y + ringRFor(f) + trunkSection(0, f) + stemExtra;
   const badgeWAt = (ft: number) => (n: HNode) => Math.max(textWidth(n.data.member!.name, ft) + ft * 1.7, ft * 3.4);
   // the trunk's width and the side branches' ports, from the rows' size (see trunkRowFontFor)
   const rowWidest = Math.max(0, ...shownTrunk.map(badgeWAt(rowFont)));
@@ -2988,123 +3020,90 @@ function layoutAttempt(
     }
     return { w0: !h.lone && h.anchorOf.region === "crown" && h.anchorOf.depth === 1 ? w * 1.15 : w, w1: w * 0.85 };
   };
-  // ── The fork: the top of the trunk, where the canopy base's lines leave ──
-  // Each of the base's lines (to a child of his drawn straight from him, or
-  // to a wife's box, carrying her children's lines) leaves from its own
-  // place along a shallow arc at the top of the trunk, at its own width
-  // and square to the arc, so the lines part at once. The arc is as long
-  // as the lines are wide together, with the stem (the centred son's line,
-  // or his mother's) in its middle on the trunk's axis and the others on
-  // either side in the order of where they go; the trunk's top follows it,
-  // at least wide enough to hold the base's oval on the wood just under it.
-  // (A small oval and nothing round it: its lines started bunched at its
-  // rim and the canopy above came out smaller; the space round the name
-  // used to spread them.)
-  type ForkLine = { key: string; w: number; target: Vec; stem: boolean };
-  type ForkPlace = { p: Vec; dir: Vec; w: number };
-  // (a holder's line is keyed by the holder; a child's own line by the child)
-  const forkKeyOf = (k: LiveNode): string => holderOf.get(k.id)?.id ?? k.id;
-  let forkWidthMemo: Map<string, number> | undefined;
-  const forkWidths = (): Map<string, number> => {
-    if (forkWidthMemo) return forkWidthMemo;
-    // (each at its own width: the trunk narrows to the limbs together, not
-    // each limb widened to a share of the trunk, which made the fork wider
-    // than the trunk)
+  // The stem: the centred son's limb, or, under his mother's box on it,
+  // wood carrying the trunk on up to her. Its own width where it starts
+  // (as a main limb's, no wider than the trunk; fixed once the spouses'
+  // holders are made), and the neck's: as wide as the stem, and, under a
+  // wife's box, wide enough to hold the canopy base's oval on the wood;
+  // with no box there a little narrower than the oval, so the neck's top
+  // ends inside it.
+  let stemWidthMemo: number | undefined;
+  const stemWidth = (): number => {
+    if (stemWidthMemo !== undefined) return stemWidthMemo;
+    if (!stemSonId || !base.data.member) return (stemWidthMemo = 0);
     const live = nodes.filter((n) => n.region !== "fixed");
-    const out = new Map<string, number>();
-    for (const h of holders) {
-      if (h.lone || h.partnerId !== base.data.member?.id) continue;
-      const w = widthOf(Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0)));
-      out.set(h.id, Math.min(trunkWidth, w * 1.15));
+    const limbs = live.filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal && !holderOf.has(n.id)).length
+      + holders.filter((h) => !h.lone && h.anchorOf.region === "crown" && h.anchorOf.depth === 1).length;
+    const share = limbs ? clamp(1.05 / limbs, 0.14, 0.4) : 0;
+    const wife = holders.find(isStemWife);
+    if (wife) {
+      const w = widthOf(Math.max(1, wife.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0)));
+      return (stemWidthMemo = Math.min(trunkWidth, Math.max(w * 1.15, trunkWidth * share)));
     }
-    for (const n of live) {
-      if (n.parentId !== base.data.member?.id || holderOf.has(n.id)) continue;
-      const w = n.shape === "leaf" ? widthOf(1) : widthOf(n.leafCount);
-      out.set(n.id, Math.min(trunkWidth, w * 1.15));
-    }
-    return (forkWidthMemo = out);
+    const son = byId.get(stemSonId);
+    if (!son) return (stemWidthMemo = 0);
+    const w = widthOf(son.leafCount);
+    return (stemWidthMemo = Math.min(trunkWidth, son.terminal ? w * 1.15 : Math.max(w * 1.15, trunkWidth * share)));
   };
-  const forkLines = (): ForkLine[] => {
-    if (!base.data.member) return [];
-    const widths = forkWidths();
-    const out = new Map<string, ForkLine>();
-    for (const k of nodes) {
-      if (k.region === "fixed" || k.parentId !== base.data.member.id || stemStart.has(k.id)) continue;
+  const neckWidth = (): number => {
+    if (!base.data.member) return trunkWidth;
+    const onWood = holders.some(isStemWife) ? 1.1 : 0.92;
+    return Math.min(trunkWidth, Math.max(stemWidth(), baseOval.rx * 2 * onWood));
+  };
+  // Under a wife's box on the stem, the base's other lines leave the sides
+  // of the neck, at the oval's height: from under the stem they came out of
+  // its side, as if from the wife on it. Spread along the side, the one
+  // rising most steeply highest, each its own place on the wood's edge.
+  // (With no box there, the limbs fan out from the base's centre as before.)
+  const neckSide = () => (holders.some(isStemWife) ? Math.max(neckWidth() / 2, baseOval.rx) : 0);
+  const sideStartOf = (node: LiveNode): Vec | null => {
+    const side = neckSide();
+    if (!side || !base.data.member || node.parentId !== base.data.member.id || node.id === stemSonId) return null;
+    // (the lines from the base: to a child of his, or to another wife's box, her first child standing for her)
+    const lineKey = (k: LiveNode): LiveNode | null => {
       const h = holderOf.get(k.id);
-      if (h?.lone) continue;
-      const key = forkKeyOf(k);
-      if (out.has(key)) continue;
-      const target = h ? h.kids.reduce((a, q) => add(a, scale({ x: q.x, y: q.y }, 1 / h.kids.length)), { x: 0, y: 0 } as Vec) : { x: k.x, y: k.y };
-      const stem = h ? isStemWife(h) : k.id === stemSonId;
-      out.set(key, { key, w: widths.get(key) ?? widthOf(1), target, stem });
-    }
-    return [...out.values()];
-  };
-  /** Where each of the base's lines leaves the fork, and the fork's arc (its centre F, radius R, half sweep phi). */
-  const forkGeom = () => {
-    const lines = forkLines();
-    const top = origin.y - (base.data.member ? baseOval.ry : 0);
-    const ang = (l: ForkLine) => Math.atan2(l.target.x - origin.x, origin.y - l.target.y);
-    lines.sort((a, b) => ang(a) - ang(b));
-    const si = lines.findIndex((l) => l.stem);
-    const ws = si >= 0 ? lines[si].w : 0;
-    const left = si >= 0 ? lines.slice(0, si) : [], right = si >= 0 ? lines.slice(si + 1) : [];
-    const sum = (ls: ForkLine[]) => ls.reduce((a, l) => a + l.w, 0);
-    // half the arc's length: symmetric about the axis, the shorter side's
-    // lines spaced out to fill it; long enough that the chord holds the oval
-    let H = si >= 0 ? ws / 2 + Math.max(sum(left), sum(right)) : sum(lines) / 2;
-    // (a flatter arc for a wide fork: its ends no lower than FORK_SAG of the
-    // oval's height below its top, so every line leaves at the base's row)
-    const phi = Math.min(FORK_SWEEP / 2, (FORK_SAG * Math.max(baseOval.ry, 1)) * 2 / Math.max(H, 1e-6));
-    H = Math.max(H, baseOval.rx * 1.1 * phi / Math.max(Math.sin(phi), 1e-6));
-    const R = H / phi;
-    const F = { x: origin.x, y: top + R };
-    const at = (s: number, w: number): ForkPlace => {
-      const th = s / R;
-      const dir = { x: Math.sin(th), y: -Math.cos(th) };
-      return { p: add(F, scale(dir, R)), dir, w };
+      return !h ? k : isStemWife(h) ? null : h.kids[0];
     };
-    const places = new Map<string, ForkPlace>();
-    const lay = (ls: ForkLine[], from: number, to: number) => {
-      // from `from` outwards to `to` (signed arc lengths), in order, gaps even
-      const room = Math.abs(to - from), used = sum(ls), gap = ls.length ? Math.max(0, room - used) / ls.length : 0;
-      const sg = Math.sign(to - from) || 1;
-      let s = from;
-      for (const l of ls) {
-        places.set(l.key, at(s + sg * (l.w / 2 + gap / 2), l.w));
-        s += sg * (l.w + gap);
-      }
-    };
-    if (si >= 0) {
-      places.set(lines[si].key, at(0, ws));
-      lay([...left].reverse(), -ws / 2, -H);
-      lay(right, ws / 2, H);
-    } else lay(lines, -H, H);
-    return { places, F, R, phi, top, chord: 2 * R * Math.sin(phi), ends: F.y - R * Math.cos(phi) };
+    const me = lineKey(node) ?? node;
+    const sgn = Math.sign(me.x - origin.x) || 1;
+    const out = [...new Set(nodes.filter((k) => k.region !== "fixed" && k.parentId === base.data.member!.id && k.id !== stemSonId).map(lineKey))]
+      .filter((k): k is LiveNode => !!k && (Math.sign(k.x - origin.x) || 1) === sgn)
+      .sort((a, b) => Math.atan2(Math.abs(a.x - origin.x), origin.y - a.y) - Math.atan2(Math.abs(b.x - origin.x), origin.y - b.y));
+    const i = Math.max(0, out.indexOf(me)), span = baseOval.ry * 1.2;
+    return { x: origin.x + sgn * side, y: origin.y - span / 2 + (out.length > 1 ? (span * i) / (out.length - 1) : span / 2) };
   };
-  const forkPlaceOf = (node: LiveNode | undefined): ForkPlace | undefined => {
-    if (!node || !base.data.member || node.parentId !== base.data.member.id || stemStart.has(node.id)) return undefined;
-    const h = holderOf.get(node.id);
-    if (h?.lone) return undefined;
-    return forkGeom().places.get(forkKeyOf(node));
-  };
-  const stemWidth = (): number => forkLines().find((l) => l.stem)?.w ?? 0;
-  // Where a line to a child starts: its parent's name, or for the canopy
-  // base its own place on the fork (or the trunk, for a side branch).
-  // (no longer from the rim of the base's oval: the fork spreads them)
-  const rimStart = (_node: LiveNode) => false;
+  // Where a line to a child starts: its parent's name, or for a main limb
+  // the canopy base (or the trunk, for a side branch).
+  const rimStart = (node: LiveNode) => !!base.data.member && node.region === "crown" && node.depth === 1 && node.terminal && !stemStart.has(node.id) && !neckSide();
   const startOf = (node: LiveNode): Vec => {
     const parent = node.parentId ? byId.get(node.parentId) : undefined;
     if (parent && parent.region !== "fixed") return { x: parent.x, y: parent.y };
     const stem = stemStart.get(node.id);
     if (stem) return stem;
-    const fork = forkPlaceOf(node);
-    if (fork) return fork.p;
+    if (node.id === stemSonId && !holderOf.has(node.id)) return stemFootNow();
+    const side = sideStartOf(node);
+    if (side) return side;
+    // A son or daughter of the canopy base with no family of their own
+    // leaves from the rim of the base's oval, towards their name: a dozen
+    // such lines all from its centre rose out of it as one broom.
+    if (rimStart(node)) {
+      const d = norm(sub(node, origin));
+      const k = 0.8 / Math.hypot(d.x / baseOval.rx, d.y / baseOval.ry);
+      return add(origin, scale(d, k));
+    }
     return origin;
   };
   /** Where the line to a spouse's holder starts: the partner (as for the children's lines). */
-  const fromOf = (h: Holder): Vec => (h.lone ? { x: h.anchorOf.x, y: h.anchorOf.y } : startOf(h.kids[0] ?? h.anchorOf));
+  const fromOf = (h: Holder): Vec => (h.lone ? { x: h.anchorOf.x, y: h.anchorOf.y } : isStemWife(h) ? origin : startOf(h.anchorOf));
   const baseBoxOf = () => (base.data.member ? { x: origin.x, y: origin.y, w: baseOval.rx * 2, h: baseOval.ry * 2 } : null);
+  // The stem leaves the top of the trunk's neck, on the trunk's axis: level
+  // with the top of the canopy base's oval, or, for an oval wider than the
+  // neck, where the neck's corners meet the oval's rim (inside it).
+  const stemFootNow = (): Vec => {
+    if (!base.data.member) return origin;
+    const k = Math.min(1, neckWidth() / 2 / baseOval.rx);
+    return { x: origin.x, y: origin.y - baseOval.ry * (k < 1 ? Math.sqrt(1 - k * k) * 0.9 : 1) };
+  };
   /**
    * The stem, upright from the neck's top (foot) to the wife's box (to):
    * from the neck's width to `top`, upright where it leaves the neck and
@@ -3125,6 +3124,11 @@ function layoutAttempt(
     // (wound as the trunk's outline is, so the two fill as one)
     return `M${[...R, ...L.reverse()].join("L")}Z`;
   };
+  /** Whether a line leaves the side of the neck (see neckSide). */
+  const fromNeckSide = (c: Cubic) => {
+    const side = neckSide();
+    return !!side && Math.abs(c.p0.y - origin.y) <= baseOval.ry && Math.abs(Math.abs(c.p0.x - origin.x) - side) < 1e-6;
+  };
   // A holder sits on the way from the partner to the children she bore,
   // nearer the partner, wherever it and the lines to and from it are clear
   // of every other name and holder.
@@ -3138,7 +3142,13 @@ function layoutAttempt(
     });
     type Rect = { x: number; y: number; w: number; h: number; id?: string };
     const obstacles: Rect[] = [...nodes, ...trunkLabels.map((l) => ({ ...l, id: l.member.id }))];
-    const bb = baseBoxOf();
+    // (with LayoutOptions.wivesRoom, the canopy base, for its wives' boxes,
+    // as large as the space kept round its name used to be: nothing is drawn
+    // there, but the boxes stand further out, between the base and the
+    // first ring, as they used to)
+    const bb = base.data.member && opts.wivesRoom
+      ? { x: origin.x, y: origin.y, w: ringRFor(f) * BASE_OVAL.w * 2, h: ringRFor(f) * (baseText.subLabel ? 0.85 : BASE_OVAL.h) * 2 }
+      : baseBoxOf();
     if (bb) obstacles.push({ ...bb, id: base.data.member?.id });
     const placed: { h: Holder; from: Vec }[] = [];
     const within = (p: Vec, o: Rect, pad = 0) => Math.abs(p.x - o.x) < o.w / 2 + pad && Math.abs(p.y - o.y) < o.h / 2 + pad;
@@ -3245,8 +3255,7 @@ function layoutAttempt(
         if (isStemWife(h)) {
           const son = h.kids.find((k) => k.id === stemSonId)!;
           for (const t of [...new Set([...ts, ...STEM_TS])].sort((a, b) => a - b)) {
-            const Pf = fromOf(h);
-            const c = { x: origin.x, y: Pf.y + (son.y - Pf.y) * t };
+            const c = { x: origin.x, y: P.y + (son.y - P.y) * t };
             if (fits(h, c, also, linesToo, true)) return c;
           }
           return null;
@@ -3409,7 +3418,29 @@ function layoutAttempt(
     if (node.region === "crown" && node.depth === 1) {
       // (a childless one from the rim of the base's oval sweeps up less:
       // all of them rising first made a broom of lines above the trunk)
-      const sweep = (rimStart(node) ? SWEEP * 0.3 : SWEEP) * k;
+      let sweep = (rimStart(node) ? SWEEP * 0.3 : SWEEP) * k;
+      // (a limb from the base's centre rises no further than half way to
+      // the line of a childless brother or sister beside it, on the side it
+      // rises towards: with the base's oval small, rising past it, it crossed
+      // that line just outside the oval)
+      if (!rimStart(node) && sweep > 0) {
+        const ang = (v: Vec) => Math.atan2(v.x, -v.y);
+        const a = ang(dv), toUp = -Math.sign(a);
+        let room = Infinity;
+        for (const sib of nodes) {
+          if (sib === node || sib.parentId !== node.parentId || !rimStart(sib)) continue;
+          const b = ang(norm(sub(sib, origin))), gap = (b - a) * toUp;
+          if (gap > 0) room = Math.min(room, gap);
+        }
+        if (room < Infinity) {
+          const turn = (sw: number) => Math.abs(ang(norm(add(scale(UP, sw), scale(dv, 1 - sw)))) - a);
+          let lo = 0, hi = sweep;
+          if (turn(hi) > room * 0.5) {
+            for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (turn(m) > room * 0.5) hi = m; else lo = m; }
+            sweep = lo;
+          }
+        }
+      }
       c1 = add(c.p0, scale(norm(add(scale(UP, sweep), scale(dv, 1 - sweep))), L * (rimStart(node) ? 0.3 : 0.45)));
     }
     if (node.parentId && familySize.get(node.parentId) === 1 && node.region === "crown") {
@@ -3746,9 +3777,8 @@ function layoutAttempt(
       // (one from the rim of the base's oval sets out towards its name, not
       // up the trunk's line with all the others)
       let gP = rimStart(node) ? norm(sub(node, P)) : (node.parentId && growthDir.get(node.parentId)) || stemDir.get(node.id) || norm(sub(node, origin));
-      // (leaving the fork: square to its arc, so neighbours part at once)
-      const fork = forkPlaceOf(node);
-      if (fork) gP = fork.dir;
+      // (leaving the neck's side: outwards first, at a clear angle from the stem)
+      if (sideStartOf(node)) gP = norm(add({ x: Math.sign(P.x - origin.x), y: 0 }, norm(sub(node, P))));
       const holder = holderOf.get(node.id);
       if (holder) {
         // the partner's line to the spouse's holder (once), then the
@@ -3763,7 +3793,7 @@ function layoutAttempt(
           const e0 = norm(add(scale(dv, 0.6), scale(holder.dir, 0.4)));
           if (isStemWife(holder)) {
             // the stem: straight up from the neck, through her, to her centred son
-            const foot = P;
+            const foot = stemFootNow();
             holderCurve.set(holder.id, { p0: foot, c1: add(foot, scale(sub(S, foot), 1 / 3)), c2: add(foot, scale(sub(S, foot), 2 / 3)), p1: S });
             growthDir.set(holder.id, UP);
           } else {
@@ -4262,24 +4292,10 @@ function layoutAttempt(
   const mainLimbs = growing.filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal && !holderOf.has(n.id)).length
     + holders.filter(baseHolder).length;
   const limbShare = mainLimbs ? clamp(1.05 / mainLimbs, 0.14, 0.4) : 0;
-  // (the stem, up to the wife on it, drawn with the trunk)
+  // (the stem's width at its foot, the neck's; and the stem itself, up to
+  // the wife on it, drawn with the trunk)
+  let stemW = 0;
   let stemWood = "";
-  // A limb leaving the fork: from its place there at its width, square to
-  // the arc (no round joint: the limbs abut along the arc); its first
-  // stretch drawn again on top without the pale outline, so it grows out of
-  // the wood and out of its neighbours with no seam.
-  const forkLimb = (c: Cubic, w0: number, w1: number, lineage: number | null): Branch[] => {
-    const L = curveLength(c) || 1;
-    const t1 = Math.min(0.35, Math.max(w0 * 1.5, f * 1.2) / L);
-    const wAt = (t: number) => w1 + (w0 - w1) * (1 - t) ** 2;
-    // (begun a little inside the wood, past the edge's pale outline)
-    const back = sub(c.p0, scale(norm(sub(c.c1, c.p0)), W * 0.0012));
-    const first = subCubic(c, t1);
-    return [
-      { d: ribbonPath(c, w0, w1, 14, 2), w: w0, lineage },
-      { d: ribbonPath({ ...first, p0: back }, w0, wAt(t1), 8, 1), w: w0, lineage, bare: true },
-    ];
-  };
   for (const h of holders) {
     const c = holderCurve.get(h.id)!;
     const leaves = Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0));
@@ -4292,23 +4308,21 @@ function layoutAttempt(
     } else {
       const mainLimb = baseHolder(h);
       const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : w;
-      const fork = forkPlaceOf(h.kids[0]);
-      if (isStemWife(h) && fork) {
-        // The stem: wood, part of the trunk's outline (no seam where it
-        // leaves the fork), from its place on the fork to her box's middle,
-        // no wider than her box there, hidden under it.
-        // (reaching down into the trunk to the oval's middle: the arc falls
-        // away under the stem's sides, and a flat foot left a gap there)
-        if (c.p1.y < c.p0.y) {
-          const x0 = c.p0.x - fork.w / 2, x1 = c.p0.x + fork.w / 2, f1 = (v: number) => v.toFixed(1);
-          stemWood = `M${f1(x1)} ${f1(origin.y)}L${f1(x1)} ${f1(c.p0.y)}L${f1(x0)} ${f1(c.p0.y)}L${f1(x0)} ${f1(origin.y)}Z`
-            + stemPath(c.p0, c.p1, fork.w, Math.min(fork.w, h.w * 0.9));
-        }
-      } else if (fork) {
-        // from its own place on the fork, at its width there (see forkGeom)
-        branches.push(...forkLimb(c, fork.w, w * 0.85, h.lineage ?? null));
+      if (isStemWife(h)) {
+        // (the stem carries on from the neck, as wide as it at its foot: no
+        // round joint there, and no wider than the trunk)
+        stemW = neckWidth();
+        // It is wood, part of the trunk's outline (no seam where it leaves
+        // the neck), and ends inside the round joint of the limbs leaving
+        // her, where that joint's rim is still 0.8 of its width.
+        // (to her box's middle, no wider than her box there, hidden under it)
+        if (c.p1.y < c.p0.y) stemWood = stemPath(c.p0, c.p1, neckWidth(), Math.min(neckWidth(), h.w * 0.9));
       } else {
-        branches.push({ ...shaded(c, w0, w * 0.85, 14, mainLimb ? 4 : 2), lineage: h.lineage ?? null });
+        // (leaving the neck's side, at its own width: not a main limb's,
+        // which shares the trunk's width only where it leaves its centre)
+        // (from the wood's edge, at its own width, each at its own place there)
+        const side = fromNeckSide(c);
+        branches.push({ ...(side ? shaded(c, w * 1.15, w * 0.85, 14, 2) : shaded(c, w0, w * 0.85, 14, mainLimb ? 4 : 2)), lineage: h.lineage ?? null });
       }
       edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: mainLimb ? w * 1.15 : w, w1: w * 0.85, lineage: h.lineage ?? null });
     }
@@ -4377,11 +4391,9 @@ function layoutAttempt(
         continue;
       }
       const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : node.depth === 1 && !holder ? w * 1.15 : w;
-      const fork = holder ? undefined : forkPlaceOf(node);
-      if (fork) {
-        // from its own place on the fork (the centred son's narrowing into
-        // his badge, no wider than it where it meets it)
-        branches.push(...forkLimb(c, fork.w, node.id === stemSonId ? Math.min(w * 0.7, Math.min(node.w, node.h) * 0.9) : w * 0.7, node.lineage ?? null));
+      if (node.id === stemSonId && !holder) {
+        stemW = neckWidth();
+        branches.push({ d: ribbonPath(c, stemWidth(), Math.min(w * 0.7, Math.min(node.w, node.h) * 0.9), 14, 1), w: stemWidth(), lineage: node.lineage ?? null });
       } else if (holder && isStemWife(holder)) {
         // from the wife on the stem, out of her box: no round joint (it cupped
         // her box), and no wider where it leaves than her box (her centred
@@ -4392,6 +4404,8 @@ function layoutAttempt(
         const ws = Math.min(w0, node.id === stemSonId ? holder.w * 0.9 : holder.h * 0.9);
         const we = node.id === stemSonId ? Math.min(w * 0.7, Math.min(node.w, node.h) * 0.9) : w * 0.7;
         branches.push({ d: ribbonPath(c, ws, we, 14, 2), w: ws, lineage: node.lineage ?? null });
+      } else if (fromNeckSide(c)) {
+        branches.push({ ...shaded(c, w * 1.15, w * 0.7, 14, 2), lineage: node.lineage ?? null });
       } else {
         branches.push({ ...shaded(c, w0, w * 0.7, 14, mainLimb ? 4 : 2), lineage: node.lineage ?? null });
       }
@@ -4503,15 +4517,15 @@ function layoutAttempt(
   };
 
   const strip = ({ tx: _tx, ty: _ty, mass: _m, region: _r, side: _s, ...rest }: LiveNode): PosterNode => rest;
-  // The trunk's neck: the fork's arc at its top, as wide as its chord, and
-  // from there down it eases to the trunk's own width before the first
-  // ancestor's badge.
+  // The trunk's neck: as wide as the stem at its foot, and wide enough to
+  // hold the canopy base's oval on the wood; from the oval's widest down,
+  // it eases to the trunk's own width before the first ancestor's badge.
   const neck: TrunkNeck | null = base.data.member ? (() => {
-    const g = forkGeom();
+    const top = stemFootNow().y;
     // (the highest badge, and the bark it needs)
     const hi = trunkLabels.length ? trunkLabels.reduce((a, t) => (t.y < a.y ? t : a)) : null;
     return {
-      w: g.chord, top: g.ends, bottom: Math.max(g.ends, origin.y), arc: { cx: g.F.x, cy: g.F.y, r: g.R },
+      w: neckWidth(), top, bottom: Math.max(top, origin.y),
       ...(hi ? { need: hi.w + rowFont * 0.4, needY: hi.y - hi.h / 2 - rowFont * 0.3 } : {}),
     };
   })() : null;
@@ -4642,13 +4656,13 @@ const trunkBase = (groundY: number, w: number, flareW: number, spread: number) =
  * roots begin; where the ancestors' badges need more than the neck's width
  * (`need`, from `needY` down), first to that, above the highest badge.
  */
-export interface TrunkNeck { w: number; top: number; bottom: number; need?: number; needY?: number; arc?: { cx: number; cy: number; r: number } }
+export interface TrunkNeck { w: number; top: number; bottom: number; need?: number; needY?: number }
 
 function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, neck: TrunkNeck | null = null, spread = 1, taper = 0): string {
   const f = (n: number) => n.toFixed(1);
   const L = (dx: number) => f(o.x - dx), R = (dx: number) => f(o.x + dx);
   const nk = neck ?? { w, top: o.y, bottom: o.y };
-  const n = nk.w / 2, hw = w / 2;
+  const n = Math.min(nk.w, w) / 2, hw = w / 2;
   // where the full width is reached: the roots' flare, or the taper's start
   const fl = flareOf(w, flareW, spread);
   const rise = Math.min(fl * 1.8, Math.max(0, groundY - nk.bottom) * 0.75);
@@ -4672,8 +4686,7 @@ function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, neck: Trun
   }).join("");
   // (the top: level, where the stem or the oval covers it)
   const leftDown = `M${L(n)} ${f(nk.top)}L${L(n)} ${f(nk.bottom)}` + sDown(L);
-  // (the top: the fork's arc, over from right to left, where the limbs leave)
-  const rightUp = sUp(R) + `L${R(n)} ${f(nk.top)}` + (nk.arc ? `A${f(nk.arc.r)} ${f(nk.arc.r)} 0 0 0 ${L(n)} ${f(nk.top)}` : "") + "Z";
+  const rightUp = sUp(R) + `L${R(n)} ${f(nk.top)}Z`;
   if (taper > 0) {
     // the narrowing ends `taper` below the ground line
     const y1 = groundY + taper;
@@ -4740,14 +4753,6 @@ function crossesInside(a: Vec, b: Vec, c: Vec, d: Vec): boolean {
 /** Splits a line in two at the space nearest its middle (not leaving a word like "m." alone). */
 /** The point at t on a cubic. */
 /** A cubic's length (to a fraction of a percent). */
-/** The part of a cubic from its start to t (de Casteljau). */
-function subCubic(c: Cubic, t: number): Cubic {
-  const lerp = (a: Vec, b: Vec) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-  const a = lerp(c.p0, c.c1), b = lerp(c.c1, c.c2), d = lerp(c.c2, c.p1);
-  const e = lerp(a, b), g = lerp(b, d);
-  return { p0: c.p0, c1: a, c2: e, p1: lerp(e, g) };
-}
-
 function curveLength(c: Cubic): number {
   let total = 0, prev = c.p0;
   for (let i = 1; i <= 32; i++) {
