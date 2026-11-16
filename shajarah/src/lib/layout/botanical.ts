@@ -438,16 +438,16 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
   };
   // (count as unclear here too: names whose drawn frames touch, with the
   // designed name boxes, as the layout QA's design check counts them; and a
-  // child's line from the canopy base or one of its wives' boxes running
-  // along a thicker line from there, where holding the stem upright moved
-  // things about. Not every line alongside anywhere: a family's own tree,
+  // childless child's line from the canopy base or one of its wives' boxes
+  // running along a thicker line from there (it reads as part of that
+  // limb), where holding the stem upright moved things about. Not every line alongside anywhere: a family's own tree,
   // fine upright, was laid out four times over one)
   const alongside = (l: PosterLayout) => linesAlongside(l).length;
   const designed = (l: PosterLayout) => l.nodes.some((n) => isDesignShape(n.shape as never));
   const frames = (l: PosterLayout) => (designed(l) ? framesTouching(l) : 0);
   const inWivesFans = (l: PosterLayout) => linesAlongside(l)
     .filter((a) => (a.edge[0] === l.base?.id || l.spouses.some((h) => h.id === a.edge[0] && h.partnerId === l.base?.id))
-      && !l.spouses.some((h) => h.id === a.edge[1])).length;
+      && !!l.nodes.find((n) => n.id === a.edge[1])?.terminal).length;
   const sound = (l: PosterLayout) => isCleanPoster(l) && l.legibility.ok && frames(l) === 0 && inWivesFans(l) === 0;
   const upright = compactGuarded(tree, { ...opts, stemUpright: true });
   const centred = !!upright.centerLine?.length;
