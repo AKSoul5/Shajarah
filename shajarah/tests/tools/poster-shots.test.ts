@@ -104,6 +104,7 @@ function measure(L: PosterLayout, paper: PaperSize) {
       wivesOfBase: L.base ? L.spouses.filter((s) => s.partnerId === L.base!.id).map((s) => angle(L.base!, s)) : [],
       // x on the paper, in mm from its left edge: the canopy base, the centred wife's box, the centred son
       xMm: { base: L.base ? r2(L.base.x * mm) : null, wife: wife ? r2(wife.x * mm) : null, son: son ? r2(son.x * mm) : null },
+      yMm: { base: L.base ? r2(L.base.y * mm) : null, wife: wife ? r2(wife.y * mm) : null, son: son ? r2(son.y * mm) : null },
     },
     trunkWidthMm: r2(L.trunkWidth * mm),
     // for the renderer: the canopy base's close-up, about 300 × 200 mm of paper

@@ -99,6 +99,12 @@ export interface LayoutOptions {
   centerLead?: boolean;
   /** How a centred branch's brothers are split between its two sides: so each side holds as many names (default), or by the room their families need. */
   centerSides?: "names" | "room";
+  /**
+   * The centred son straight above the canopy base, his mother's box on that
+   * line (the stem). Default: so wherever that costs nothing, else not (see
+   * computePosterLayout).
+   */
+  stemUpright?: boolean;
   /** Moves the middle of the canopy's fan by this share of it (towards the end where u = 1), to even out its two halves. Default: chosen automatically. */
   sideBias?: number;
   /** How far (radians) above horizontal the canopy's sweep starts on each side. Default: SWEEP_LIFT, eased for a very crowded generation. */
@@ -377,6 +383,8 @@ export interface PosterLayout {
   sweepLift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
   centerLine?: string[];
+  /** Whether the stem was held upright (see LayoutOptions.stemUpright): false where that cost the poster, and it kept the centred son's own place. */
+  stemUpright?: boolean;
 }
 
 interface TNode {
@@ -409,6 +417,29 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  if (opts.stemUpright !== undefined) return compactGuarded(tree, opts);
+  // The stem upright (the centred son straight above the canopy base) is
+  // kept wherever it costs nothing: laid out both ways, the upright one is
+  // used unless it is less clean or less legible, or its canopy's typical
+  // name is smaller. (Upright everywhere, 78 of the 448 layout QA posters
+  // came out smaller, two of them too small to read.)
+  const upright = compactGuarded(tree, { ...opts, stemUpright: true });
+  if (!upright.centerLine?.length) return upright;
+  upright.stemUpright = true;
+  const free = compactGuarded(tree, { ...opts, stemUpright: false });
+  const typical = (l: PosterLayout) => {
+    const sizes = l.nodes.filter((n) => n.depth > 0).map((n) => n.fontSize).sort((a, b) => a - b);
+    return sizes.length ? sizes[sizes.length >> 1] : 0;
+  };
+  const worse = (isCleanPoster(free) && !isCleanPoster(upright))
+    || (free.legibility.ok && !upright.legibility.ok)
+    || upright.clarity.issues.length > free.clarity.issues.length
+    || typical(upright) < typical(free) * 0.999;
+  if (worse) free.stemUpright = false;
+  return worse ? free : upright;
+}
+
+function compactGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = withBoxRoom(tree, opts);
   // A dense family on small paper: its names set smaller to fit, while the
   // foundation (and the trunk) kept the full size, standing two or three
@@ -648,7 +679,20 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       const legibleScale = clamp((full.legibility.minTextMm / Math.max(1e-6, full.legibility.smallestTextMm)) * 1.02, MIN_SCALE, 1);
       // and a size below it, to tell whether only illegible names would do
       const below = Math.min(0.35, legibleScale * 0.8);
-      if (legibleScale < 0.999 && isClean(at(legibleScale))) chosen = bisect(legibleScale, 1);
+      // Clean does not follow size evenly: a single crossing at the smallest
+      // legible size stopped the search there although a size half way up
+      // was clean (a poster set at half its size). Nearly clean there, a few
+      // larger sizes are tried (at most LARGER_TRIES), and the search goes on
+      // up from the first clean one.
+      let lifted: number | undefined;
+      if (legibleScale < 0.999 && !isClean(at(legibleScale)) && at(legibleScale).overlaps === 0 && at(legibleScale).clarity.issues.length <= 2) {
+        for (const k of LARGER_TRIES) {
+          const sc = legibleScale + (1 - legibleScale) * k;
+          if (isClean(at(sc)) && at(sc).legibility.ok) { lifted = sc; break; }
+        }
+      }
+      if (lifted !== undefined) chosen = bisect(lifted, 1);
+      else if (legibleScale < 0.999 && isClean(at(legibleScale))) chosen = bisect(legibleScale, 1);
       else if (isClean(at(below))) {
         chosen = bisect(below, legibleScale); // clean only below legible size?
         // The count of ambiguities does not fall evenly with the names' size:
@@ -1054,6 +1098,12 @@ const WIDE_CANOPY = 30;
 
 /** The canopy base's oval, as fractions of its round space's radius (wider than tall). */
 const BASE_OVAL = { w: 1, h: 0.66 };
+
+/** The stem's shoulders under the wife's box (see stemPath): 1 straight bevels, 2 a quarter ellipse. */
+const STEM_SHOULDER = 1.5;
+
+/** The larger sizes tried when the smallest legible one is nearly clean, as shares of the way from it to full size. */
+const LARGER_TRIES = [0.5, 0.25, 0.75];
 
 /** Straight up: the centred son's ray. */
 const UPRIGHT = Math.PI / 2;
@@ -1469,7 +1519,7 @@ function layoutAttempt(
   // the choice of the lift below)
   const crownDims = (f: number, areaScale = 1) => {
     const A = Math.max(crownNodes.reduce((sum, n) => sum + estArea(n, f), 0) * PACK * areaScale, (f * 14) ** 2);
-    const depthNeed = baseRFor(f) + f * 1.6 + Math.max(0, base.height - 1) * f * RING_GAP;
+    const depthNeed = ringRFor(f) + f * 1.6 + Math.max(0, base.height - 1) * f * RING_GAP;
     // the rings' reach from the crown base: ~0.76·rx to the sides, ~1.7·ry upward
     const rx = Math.min(rxMax, Math.max(Math.sqrt(A / (EGG * ASPECT)), depthNeed / 0.76));
     const ry = Math.max(A / (EGG * rx), depthNeed / 1.7);
@@ -1492,6 +1542,13 @@ function layoutAttempt(
   // kept round the name beyond that.
   const baseFontFor = (f: number) => Math.max(floorFor(f), Math.min(f * 1.3, canopyTypicalFor(f) * BASE_CAP));
   const baseRFor = (f: number) => (base.data.member ? baseRForFont(baseFontFor(f), f) : f);
+  // Where the canopy's first ring starts: where the space kept round the
+  // base's name put it (a name 1.3 times the canopy's size). Nothing is
+  // drawn there now; the stem and the limbs run through it. (With the first
+  // ring as close as the smaller oval allowed, its names had too little
+  // room and 157 of the 448 layout QA posters came out smaller, by up to
+  // 47%.)
+  const ringRFor = (f: number) => baseRForFont(f * 1.3, f);
   // Trunk: the ancestors in one centred column, one per row, inside the
   // bark (never two staggered columns: the trunk reads as one solid form).
   // budget.fit: the trunk's names at most this many times the canopy's
@@ -1708,7 +1765,7 @@ function layoutAttempt(
       let { rx, ry } = crownDims(fd);
       const cap = (avail - (totalFor(fd, plan!) - 1.8 * ry)) / 1.8;
       const demand = ringDemand(fd, fd);
-      const r0d = baseRFor(fd) + fd * 1.6;
+      const r0d = ringRFor(fd) + fd * 1.6;
       for (let i = 0; i < 80; i++) {
         const t = ringChain(demand, r0d, meanReachFor(rx, ry), fd);
         if (t[t.length - 1] <= DENSE_TOP) return { rx, ry, fits: true };
@@ -1880,7 +1937,7 @@ function layoutAttempt(
     return thetas[lo] + (thetas[hi] - thetas[lo]) * t;
   };
   const maxDepth = Math.max(1, base.height);
-  const r0 = baseMedallionR + f * 1.6;
+  const r0 = ringRFor(f) + f * 1.6;
   // Where each generation's ring lies, as a fraction t of the way from r0
   // to the canopy's rim: evenly paced, but never closer than a name's
   // height plus room for the lines between two rings (crownDims sizes the
@@ -2097,7 +2154,7 @@ function layoutAttempt(
   // The centred son: straight above the canopy base, on the trunk's axis.
   // His ray is upright and nothing moves him off it (the balancing below,
   // the ring packing, the untangling); only along it.
-  const stemSonId = [...centerPath].find((n) => n.depth === base.depth + 1)?.data.member?.id;
+  const stemSonId = opts.stemUpright === false ? undefined : [...centerPath].find((n) => n.depth === base.depth + 1)?.data.member?.id;
   partition(base, 0.015, 0.985);
   // Evening the two halves (opts.sideBias, chosen in computePosterLayout):
   // the middle of the fan moves, each half stretched or narrowed to suit,
@@ -3018,9 +3075,13 @@ function layoutAttempt(
    */
   const stemPath = (foot: Vec, to: Vec, w0: number, top: number) => {
     const L: string[] = [], R: string[] = [];
-    for (let i = 0; i <= 16; i++) {
-      const t = i / 16, e = 3 * t * t - 2 * t * t * t;
-      const y = foot.y + (to.y - foot.y) * t, hw = (top + (w0 - top) * (1 - e)) / 2;
+    // (rounded shoulders, as a bottle's: upright where it leaves the neck,
+    // curving in to `top` under her box, with no straight run: an S read as
+    // two bevels, and a quarter ellipse as an arch over the oval; between
+    // the two, a superellipse of exponent STEM_SHOULDER)
+    for (let i = 0; i <= 32; i++) {
+      const t = i / 32;
+      const y = foot.y + (to.y - foot.y) * t, hw = (top + (w0 - top) * Math.max(0, 1 - t ** STEM_SHOULDER) ** (1 / STEM_SHOULDER)) / 2;
       L.push(`${(foot.x - hw).toFixed(1)} ${y.toFixed(1)}`);
       R.push(`${(foot.x + hw).toFixed(1)} ${y.toFixed(1)}`);
     }
@@ -4268,13 +4329,17 @@ function layoutAttempt(
       const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : node.depth === 1 && !holder ? w * 1.15 : w;
       if (node.id === stemSonId && !holder) {
         stemW = neckWidth();
-        branches.push({ d: ribbonPath(c, stemWidth(), w * 0.7, 14, 1), w: stemWidth(), lineage: node.lineage ?? null });
+        branches.push({ d: ribbonPath(c, stemWidth(), Math.min(w * 0.7, Math.min(node.w, node.h) * 0.9), 14, 1), w: stemWidth(), lineage: node.lineage ?? null });
       } else if (holder && isStemWife(holder)) {
         // from the wife on the stem, out of her box: no round joint (it cupped
         // her box), and no wider where it leaves than her box (her centred
         // son's upwards, through its width; the others sideways, its height)
+        // (her centred son's narrowing into his badge, no wider than it
+        // where it meets it: cut square wider than the badge, its corners
+        // stood out round it)
         const ws = Math.min(w0, node.id === stemSonId ? holder.w * 0.9 : holder.h * 0.9);
-        branches.push({ d: ribbonPath(c, ws, Math.min(w * 0.7, Math.max(ws, w * 0.7)), 14, 2), w: ws, lineage: node.lineage ?? null });
+        const we = node.id === stemSonId ? Math.min(w * 0.7, Math.min(node.w, node.h) * 0.9) : w * 0.7;
+        branches.push({ d: ribbonPath(c, ws, we, 14, 2), w: ws, lineage: node.lineage ?? null });
       } else if (fromNeckSide(c)) {
         branches.push({ ...shaded(c, w * 1.15, w * 0.7, 14, 2), lineage: node.lineage ?? null });
       } else {

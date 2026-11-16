@@ -39,7 +39,7 @@ const daughtersWithFamilies = (tree: TreeDTO) =>
 export interface CaseResult {
   id: string; fixture: QaFixture; mode: Mode; theme: ThemePreset; paper: PaperSize; soilStyle: string;
   counts: Partial<Record<FindingKind, number>>; defects: number; findings: ReturnType<typeof inspectPoster>["findings"];
-  summary: ReturnType<typeof inspectPoster>["summary"] & { canopyTypicalMm: number | null }; ms: number;
+  summary: ReturnType<typeof inspectPoster>["summary"] & { canopyTypicalMm: number | null; stemUpright: boolean | null }; ms: number;
 }
 
 export function runCase(fixture: QaFixture, mode: Mode, theme: ThemePreset, paper: PaperSize, soilStyle?: string, nodeShape?: string): CaseResult {
@@ -63,7 +63,7 @@ export function runCase(fixture: QaFixture, mode: Mode, theme: ThemePreset, pape
   const unit = PAPER_SIZES[paper].w / layout.width;
   const canopy = layout.nodes.filter((n) => n.depth > 0).map((n) => n.fontSize * unit).sort((a, b) => a - b);
   const canopyTypicalMm = canopy.length ? Math.round(canopy[canopy.length >> 1] * 100) / 100 : null;
-  const result: CaseResult = { id, fixture, mode, theme, paper, soilStyle: t.soilStyle, counts: ins.counts, defects: ins.defects, findings: ins.findings, summary: { ...ins.summary, canopyTypicalMm }, ms };
+  const result: CaseResult = { id, fixture, mode, theme, paper, soilStyle: t.soilStyle, counts: ins.counts, defects: ins.defects, findings: ins.findings, summary: { ...ins.summary, canopyTypicalMm, stemUpright: layout.stemUpright ?? null }, ms };
   writeFileSync(`${OUT}/json/${id}.json`, JSON.stringify(result));
   return result;
 }
