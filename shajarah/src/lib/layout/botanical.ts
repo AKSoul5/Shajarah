@@ -302,6 +302,8 @@ export interface PosterLayout {
   groundY: number;
   trunkPath: string;
   trunkWidth: number;
+  /** The trunk's neck under the canopy base (see trunkOutline): the base's lines may leave its sides. */
+  neck?: TrunkNeck | null;
   trunkLabels: TrunkLabel[];
   soil: SoilInscription | null;
   /** Trunk medallions are staggered in two columns (long trunks). */
@@ -1052,6 +1054,11 @@ const WIDE_CANOPY = 30;
 
 /** The canopy base's oval, as fractions of its round space's radius (wider than tall). */
 const BASE_OVAL = { w: 1, h: 0.66 };
+
+/** Straight up: the centred son's ray. */
+const UPRIGHT = Math.PI / 2;
+/** Further shares of the way from the canopy base to the centred son tried for his mother's box, nearest first. */
+const STEM_TS = [0.1, 0.12, 0.16, 0.2, 0.24, 0.28, 0.33, 0.4, 0.48, 0.56, 0.64, 0.72, 0.8];
 
 /** The least share of its father's span the primary lineage's branch takes, in the middle. */
 const CENTER_SHARE = 0.3;
@@ -2087,6 +2094,10 @@ function layoutAttempt(
   // span; the largest one, centred unasked, only its own share)
   const chosenPath = new Set<HNode>(centerNode && centerNode !== dominant ? centerNode.ancestors() as HNode[] : []);
   const centerIds = new Set([...centerPath].map((n) => n.data.member!.id));
+  // The centred son: straight above the canopy base, on the trunk's axis.
+  // His ray is upright and nothing moves him off it (the balancing below,
+  // the ring packing, the untangling); only along it.
+  const stemSonId = [...centerPath].find((n) => n.depth === base.depth + 1)?.data.member?.id;
   partition(base, 0.015, 0.985);
   // Evening the two halves (opts.sideBias, chosen in computePosterLayout):
   // the middle of the fan moves, each half stretched or narrowed to suit,
@@ -2197,7 +2208,7 @@ function layoutAttempt(
     // ("re-grow" no longer moves names: their place is fixed by the genealogy)
     void halfSpan;
     const u = n.u ?? 0.5;
-    const theta = uToTheta(u);
+    const theta = n.data.member?.id === stemSonId ? UPRIGHT : uToTheta(u);
     // Strictly by generation (rings): siblings share a ring and all their
     // descendants lie further out in their own sector, so no line ever has
     // to pass a sibling's place on its way out.
@@ -2282,8 +2293,8 @@ function layoutAttempt(
         return b0 <= b1 && strictFamilies ? [b0, b1] : [lo, hi];
       });
       // (the primary lineage always holds its place: it is the centre)
-      const mobility = ring.map((n) => (centerIds.has(n.id) ? 0.05 : n.terminal || !strictFamilies ? 1 : 0.12));
-      const pull = ring.map((n) => (centerIds.has(n.id) ? 0.4 : n.terminal || !strictFamilies ? 0.02 : 0.15));
+      const mobility = ring.map((n) => (n.id === stemSonId ? 0 : centerIds.has(n.id) ? 0.05 : n.terminal || !strictFamilies ? 1 : 0.12));
+      const pull = ring.map((n) => (n.id === stemSonId ? 1 : centerIds.has(n.id) ? 0.4 : n.terminal || !strictFamilies ? 0.02 : 0.15));
       const th = [...target];
       for (let it = 0; it < 200; it++) {
         let moved = false;
@@ -2325,6 +2336,13 @@ function layoutAttempt(
         for (let i = th.length - 1; i > 0; i--) {
           if (th[i] < bounds[i][0]) th[i] = bounds[i][0];
           if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+        }
+        // the centred son upright; his neighbours make way, outwards from him
+        const s0 = ring.findIndex((n) => n.id === stemSonId);
+        if (s0 >= 0) {
+          th[s0] = UPRIGHT;
+          for (let i = s0 + 1; i < th.length; i++) th[i] = Math.min(th[i], th[i - 1] - step(i));
+          for (let i = s0 - 1; i >= 0; i--) th[i] = Math.max(th[i], th[i + 1] + step(i + 1));
         }
       }
       ringLoad = Math.max(ringLoad, ring.reduce((a, n, i) => a + 2 * half(n, th[i]), 0) / (hi - lo));
@@ -2760,6 +2778,8 @@ function layoutAttempt(
   type Holder = SpouseHolder & { anchorOf: LiveNode; kids: LiveNode[]; dir: Vec; clear: boolean; pin?: Vec; lone?: boolean };
   const holders: Holder[] = [];
   const holderOf = new Map<string, Holder>();
+  /** The canopy base's wife who bore the centred son: her box sits on the stem. */
+  const isStemWife = (h: Holder) => !!stemSonId && !h.lone && !!base.data.member && h.partnerId === base.data.member.id && h.kids.some((k) => k.id === stemSonId);
   {
     const matri = tree.lineage === "MATRILINEAL";
     const kidsOf = new Map<string, LiveNode[]>();
@@ -2907,14 +2927,69 @@ function layoutAttempt(
     }
     return { w0: !h.lone && h.anchorOf.region === "crown" && h.anchorOf.depth === 1 ? w * 1.15 : w, w1: w * 0.85 };
   };
+  // The stem: the centred son's limb, or, under his mother's box on it,
+  // wood carrying the trunk on up to her. Its own width where it starts
+  // (as a main limb's, no wider than the trunk; fixed once the spouses'
+  // holders are made), and the neck's: as wide as the stem, and, under a
+  // wife's box, wide enough to hold the canopy base's oval on the wood;
+  // with no box there a little narrower than the oval, so the neck's top
+  // ends inside it.
+  let stemWidthMemo: number | undefined;
+  const stemWidth = (): number => {
+    if (stemWidthMemo !== undefined) return stemWidthMemo;
+    if (!stemSonId || !base.data.member) return (stemWidthMemo = 0);
+    const live = nodes.filter((n) => n.region !== "fixed");
+    const limbs = live.filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal && !holderOf.has(n.id)).length
+      + holders.filter((h) => !h.lone && h.anchorOf.region === "crown" && h.anchorOf.depth === 1).length;
+    const share = limbs ? clamp(1.05 / limbs, 0.14, 0.4) : 0;
+    const wife = holders.find(isStemWife);
+    if (wife) {
+      const w = widthOf(Math.max(1, wife.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0)));
+      return (stemWidthMemo = Math.min(trunkWidth, Math.max(w * 1.15, trunkWidth * share)));
+    }
+    const son = byId.get(stemSonId);
+    if (!son) return (stemWidthMemo = 0);
+    const w = widthOf(son.leafCount);
+    return (stemWidthMemo = Math.min(trunkWidth, son.terminal ? w * 1.15 : Math.max(w * 1.15, trunkWidth * share)));
+  };
+  const neckWidth = (): number => {
+    if (!base.data.member) return trunkWidth;
+    const onWood = holders.some(isStemWife) ? 1.1 : 0.92;
+    return Math.min(trunkWidth, Math.max(stemWidth(), baseOval.rx * 2 * onWood));
+  };
+  // Under a wife's box on the stem, the base's other lines leave the sides
+  // of the neck, at the oval's height: from under the stem they came out of
+  // its side, as if from the wife on it. Spread along the side, the one
+  // rising most steeply highest, each its own place on the wood's edge.
+  // (With no box there, the limbs fan out from the base's centre as before.)
+  const neckSide = () => (holders.some(isStemWife) ? Math.max(neckWidth() / 2, baseOval.rx) : 0);
+  const sideStartOf = (node: LiveNode): Vec | null => {
+    const side = neckSide();
+    if (!side || !base.data.member || node.parentId !== base.data.member.id || node.id === stemSonId) return null;
+    // (the lines from the base: to a child of his, or to another wife's box, her first child standing for her)
+    const lineKey = (k: LiveNode): LiveNode | null => {
+      const h = holderOf.get(k.id);
+      return !h ? k : isStemWife(h) ? null : h.kids[0];
+    };
+    const me = lineKey(node) ?? node;
+    const sgn = Math.sign(me.x - origin.x) || 1;
+    const out = [...new Set(nodes.filter((k) => k.region !== "fixed" && k.parentId === base.data.member!.id && k.id !== stemSonId).map(lineKey))]
+      .filter((k): k is LiveNode => !!k && (Math.sign(k.x - origin.x) || 1) === sgn)
+      .sort((a, b) => Math.atan2(Math.abs(a.x - origin.x), origin.y - a.y) - Math.atan2(Math.abs(b.x - origin.x), origin.y - b.y));
+    const i = Math.max(0, out.indexOf(me)), span = baseOval.ry * 1.2;
+    return { x: origin.x + sgn * side, y: origin.y - span / 2 + (out.length > 1 ? (span * i) / (out.length - 1) : span / 2) };
+  };
   // Where a line to a child starts: its parent's name, or for a main limb
   // the canopy base (or the trunk, for a side branch).
-  const rimStart = (node: LiveNode) => !!base.data.member && node.region === "crown" && node.depth === 1 && node.terminal && !stemStart.has(node.id);
+  const rimStart = (node: LiveNode) => !!base.data.member && node.region === "crown" && node.depth === 1 && node.terminal && !stemStart.has(node.id) && !neckSide();
   const startOf = (node: LiveNode): Vec => {
     const parent = node.parentId ? byId.get(node.parentId) : undefined;
     if (parent && parent.region !== "fixed") return { x: parent.x, y: parent.y };
     const stem = stemStart.get(node.id);
     if (stem) return stem;
+    if (node.id === stemSonId && !holderOf.has(node.id)) return stemFootNow();
+    const side = sideStartOf(node);
+    if (side) return side;
     // A son or daughter of the canopy base with no family of their own
     // leaves from the rim of the base's oval, towards their name: a dozen
     // such lines all from its centre rose out of it as one broom.
@@ -2926,8 +3001,37 @@ function layoutAttempt(
     return origin;
   };
   /** Where the line to a spouse's holder starts: the partner (as for the children's lines). */
-  const fromOf = (h: Holder): Vec => (h.lone ? { x: h.anchorOf.x, y: h.anchorOf.y } : startOf(h.anchorOf));
+  const fromOf = (h: Holder): Vec => (h.lone ? { x: h.anchorOf.x, y: h.anchorOf.y } : isStemWife(h) ? origin : startOf(h.anchorOf));
   const baseBoxOf = () => (base.data.member ? { x: origin.x, y: origin.y, w: baseOval.rx * 2, h: baseOval.ry * 2 } : null);
+  // The stem leaves the top of the trunk's neck, on the trunk's axis: level
+  // with the top of the canopy base's oval, or, for an oval wider than the
+  // neck, where the neck's corners meet the oval's rim (inside it).
+  const stemFootNow = (): Vec => {
+    if (!base.data.member) return origin;
+    const k = Math.min(1, neckWidth() / 2 / baseOval.rx);
+    return { x: origin.x, y: origin.y - baseOval.ry * (k < 1 ? Math.sqrt(1 - k * k) * 0.9 : 1) };
+  };
+  /**
+   * The stem, upright from the neck's top (foot) to the wife's box (to):
+   * from the neck's width to `top`, upright where it leaves the neck and
+   * where it meets the round joint of the limbs above, so no corner shows.
+   */
+  const stemPath = (foot: Vec, to: Vec, w0: number, top: number) => {
+    const L: string[] = [], R: string[] = [];
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16, e = 3 * t * t - 2 * t * t * t;
+      const y = foot.y + (to.y - foot.y) * t, hw = (top + (w0 - top) * (1 - e)) / 2;
+      L.push(`${(foot.x - hw).toFixed(1)} ${y.toFixed(1)}`);
+      R.push(`${(foot.x + hw).toFixed(1)} ${y.toFixed(1)}`);
+    }
+    // (wound as the trunk's outline is, so the two fill as one)
+    return `M${[...R, ...L.reverse()].join("L")}Z`;
+  };
+  /** Whether a line leaves the side of the neck (see neckSide). */
+  const fromNeckSide = (c: Cubic) => {
+    const side = neckSide();
+    return !!side && Math.abs(c.p0.y - origin.y) <= baseOval.ry && Math.abs(Math.abs(c.p0.x - origin.x) - side) < 1e-6;
+  };
   // A holder sits on the way from the partner to the children she bore,
   // nearer the partner, wherever it and the lines to and from it are clear
   // of every other name and holder.
@@ -2966,8 +3070,6 @@ function layoutAttempt(
     }
     // (a wife whose children include the next name on the centred line, her
     // husband on it: the canopy base, or a leader of the centred branch)
-    const centredKid = (h: Holder) => (h.lone || !(h.partnerId === base.data.member?.id || centerIds.has(h.partnerId))
-      ? undefined : h.kids.find((k) => centerIds.has(k.id)));
     for (const group of byPartner.values()) {
       const lone = !!group[0].lone;
       const P = fromOf(group[0]);
@@ -3043,20 +3145,17 @@ function layoutAttempt(
       const KNOT_TS = [0.22, 0.28, 0.16, 0.34, 0.4, 0.45, 0.52, 0.6, 0.68, 0.76];
       const DEGS = [0, 8, -8, 16, -16, 24, -24, 32, -32, 42, -42];
       const spot = (h: Holder, ts: number[], also: { h: Holder; from: Vec; J?: Vec }[], linesToo = true, shared = true) => {
-        // The wife who bore the centred branch: first on the line from her
-        // husband to it, so the stem rises straight through her, at a share of
-        // her centred son's distance, or turned 4° either way. (Her box went
-        // the plain average of her children's way, where small children
-        // outvoted the large branch, no nearer than her nearest child: the
-        // stem leaned to reach her.) Where no such spot is clear, she is placed
-        // as before.
-        const ck = centredKid(h);
-        if (ck) {
-          const toward = norm(sub(ck, P)), straight = len(sub(ck, P));
-          for (const deg of [0, 4, -4]) for (const t of ts) {
-            const c = add(P, scale(turned(toward, deg), straight * t));
+        // The wife who bore the centred son: on the upright line from the
+        // canopy base to him, so the stem rises straight through her (her
+        // other children fan out from her, see the first ring). Nowhere else:
+        // where no spot on it is clear, she is left unplaced (clear: false).
+        if (isStemWife(h)) {
+          const son = h.kids.find((k) => k.id === stemSonId)!;
+          for (const t of [...new Set([...ts, ...STEM_TS])].sort((a, b) => a - b)) {
+            const c = { x: origin.x, y: P.y + (son.y - P.y) * t };
             if (fits(h, c, also, linesToo, true)) return c;
           }
+          return null;
         }
         // towards her children, turned a little either way, or towards one of them
         const dirs = [...DEGS.map((deg) => turned(h.dir, deg)), ...h.kids.map((k) => norm(sub(k, P)))];
@@ -3553,6 +3652,8 @@ function layoutAttempt(
       // (one from the rim of the base's oval sets out towards its name, not
       // up the trunk's line with all the others)
       let gP = rimStart(node) ? norm(sub(node, P)) : (node.parentId && growthDir.get(node.parentId)) || stemDir.get(node.id) || norm(sub(node, origin));
+      // (leaving the neck's side: outwards first, at a clear angle from the stem)
+      if (sideStartOf(node)) gP = norm(add({ x: Math.sign(P.x - origin.x), y: 0 }, norm(sub(node, P))));
       const holder = holderOf.get(node.id);
       if (holder) {
         // the partner's line to the spouse's holder (once), then the
@@ -3565,11 +3666,21 @@ function layoutAttempt(
           const follow = 0.5 * (1 - 0.8 * fan), reach0 = 0.38 - 0.16 * fan;
           const s0 = norm(add(scale(gP, follow), scale(dv, 1 - follow)));
           const e0 = norm(add(scale(dv, 0.6), scale(holder.dir, 0.4)));
-          holderCurve.set(holder.id, organic({ ...node, parentId: null }, { p0: P, c1: add(P, scale(s0, L * reach0)), c2: sub(S, scale(e0, L * 0.3)), p1: S }));
-          growthDir.set(holder.id, e0);
+          if (isStemWife(holder)) {
+            // the stem: straight up from the neck, through her, to her centred son
+            const foot = stemFootNow();
+            holderCurve.set(holder.id, { p0: foot, c1: add(foot, scale(sub(S, foot), 1 / 3)), c2: add(foot, scale(sub(S, foot), 2 / 3)), p1: S });
+            growthDir.set(holder.id, UP);
+          } else {
+            holderCurve.set(holder.id, organic({ ...node, parentId: null }, { p0: P, c1: add(P, scale(s0, L * reach0)), c2: sub(S, scale(e0, L * 0.3)), p1: S }));
+            growthDir.set(holder.id, e0);
+          }
         }
         P = { x: holder.x, y: holder.y };
         gP = growthDir.get(holder.id) ?? holder.dir;
+        // (from the wife on the stem: her centred son straight up, the
+        // others straight out towards their names, not round under her box)
+        if (isStemWife(holder)) gP = node.id === stemSonId ? UP : norm(sub(node, P));
       }
       const fan = fanOf(holder ? holder.id : node.parentId);
       // Several children on dotted lines from one place leave it together,
@@ -3826,7 +3937,7 @@ function layoutAttempt(
       n.y = origin.y + d.y * r;
     };
     const turn = (n: LiveNode, k: number) => {
-      if (n.ray === undefined) return;
+      if (n.ray === undefined || n.id === stemSonId) return;
       const d0 = dirOf(n.ray);
       const r = (n.x - origin.x) * d0.x + (n.y - origin.y) * d0.y;
       const th = clamp(n.ray + (k * (n.h + f * 0.3)) / Math.max(r, 1), thetaEnd, thetaStart);
@@ -3888,7 +3999,7 @@ function layoutAttempt(
         const saved = group.map((x) => x.pin);
         const P = fromOf(h);
         const d0 = len(sub(h, P));
-        for (const [k, deg] of [[0.7, 0], [1.35, 0], [1, 14], [1, -14], [0.7, 24], [0.7, -24]] as const) {
+        for (const [k, deg] of ([[0.7, 0], [1.35, 0], [1, 14], [1, -14], [0.7, 24], [0.7, -24]] as const).filter(([, deg]) => !deg || !isStemWife(h))) {
           if (budget.checks <= 0) break;
           for (const x of group) x.pin = x === h ? undefined : { x: x.x, y: x.y };
           const a = (deg * Math.PI) / 180;
@@ -3920,7 +4031,7 @@ function layoutAttempt(
           tiers[2].push([n, () => outward(n, -(n.h + n.w * 0.3) * 0.6)]);
           for (const k of [1.6, -1.6, 2.4, -2.4]) tiers[2].push([n, () => turn(n, k)]);
         }
-        for (let a = 0; a < 8; a++) {
+        for (let a = 0; a < (n.id === stemSonId ? 0 : 8); a++) {
           tiers[3].push([n, () => {
             n.x += Math.cos((a * Math.PI) / 4) * n.h * 0.8;
             n.y += Math.sin((a * Math.PI) / 4) * n.h * 0.8;
@@ -3975,7 +4086,7 @@ function layoutAttempt(
           const saved = group.map((x) => x.pin);
           const P = fromOf(h);
           const d0 = len(sub(h, P));
-          for (const [k, deg] of [[0.75, 0], [1.3, 0], [1, 10], [1, -10], [0.8, 18], [0.8, -18], [1.2, 18], [1.2, -18]] as const) {
+          for (const [k, deg] of ([[0.75, 0], [1.3, 0], [1, 10], [1, -10], [0.8, 18], [0.8, -18], [1.2, 18], [1.2, -18]] as const).filter(([, deg]) => !deg || !isStemWife(h))) {
             if (budget.checks <= 0) break;
             for (const x of group) x.pin = x === h ? undefined : { x: x.x, y: x.y };
             const a = (deg * Math.PI) / 180;
@@ -4056,6 +4167,10 @@ function layoutAttempt(
   const mainLimbs = growing.filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal && !holderOf.has(n.id)).length
     + holders.filter(baseHolder).length;
   const limbShare = mainLimbs ? clamp(1.05 / mainLimbs, 0.14, 0.4) : 0;
+  // (the stem's width at its foot, the neck's; and the stem itself, up to
+  // the wife on it, drawn with the trunk)
+  let stemW = 0;
+  let stemWood = "";
   for (const h of holders) {
     const c = holderCurve.get(h.id)!;
     const leaves = Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0));
@@ -4068,7 +4183,22 @@ function layoutAttempt(
     } else {
       const mainLimb = baseHolder(h);
       const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : w;
-      branches.push({ ...shaded(c, w0, w * 0.85, 14, mainLimb ? 4 : 2), lineage: h.lineage ?? null });
+      if (isStemWife(h)) {
+        // (the stem carries on from the neck, as wide as it at its foot: no
+        // round joint there, and no wider than the trunk)
+        stemW = neckWidth();
+        // It is wood, part of the trunk's outline (no seam where it leaves
+        // the neck), and ends inside the round joint of the limbs leaving
+        // her, where that joint's rim is still 0.8 of its width.
+        // (to her box's middle, no wider than her box there, hidden under it)
+        if (c.p1.y < c.p0.y) stemWood = stemPath(c.p0, c.p1, neckWidth(), Math.min(neckWidth(), h.w * 0.9));
+      } else {
+        // (leaving the neck's side, at its own width: not a main limb's,
+        // which shares the trunk's width only where it leaves its centre)
+        // (from the wood's edge, at its own width, each at its own place there)
+        const side = fromNeckSide(c);
+        branches.push({ ...(side ? shaded(c, w * 1.15, w * 0.85, 14, 2) : shaded(c, w0, w * 0.85, 14, mainLimb ? 4 : 2)), lineage: h.lineage ?? null });
+      }
       edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: mainLimb ? w * 1.15 : w, w1: w * 0.85, lineage: h.lineage ?? null });
     }
   }
@@ -4136,7 +4266,20 @@ function layoutAttempt(
         continue;
       }
       const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : node.depth === 1 && !holder ? w * 1.15 : w;
-      branches.push({ ...shaded(c, w0, w * 0.7, 14, mainLimb ? 4 : 2), lineage: node.lineage ?? null });
+      if (node.id === stemSonId && !holder) {
+        stemW = neckWidth();
+        branches.push({ d: ribbonPath(c, stemWidth(), w * 0.7, 14, 1), w: stemWidth(), lineage: node.lineage ?? null });
+      } else if (holder && isStemWife(holder)) {
+        // from the wife on the stem, out of her box: no round joint (it cupped
+        // her box), and no wider where it leaves than her box (her centred
+        // son's upwards, through its width; the others sideways, its height)
+        const ws = Math.min(w0, node.id === stemSonId ? holder.w * 0.9 : holder.h * 0.9);
+        branches.push({ d: ribbonPath(c, ws, Math.min(w * 0.7, Math.max(ws, w * 0.7)), 14, 2), w: ws, lineage: node.lineage ?? null });
+      } else if (fromNeckSide(c)) {
+        branches.push({ ...shaded(c, w * 1.15, w * 0.7, 14, 2), lineage: node.lineage ?? null });
+      } else {
+        branches.push({ ...shaded(c, w0, w * 0.7, 14, mainLimb ? 4 : 2), lineage: node.lineage ?? null });
+      }
       // (the line's own width, for the clarity check: a main limb's wide
       // start lies under the canopy base's oval)
       edges.push({ parentId: from, childId: node.id, points: sample(c), w0: node.depth === 1 && !holder ? w * 1.15 : w, w1: w * 0.7, lineage: node.lineage ?? null });
@@ -4245,6 +4388,18 @@ function layoutAttempt(
   };
 
   const strip = ({ tx: _tx, ty: _ty, mass: _m, region: _r, side: _s, ...rest }: LiveNode): PosterNode => rest;
+  // The trunk's neck: as wide as the stem at its foot, and wide enough to
+  // hold the canopy base's oval on the wood; from the oval's widest down,
+  // it eases to the trunk's own width before the first ancestor's badge.
+  const neck: TrunkNeck | null = base.data.member ? (() => {
+    const top = stemFootNow().y;
+    // (the highest badge, and the bark it needs)
+    const hi = trunkLabels.length ? trunkLabels.reduce((a, t) => (t.y < a.y ? t : a)) : null;
+    return {
+      w: neckWidth(), top, bottom: Math.max(top, origin.y),
+      ...(hi ? { need: hi.w + rowFont * 0.4, needY: hi.y - hi.h / 2 - rowFont * 0.3 } : {}),
+    };
+  })() : null;
   // (everyone drawn as a name in their own right)
   const drawnIds = new Set<string>([
     ...growing.map((n) => n.id), ...stubs.map((n) => n.id), ...trunkLabels.map((t) => t.member.id), ...(baseNode ? [baseNode.id] : []),
@@ -4257,10 +4412,11 @@ function layoutAttempt(
     // it; wider at the top only where the base's oval is wider than the
     // trunk, just enough to hold it on the wood
     trunkPath: trunkOutline(
-      origin, groundY, trunkWidth, TW, Math.max(trunkWidth, base.data.member ? baseOval.rx * 2.16 : 0),
+      origin, groundY, trunkWidth, TW, neck,
       soil ? soil.trunkSpread : 1, soil?.trunkTaper ?? 0,
-    ),
+    ) + stemWood,
     trunkWidth,
+    neck,
     rtl,
     trunkLabels,
     soil,
@@ -4347,68 +4503,85 @@ function withLaqab(m: MemberDTO, rtl: boolean): string {
  * width w where the medallions sit, then flaring into roots at the ground.
  */
 /**
- * The trunk as one solid form. At the top it flares out (to `topW`) to meet
- * the canopy base, like a trunk dividing into its limbs; below that it is
- * `w` wide, wide enough for the badges to rest inside the bark. At the
- * ground it either spreads into a root flare (`spread`, onto a mound or a
- * panel) or, with `taper` > 0, curves smoothly in to a fine point `taper`
- * below the ground line, where the foundation's gold thread carries on:
- * an S-curve, vertical where it leaves the trunk and where it ends, so
- * there is no pinch or corner.
+ * The trunk as one solid form. At the top it narrows (or, for a canopy
+ * base wider than the trunk, widens) smoothly into a neck of `neck.w`,
+ * symmetric about the trunk's axis, which holds the canopy base's oval on
+ * the wood and ends level with the top of the oval, where the stem and the
+ * limbs leave it: no dome, no step. Below the neck it is `w` wide, wide
+ * enough for the badges to rest inside the bark. At the ground it either
+ * spreads into a root flare (`spread`, onto a mound or a panel) or, with
+ * `taper` > 0, curves smoothly in to a fine point `taper` below the ground
+ * line, where the foundation's gold thread carries on: an S-curve, vertical
+ * where it leaves the trunk and where it ends, so there is no pinch or
+ * corner.
  */
 /** How far a trunk's root flare reaches out (see trunkOutline). */
 const flareOf = (w: number, flareW: number, spread: number) => (flareW + (w - flareW) * 0.35) * spread;
 /** The trunk outline's base line: its flare ends a little below the ground line. */
 const trunkBase = (groundY: number, w: number, flareW: number, spread: number) => groundY + flareOf(w, flareW, spread) * 0.2;
 
-function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, topW = w, spread = 1, taper = 0): string {
-  const h = groundY - o.y;
+/**
+ * The neck at the top of the trunk: its width, its top (where the stem or
+ * the canopy base's oval takes over), and where it is still that wide.
+ * Below it the trunk widens in one long S to its full width where the
+ * roots begin; where the ancestors' badges need more than the neck's width
+ * (`need`, from `needY` down), first to that, above the highest badge.
+ */
+export interface TrunkNeck { w: number; top: number; bottom: number; need?: number; needY?: number }
+
+function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, neck: TrunkNeck | null = null, spread = 1, taper = 0): string {
   const f = (n: number) => n.toFixed(1);
   const L = (dx: number) => f(o.x - dx), R = (dx: number) => f(o.x + dx);
-  // the flare under the canopy base: from topW wide to w, over a short height
-  const flare = Math.min(h * 0.32, Math.max(topW, w) * 0.9);
-  // the top is a low dome hidden under the canopy base's medallion
-  const head = `M${L(topW * 0.5)} ${f(o.y - topW * 0.1)}`;
-  const close = `C${R(topW * 0.5)} ${f(o.y + flare * 0.1)} ${R(topW * 0.5)} ${f(o.y)} ${R(topW * 0.5)} ${f(o.y - topW * 0.1)}Q${f(o.x)} ${f(o.y - topW * 0.45)} ${L(topW * 0.5)} ${f(o.y - topW * 0.1)}Z`;
+  const nk = neck ?? { w, top: o.y, bottom: o.y };
+  const n = Math.min(nk.w, w) / 2, hw = w / 2;
+  // where the full width is reached: the roots' flare, or the taper's start
+  const fl = flareOf(w, flareW, spread);
+  const rise = Math.min(fl * 1.8, Math.max(0, groundY - nk.bottom) * 0.75);
+  const yr = groundY - rise;
+  const tip = Math.max(w * 0.02, 0.6);
+  const y0 = taper > 0 ? Math.max(nk.bottom, groundY - taper * 0.6) : yr;
+  // the S curves down one side, upright where each starts and ends
+  const steps: [number, number][] = [[n, nk.bottom]];
+  if (nk.need !== undefined && nk.needY !== undefined && nk.need / 2 > n && nk.needY > nk.bottom && nk.needY < y0) steps.push([Math.min(hw, nk.need / 2), nk.needY]);
+  steps.push([hw, Math.max(y0, nk.bottom)]);
+  const sDown = (side: (dx: number) => string) => steps.slice(1).map(([x1, y1], i) => {
+    const [x0, yy0] = steps[i];
+    const k = (y1 - yy0) * 0.5;
+    return `C${side(x0)} ${f(yy0 + k)} ${side(x1)} ${f(y1 - k)} ${side(x1)} ${f(y1)}`;
+  }).join("");
+  const sUp = (side: (dx: number) => string) => steps.slice(0, -1).map((_, j) => {
+    const i = steps.length - 1 - j;
+    const [x1, y1] = steps[i], [x0, yy0] = steps[i - 1];
+    const k = (y1 - yy0) * 0.5;
+    return `C${side(x1)} ${f(y1 - k)} ${side(x0)} ${f(yy0 + k)} ${side(x0)} ${f(yy0)}`;
+  }).join("");
+  // (the top: level, where the stem or the oval covers it)
+  const leftDown = `M${L(n)} ${f(nk.top)}L${L(n)} ${f(nk.bottom)}` + sDown(L);
+  const rightUp = sUp(R) + `L${R(n)} ${f(nk.top)}Z`;
   if (taper > 0) {
-    const tip = Math.max(w * 0.02, 0.6);
-    // the narrowing starts above the ground line and ends `taper` below it
-    const y0 = Math.max(o.y + flare, groundY - taper * 0.6);
+    // the narrowing ends `taper` below the ground line
     const y1 = groundY + taper;
-    const k = (y1 - y0) * 0.55;
+    const kk = (y1 - y0) * 0.55;
     return [
-      head,
-      `C${L(topW * 0.5)} ${f(o.y)} ${L(topW * 0.5)} ${f(o.y + flare * 0.1)} ${L(topW * 0.5)} ${f(o.y + flare * 0.2)}`,
-      `C${L(topW * 0.42)} ${f(o.y + flare * 0.4)} ${L(w * 0.5)} ${f(o.y + flare * 0.6)} ${L(w * 0.5)} ${f(o.y + flare)}`,
-      `L${L(w * 0.5)} ${f(y0)}`,
-      `C${L(w * 0.5)} ${f(y0 + k)} ${L(tip)} ${f(y1 - k)} ${L(tip)} ${f(y1)}`,
+      leftDown,
+      `C${L(hw)} ${f(y0 + kk)} ${L(tip)} ${f(y1 - kk)} ${L(tip)} ${f(y1)}`,
       `L${R(tip)} ${f(y1)}`,
-      `C${R(tip)} ${f(y1 - k)} ${R(w * 0.5)} ${f(y0 + k)} ${R(w * 0.5)} ${f(y0)}`,
-      `L${R(w * 0.5)} ${f(o.y + flare)}`,
-      `C${R(w * 0.5)} ${f(o.y + flare * 0.6)} ${R(topW * 0.42)} ${f(o.y + flare * 0.4)} ${R(topW * 0.5)} ${f(o.y + flare * 0.2)}`,
-      close,
+      `C${R(tip)} ${f(y1 - kk)} ${R(hw)} ${f(y0 + kk)} ${R(hw)} ${f(y0)}`,
+      rightUp,
     ].join("");
   }
   // root flare: `spread` < 1 keeps it inside a soil mound or on a panel.
   // The trunk starts widening well above the ground and spreads gradually
   // (a concave sweep, like the buttressed foot of an old tree), not in a
   // sudden kink at the ground line.
-  const fl = flareOf(w, flareW, spread);
-  const rise = Math.min(fl * 1.8, Math.max(0, groundY - (o.y + flare)) * 0.75);
-  const yr = groundY - rise;
   return [
-    head,
-    `C${L(topW * 0.5)} ${f(o.y)} ${L(topW * 0.5)} ${f(o.y + flare * 0.1)} ${L(topW * 0.5)} ${f(o.y + flare * 0.2)}`,
-    `C${L(topW * 0.42)} ${f(o.y + flare * 0.4)} ${L(w * 0.5)} ${f(o.y + flare * 0.6)} ${L(w * 0.5)} ${f(o.y + flare)}`,
-    `L${L(w * 0.5)} ${f(yr)}`,
-    `C${L(w * 0.5)} ${f(yr + rise * 0.45)} ${L(w * 0.5 + fl * 0.2)} ${f(groundY - rise * 0.12)} ${L(w * 0.5 + fl * 0.6)} ${f(groundY + fl * 0.04)}`,
-    `C${L(w * 0.5 + fl * 0.95)} ${f(groundY + fl * 0.13)} ${L(w * 0.5 + fl * 1.4)} ${f(groundY + fl * 0.18)} ${L(w * 0.5 + fl * 1.9)} ${f(trunkBase(groundY, w, flareW, spread))}`,
-    `L${R(w * 0.5 + fl * 1.9)} ${f(trunkBase(groundY, w, flareW, spread))}`,
-    `C${R(w * 0.5 + fl * 1.4)} ${f(groundY + fl * 0.18)} ${R(w * 0.5 + fl * 0.95)} ${f(groundY + fl * 0.13)} ${R(w * 0.5 + fl * 0.6)} ${f(groundY + fl * 0.04)}`,
-    `C${R(w * 0.5 + fl * 0.2)} ${f(groundY - rise * 0.12)} ${R(w * 0.5)} ${f(yr + rise * 0.45)} ${R(w * 0.5)} ${f(yr)}`,
-    `L${R(w * 0.5)} ${f(o.y + flare)}`,
-    `C${R(w * 0.5)} ${f(o.y + flare * 0.6)} ${R(topW * 0.42)} ${f(o.y + flare * 0.4)} ${R(topW * 0.5)} ${f(o.y + flare * 0.2)}`,
-    close,
+    leftDown,
+    `C${L(hw)} ${f(yr + rise * 0.45)} ${L(hw + fl * 0.2)} ${f(groundY - rise * 0.12)} ${L(hw + fl * 0.6)} ${f(groundY + fl * 0.04)}`,
+    `C${L(hw + fl * 0.95)} ${f(groundY + fl * 0.13)} ${L(hw + fl * 1.4)} ${f(groundY + fl * 0.18)} ${L(hw + fl * 1.9)} ${f(trunkBase(groundY, w, flareW, spread))}`,
+    `L${R(hw + fl * 1.9)} ${f(trunkBase(groundY, w, flareW, spread))}`,
+    `C${R(hw + fl * 1.4)} ${f(groundY + fl * 0.18)} ${R(hw + fl * 0.95)} ${f(groundY + fl * 0.13)} ${R(hw + fl * 0.6)} ${f(groundY + fl * 0.04)}`,
+    `C${R(hw + fl * 0.2)} ${f(groundY - rise * 0.12)} ${R(hw)} ${f(yr + rise * 0.45)} ${R(hw)} ${f(yr)}`,
+    rightUp,
   ].join("");
 }
 

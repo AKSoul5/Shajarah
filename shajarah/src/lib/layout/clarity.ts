@@ -124,9 +124,12 @@ export function validateRelationships(layout: PosterLayout, tree: TreeDTO): Clar
     const start = e.points[0];
     const end = e.points[e.points.length - 1];
     // connections from a trunk ancestor leave the trunk at that ancestor's row
+    // and the canopy base's leave the wood of the neck it sits in, at its row
+    const fromNeck = !!pb && !!layout.neck && e.parentId === layout.base?.id
+      && Math.abs(start.y - pb.y) <= pb.h / 2 + e.w0 && Math.abs(start.x - layout.origin.x) <= Math.max(layout.neck.w, pb.w) / 2 + e.w0;
     const startOk = !pb ? false : trunkIds.has(e.parentId)
       ? Math.abs(start.y - pb.y) <= pb.h * 1.3 && Math.abs(start.x - layout.origin.x) <= layout.trunkWidth / 2 + pb.h
-      : inside(start, pb, e.w0);
+      : inside(start, pb, e.w0) || fromNeck;
     if (!startOk) issues.push({ kind: "misattached", edge: [e.parentId, e.childId], at: start, detail: "start" });
     if (!cb || !inside(end, cb, e.w1 + 1)) issues.push({ kind: "misattached", edge: [e.parentId, e.childId], at: end, detail: "end" });
   }

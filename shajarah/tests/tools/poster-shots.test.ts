@@ -102,10 +102,16 @@ function measure(L: PosterLayout, paper: PaperSize) {
       wifeToSonDeg: wife && son ? angle(wife, son) : null,
       baseToSonDeg: L.base && son ? angle(L.base, son) : null,
       wivesOfBase: L.base ? L.spouses.filter((s) => s.partnerId === L.base!.id).map((s) => angle(L.base!, s)) : [],
+      // x on the paper, in mm from its left edge: the canopy base, the centred wife's box, the centred son
+      xMm: { base: L.base ? r2(L.base.x * mm) : null, wife: wife ? r2(wife.x * mm) : null, son: son ? r2(son.x * mm) : null },
     },
     trunkWidthMm: r2(L.trunkWidth * mm),
     // for the renderer: the canopy base's close-up, about 300 × 200 mm of paper
-    baseBox: L.base ? { x: L.base.x - 150 / mm, y: L.base.y - 130 / mm, w: 300 / mm, h: 200 / mm } : null,
+    // (taller where the centred wife's box stands higher: it and 40 mm above it)
+    baseBox: L.base ? (() => {
+      const top = Math.min(L.base.y - 130 / mm, wife ? wife.y - wife.h / 2 - 40 / mm : Infinity);
+      return { x: L.base.x - 150 / mm, y: top, w: 300 / mm, h: L.base.y + 70 / mm - top };
+    })() : null,
     // the trunk's outline, and the heights to measure its width at: just above the ground, just under the canopy base
     trunk: { path: L.trunkPath, groundY: L.groundY, topY: L.base ? L.base.y + L.base.h / 2 : null },
   };

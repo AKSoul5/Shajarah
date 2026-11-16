@@ -11,7 +11,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
+// (a path to its index.js loads as CommonJS: chromium is then on the default export)
+const pw = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
+const chromium = pw.chromium ?? pw.default.chromium;
 const fontDir = resolve("public/fonts");
 const FAM = { amiri: "Amiri", "aref-ruqaa": "Aref Ruqaa", "noto-kufi-arabic": "Noto Kufi Arabic" };
 const css = Object.keys(FAM).flatMap((f) => [400, 700].flatMap((wt) => ["arabic", "latin"].map((s) => `@font-face{font-family:"${FAM[f]}";font-weight:${wt};src:url(file://${fontDir}/${f}-${s}-${wt}-normal.woff2)}`))).join("");
