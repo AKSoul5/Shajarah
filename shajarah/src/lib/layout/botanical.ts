@@ -107,6 +107,8 @@ export interface LayoutOptions {
   stemUpright?: boolean;
   /** The canopy base's wives' boxes placed clear of the space once kept round its name (see computePosterLayout). */
   wivesRoom?: boolean;
+  /** The canopy base's limbs rise less where a childless sibling's line is beside them (see computePosterLayout). */
+  limbsLow?: boolean;
   /** Moves the middle of the canopy's fan by this share of it (towards the end where u = 1), to even out its two halves. Default: chosen automatically. */
   sideBias?: number;
   /** How far (radians) above horizontal the canopy's sweep starts on each side. Default: SWEEP_LIFT, eased for a very crowded generation. */
@@ -173,7 +175,7 @@ export interface LayoutOptions {
   minTextMm?: number;
 }
 
-import { layoutPad, designSize, isDesignShape, type DesignShape, type PosterShape } from "./nodeGeometry";
+import { decorOutset, designSize, drawnOutline, isDesignShape, layoutPad, outlinesOverlap, type DesignShape, type PosterShape } from "./nodeGeometry";
 export type { PosterShape } from "./nodeGeometry";
 
 export interface PosterNode {
@@ -434,8 +436,11 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
     const sizes = l.nodes.filter((n) => n.depth > 0).map((n) => n.fontSize).sort((a, b) => a - b);
     return sizes.length ? sizes[sizes.length >> 1] : 0;
   };
+  // (lines running along a thick limb, and names whose drawn frames touch,
+  // count as unclear here too, as the layout QA counts them)
   const alongside = (l: PosterLayout) => linesAlongside(l).length;
-  const sound = (l: PosterLayout) => isCleanPoster(l) && l.legibility.ok && alongside(l) === 0;
+  const frames = (l: PosterLayout) => framesTouching(l);
+  const sound = (l: PosterLayout) => isCleanPoster(l) && l.legibility.ok && frames(l) === 0 && alongside(l) === 0;
   const upright = compactGuarded(tree, { ...opts, stemUpright: true });
   const centred = !!upright.centerLine?.length;
   if (centred) upright.stemUpright = true;
@@ -454,13 +459,29 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
     if (isCleanPoster(a) !== isCleanPoster(b)) return isCleanPoster(a);
     if (a.legibility.ok !== b.legibility.ok) return a.legibility.ok;
     if (a.clarity.issues.length !== b.clarity.issues.length) return a.clarity.issues.length < b.clarity.issues.length;
+    if (frames(a) !== frames(b)) return frames(a) < frames(b);
     if (alongside(a) !== alongside(b)) return alongside(a) < alongside(b);
     return wives >= STEM_FREE_WIVES && typical(a) > typical(b) * 1.001;
   };
   const best = () => tried.reduce((x, y) => (better(y, x) ? y : x));
   if (centred) lay({ stemUpright: false });
   if (alongside(best()) > 0 && upright.spouses.length) lay({ stemUpright: !centred, wivesRoom: true });
+  // (nearly clean, not clean: once more with the base's limbs rising less,
+  // where a limb crossing a childless brother's line beside it is the cause)
+  if (!isCleanPoster(best()) && nearlyClean(best())) lay({ stemUpright: best().stemUpright ?? true, limbsLow: true });
   return best();
+}
+
+/** Pairs of names whose drawn outlines (a design's frame, a ring) touch, as the layout QA's decor check measures them. */
+function framesTouching(l: PosterLayout): number {
+  const shapes = l.nodes.map((n) => ({ n, r: Math.max(n.w, n.h) / 2 + decorOutset(n) }));
+  let count = 0;
+  for (let i = 0; i < shapes.length; i++) for (let j = i + 1; j < shapes.length; j++) {
+    const a = shapes[i], b = shapes[j];
+    if (Math.hypot(a.n.x - b.n.x, a.n.y - b.n.y) > a.r + b.r) continue;
+    if (outlinesOverlap(drawnOutline(a.n), drawnOutline(b.n))) count++;
+  }
+  return count;
 }
 
 /** Nearly clean: no names overlapping, a few ambiguities at most (another arrangement may clear them; more is crowding). */
@@ -3419,23 +3440,23 @@ function layoutAttempt(
       // (a childless one from the rim of the base's oval sweeps up less:
       // all of them rising first made a broom of lines above the trunk)
       let sweep = (rimStart(node) ? SWEEP * 0.3 : SWEEP) * k;
-      // (a limb from the base's centre rises no further than half way to
-      // the line of a childless brother or sister beside it, on the side it
-      // rises towards: with the base's oval small, rising past it, it crossed
-      // that line just outside the oval)
-      if (!rimStart(node) && sweep > 0) {
+      // (with LayoutOptions.limbsLow, a limb from the base's centre rises
+      // no further than half way to the line of a childless brother or
+      // sister beside it, on the side it rises towards: with the base's
+      // oval small, rising past it crossed that line just outside the oval)
+      if (opts.limbsLow && !rimStart(node) && sweep > 0) {
         const ang = (v: Vec) => Math.atan2(v.x, -v.y);
         const a = ang(dv), toUp = -Math.sign(a);
         let room = Infinity;
         for (const sib of nodes) {
           if (sib === node || sib.parentId !== node.parentId || !rimStart(sib)) continue;
-          const b = ang(norm(sub(sib, origin))), gap = (b - a) * toUp;
-          if (gap > 0) room = Math.min(room, gap);
+          const g = (ang(norm(sub(sib, origin))) - a) * toUp;
+          if (g > 0) room = Math.min(room, g);
         }
         if (room < Infinity) {
           const turn = (sw: number) => Math.abs(ang(norm(add(scale(UP, sw), scale(dv, 1 - sw)))) - a);
-          let lo = 0, hi = sweep;
-          if (turn(hi) > room * 0.5) {
+          if (turn(sweep) > room * 0.5) {
+            let lo = 0, hi = sweep;
             for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (turn(m) > room * 0.5) hi = m; else lo = m; }
             sweep = lo;
           }
