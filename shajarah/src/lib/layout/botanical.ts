@@ -436,11 +436,19 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
     const sizes = l.nodes.filter((n) => n.depth > 0).map((n) => n.fontSize).sort((a, b) => a - b);
     return sizes.length ? sizes[sizes.length >> 1] : 0;
   };
-  // (lines running along a thick limb, and names whose drawn frames touch,
-  // count as unclear here too, as the layout QA counts them)
+  // (count as unclear here too: names whose drawn frames touch, with the
+  // designed name boxes, as the layout QA's design check counts them; and a
+  // child's line from the canopy base or one of its wives' boxes running
+  // along a thicker line from there, where holding the stem upright moved
+  // things about. Not every line alongside anywhere: a family's own tree,
+  // fine upright, was laid out four times over one)
   const alongside = (l: PosterLayout) => linesAlongside(l).length;
-  const frames = (l: PosterLayout) => framesTouching(l);
-  const sound = (l: PosterLayout) => isCleanPoster(l) && l.legibility.ok && frames(l) === 0 && alongside(l) === 0;
+  const designed = (l: PosterLayout) => l.nodes.some((n) => isDesignShape(n.shape as never));
+  const frames = (l: PosterLayout) => (designed(l) ? framesTouching(l) : 0);
+  const inWivesFans = (l: PosterLayout) => linesAlongside(l)
+    .filter((a) => (a.edge[0] === l.base?.id || l.spouses.some((h) => h.id === a.edge[0] && h.partnerId === l.base?.id))
+      && !l.spouses.some((h) => h.id === a.edge[1])).length;
+  const sound = (l: PosterLayout) => isCleanPoster(l) && l.legibility.ok && frames(l) === 0 && inWivesFans(l) === 0;
   const upright = compactGuarded(tree, { ...opts, stemUpright: true });
   const centred = !!upright.centerLine?.length;
   if (centred) upright.stemUpright = true;
@@ -460,12 +468,13 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
     if (a.legibility.ok !== b.legibility.ok) return a.legibility.ok;
     if (a.clarity.issues.length !== b.clarity.issues.length) return a.clarity.issues.length < b.clarity.issues.length;
     if (frames(a) !== frames(b)) return frames(a) < frames(b);
-    if (alongside(a) !== alongside(b)) return alongside(a) < alongside(b);
-    return wives >= STEM_FREE_WIVES && typical(a) > typical(b) * 1.001;
+    // (with three or more wives, the larger names; then the fewer lines alongside)
+    if (wives >= STEM_FREE_WIVES && Math.abs(typical(a) - typical(b)) > typical(b) * 0.001) return typical(a) > typical(b);
+    return alongside(a) < alongside(b);
   };
   const best = () => tried.reduce((x, y) => (better(y, x) ? y : x));
   if (centred) lay({ stemUpright: false });
-  if (alongside(best()) > 0 && upright.spouses.length) lay({ stemUpright: !centred, wivesRoom: true });
+  if (inWivesFans(best()) > 0) lay({ stemUpright: !centred, wivesRoom: true });
   // (nearly clean, not clean: once more with the base's limbs rising less,
   // where a limb crossing a childless brother's line beside it is the cause)
   if (!isCleanPoster(best()) && nearlyClean(best())) lay({ stemUpright: best().stemUpright ?? true, limbsLow: true });
