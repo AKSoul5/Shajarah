@@ -422,6 +422,32 @@ is held in the page as a `data:` URL.
   - On the sample families and a 218-person family in every theme, the
     share of names on the heavier side fell from 7–9% to 0–3% in most
     cases, every poster clean (tests/shape.test.ts).
+  - **The canopy's weight sits over the trunk.** Splitting the names
+    evenly was not enough when the centred son's own family spread
+    further one way than the other: a private 340-person family at A0 had
+    its names' centre 20.5 mm right of the trunk, reaching 229 mm left and
+    299 mm right (at 2A0, 29.7 mm off). His children's slices are now
+    moved across within his span (at most 12% of it) until the names'
+    centre is almost over the trunk: only when the outline leans the
+    same way too (a canopy reaching as far either side, its names a little
+    denser on one, is balanced as it is; moving it bent the Nouri sample's
+    leader for nothing). His brothers, every family's order
+    and their shares stay as they were; nothing is mirrored. It replaces
+    the halves' evening-out where it acts (the two pulled against each
+    other and set names smaller), and it is never kept at a cost: a
+    family whose first attempt takes under half a second is laid out both
+    ways and the better kept (as clean, names no smaller); a slower one
+    keeps it unless it costs the names at full size a clean poster. On
+    that family: A0 centre 0.4 mm (reach 237 / 289 mm), names unchanged
+    (3.44 mm typical, 3.22 smallest); 2A0 0.7 mm, names 4.58 → 4.77 mm; its
+    saved branch view 32 → 2 mm (A0) and 49 → 4 mm (2A0), names 4.02 →
+    4.23 and 4.58 → 5.08 mm. Every one clean; the trunk and side families
+    as they were, apart from their size where the names grew. Layout QA,
+    448 posters against 1.0.53: none with smaller names or a new defect,
+    9 with larger names (smallest 1.30 → 1.90 mm at most), 1 with a
+    finding fewer; the run 4% longer. Layout 20.5 → 22.5 s for the whole
+    family at A0, its branch view as before (12 s)
+    (tests/a-canopy-spreading-further-one-way-is-set-over-the-trunk.test.ts).
 
 ## The tree's shape
 

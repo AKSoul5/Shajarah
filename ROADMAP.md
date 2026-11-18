@@ -21,7 +21,7 @@ moves the work on. A plan that exists only in a conversation does not count.
 | **Released** | **1.0.52**: the start-up never deletes, overwrites, moves or renames an existing database folder or password file; a recovery window replaces it. Upgrades from 1.0.32–1.0.51 and the live update were verified |
 | **In release** | **1.0.53: poster fixes** (owner's decision of 10 Nov). Side branches grow from their own ancestor's badge; a childless son's line clears the next badge; a man's wives' boxes stand by their own children. Everything after it moves one version later |
 | **Next** | **1.0.54: data protection** (S2) |
-| **Waiting, unmerged** | Branches `wives-lines` and `spouse-align` (poster). They were tested on 1.0.51 and are scheduled for 1.0.59 |
+| **Waiting, unmerged** | Branches `wives-lines` and `spouse-align` (poster). They were tested on 1.0.51 and are scheduled for 1.0.59. Branch `poster/canopy-balance` (the canopy's weight set over the trunk, from 1.0.53; 18 Nov 2026) waits for the owner's review of its renders; its version is set when it is merged |
 
 ## Order of work (binding)
 
@@ -93,6 +93,13 @@ Full wording and recommendations are in the plan, §10. Needed soonest:
 - **U9** (before 1.0.56): opening a project beside its original keeps ids, or makes an independent copy.
 - **U13** (for new installs): keep the database in `%LOCALAPPDATA%` rather than the roaming profile.
 - **U2, U4–U6, U10–U12, U14, U15:** see the plan.
+
+Decided for product work (17 Nov 2026): names will be set in
+**Scheherazade New**, chosen by the owner after comparing it with Amiri,
+Noto Naskh, IBM Plex Sans Arabic and others on the real poster. It comes with
+a proper typography and scaling system (a hierarchy of sizes, badges sized to
+their text), not as a font swap. Its order after canopy balance: side
+families (R2), then typography.
 
 Still open for product work: the daughter-family inclusion rule, the
 missing-father rule (H6), how to show co-parents without a marriage, generation

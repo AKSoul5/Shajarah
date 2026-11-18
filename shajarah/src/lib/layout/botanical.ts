@@ -101,6 +101,8 @@ export interface LayoutOptions {
   centerSides?: "names" | "room";
   /** Moves the middle of the canopy's fan by this share of it (towards the end where u = 1), to even out its two halves. Default: chosen automatically. */
   sideBias?: number;
+  /** Set the canopy's weight over the trunk by moving the centred son's children across his span. Default: when it costs neither a clean poster nor the names' size (see layoutOnce). */
+  weighOver?: boolean;
   /** How far (radians) above horizontal the canopy's sweep starts on each side. Default: SWEEP_LIFT, eased for a very crowded generation. */
   sweepLift?: number;
   /** Where the canopy starts. Defaults to tree.crownBaseId, then automatic. */
@@ -373,6 +375,8 @@ export interface PosterLayout {
   soilKeptNearest?: boolean;
   /** How far above horizontal the canopy's sweep started (radians; see SWEEP_LIFT). */
   sweepLift?: number;
+  /** How far the centred son's children were moved across his span to set the canopy's weight over the trunk (a share of it); undefined when the canopy was not weighed (already over the trunk, or no centred son). */
+  weighShift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
   centerLine?: string[];
 }
@@ -543,6 +547,9 @@ const BALANCE_ISSUES = 15;
 
 /** One layout of the poster (see computePosterLayout, which may lay it out again). */
 function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+  const started = Date.now();
+  // (as asked: the balance and sweep below are chosen for this layout)
+  const asked = opts;
   // Each attempt is verified for overlapping names AND for relationship
   // clarity (every line from the right parent to the right child, none
   // hidden under another name, no ambiguous crossings). Ambiguity means the
@@ -582,6 +589,22 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         firstAttempt = wide;
       }
     }
+  }
+  // The canopy's weight set over the trunk (see layoutAttempt) never costs
+  // a cleaner poster or larger names: a family whose first attempt is quick
+  // (under WEIGH_QUICK_MS) is laid out both ways, after the search; a slower one
+  // keeps it unless it costs the names at full size a clean, legible poster
+  // (its first attempt, far from clean, says nothing else reliably: a
+  // private 133-person branch had 40 overlaps with it and 35 without, and
+  // came out clean either way, its names larger with it).
+  const quickFirst = Date.now() - started < WEIGH_QUICK_MS;
+  if (opts.weighOver === undefined && firstAttempt && !quickFirst && firstAttempt.weighShift !== undefined && !(isClean(firstAttempt) && firstAttempt.legibility.ok)) {
+    const first = firstAttempt;
+    const plain = layoutAttempt(tree, { ...opts, weighOver: false }, 1, false, false, false, { checks: 0 });
+    plain.clarity = validateRelationships(plain, tree);
+    const worse = isClean(plain) && plain.legibility.ok && !(isClean(first) && first.legibility.ok);
+    opts = { ...opts, weighOver: !worse };
+    if (worse) firstAttempt = plain;
   }
   // Evening the two halves: with one side of the trunk much more crowded
   // than the other (see sideLean), the side holding most of the families
@@ -905,6 +928,15 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
     || (rank(a) === rank(b) && a.legibility.smallestTextMm > b.legibility.smallestTextMm * 1.05);
   const result = best.layout;
   result.tooDense = result.clarity.issues.length > CLARITY_LIMIT;
+  // (laid out without the canopy's weight set over the trunk too: see above)
+  if (opts.weighOver === undefined && quickFirst && (result.weighShift || firstAttempt?.weighShift)) {
+    const typicalText = (l: PosterLayout) => { const f = l.nodes.map((n) => n.fontSize).sort((a, b) => a - b); return f[f.length >> 1] ?? 0; };
+    const plain = layoutOnce(tree, { ...asked, weighOver: false });
+    // (its names at least as large, at the poster's typical size and its smallest)
+    if (better(plain, result) || (rank(plain) === rank(result) && (typicalText(plain) > typicalText(result) * 1.01 || plain.legibility.smallestTextMm > result.legibility.smallestTextMm * 1.01))) return plain;
+    // (kept: the layouts tried again below keep it too)
+    opts = { ...opts, weighOver: true };
+  }
   // The balanced centring (a leader up the centred branch, its brothers
   // split by names) never costs a clean, legible poster either: a poster it
   // leaves a few ambiguities short of clean is laid out again with the
@@ -1035,6 +1067,15 @@ const WIDE_CANOPY = 30;
 /** The canopy base's oval, as fractions of its round space's radius (wider than tall). */
 const BASE_OVAL = { w: 1, h: 0.66 };
 
+/** How far (a share of the canopy's half-width) its names' weight may sit off the trunk before it is set over it. */
+const WEIGHT_OFF_OK = 0.02;
+/** ...and how far the middle of its outline (a share of its half-width) the same way. */
+const OUTLINE_OFF_OK = 0.04;
+/** The most the centred son's children's slices move across his span to set the canopy's weight over the trunk. */
+const LEAD_SHIFT_MAX = 0.12;
+/** Where (a share of the half-width, on the side it leaned) the moved weight is aimed. */
+const WEIGHT_GOAL = 0.01;
+
 /** The least share of its father's span the primary lineage's branch takes, in the middle. */
 const CENTER_SHARE = 0.3;
 /**
@@ -1050,6 +1091,8 @@ const LIFT_FULL_UNTIL = 50;
 const LIFT_NONE_FROM = 100;
 /** Above this many names, the sweep is chosen on the layout's first attempt rather than by laying the family out twice. */
 const LARGE_FAMILY = 150;
+/** A first attempt quicker than this (ms): the poster is laid out both with and without the canopy's weight set over the trunk. */
+const WEIGH_QUICK_MS = 500;
 /** The old sweep: a little below horizontal on each side, the widest the canopy can be. */
 const WIDE_SWEEP = -0.12;
 
@@ -2008,9 +2051,13 @@ function layoutAttempt(
           a += span;
         }
       };
-      spread(u0, mid - half, others.slice(0, cut));
-      partition(kids[c], mid - half, mid + half, d0);
-      spread(mid + half, u1, others.slice(cut));
+      // (the centred son's own children: his centred child's slice moved by
+      // leadShift of his span, to set the canopy's weight over the trunk;
+      // see below)
+      const sh = node.parent === base && centerPath.has(node) ? leadShift * (u1 - u0) : 0;
+      spread(u0, mid - half + sh, others.slice(0, cut));
+      partition(kids[c], mid - half + sh, mid + half + sh, d0);
+      spread(mid + half + sh, u1, others.slice(cut));
       return;
     }
     let a = u0;
@@ -2051,22 +2098,93 @@ function layoutAttempt(
   // span; the largest one, centred unasked, only its own share)
   const chosenPath = new Set<HNode>(centerNode && centerNode !== dominant ? centerNode.ancestors() as HNode[] : []);
   const centerIds = new Set([...centerPath].map((n) => n.data.member!.id));
-  partition(base, 0.015, 0.985);
   // Evening the two halves (opts.sideBias, chosen in computePosterLayout):
   // the middle of the fan moves, each half stretched or narrowed to suit,
   // every sub-branch keeping its order and its share of its own half.
   const warpOf = (m: number) => (u: number) => (u <= 0.5 ? 0.015 + ((u - 0.015) * (m - 0.015)) / (0.5 - 0.015) : m + ((u - 0.5) * (0.985 - m)) / (0.985 - 0.5));
-  const sideBias = opts.sideBias ?? 0;
-  if (Math.abs(sideBias) > 0.005) {
-    const warp = warpOf(0.5 + sideBias);
-    for (const n of base.descendants() as HNode[]) {
-      if (n.u0 === undefined) continue;
-      // (the centred son still rises straight up the middle; further up,
-      // his line leans with the families either side of it, or it would
-      // pass his brothers' families)
-      const middle = n.depth === base.depth + 1 && centerPath.has(n) && Math.abs(n.u! - 0.5) < 1e-6;
-      n.u0 = warp(n.u0); n.u1 = warp(n.u1!); n.u = middle ? 0.5 : warp(n.u!);
+  let sideBias = opts.sideBias ?? 0;
+  const lay = () => {
+    partition(base, 0.015, 0.985);
+    if (Math.abs(sideBias) > 0.005) {
+      const warp = warpOf(0.5 + sideBias);
+      for (const n of base.descendants() as HNode[]) {
+        if (n.u0 === undefined) continue;
+        // (the centred son still rises straight up the middle; further up,
+        // his line leans with the families either side of it, or it would
+        // pass his brothers' families)
+        const middle = n.depth === base.depth + 1 && centerPath.has(n) && Math.abs(n.u! - 0.5) < 1e-6;
+        n.u0 = warp(n.u0); n.u1 = warp(n.u1!); n.u = middle ? 0.5 : warp(n.u!);
+      }
     }
+  };
+  // The canopy's weight over the trunk: where its names will stand (each on
+  // its generation's ring at its angle), their mean distance across from
+  // the trunk, as a share of the canopy's width.
+  const weightOff = () => {
+    let sum = 0, n = 0;
+    for (const x of crownNodes) {
+      const d = x.depth - base.depth;
+      if (d < 1 || x.u === undefined) continue;
+      const th = uToTheta(x.u);
+      const r = r0 + (ringT[d] ?? 1) * Math.max(0, reach(th) * 0.95 - r0);
+      sum += Math.cos(th) * r;
+      n++;
+    }
+    return n ? sum / n / Math.max(1, crown.rx) : 0;
+  };
+  // ...and its outline's: the middle of its reach either way, as a share of its width
+  const outlineOff = () => {
+    let lo = 0, hi = 0;
+    for (const x of crownNodes) {
+      const d = x.depth - base.depth;
+      if (d < 1 || x.u === undefined) continue;
+      const th = uToTheta(x.u);
+      const cx = Math.cos(th) * (r0 + (ringT[d] ?? 1) * Math.max(0, reach(th) * 0.95 - r0));
+      lo = Math.min(lo, cx); hi = Math.max(hi, cx);
+    }
+    return (lo + hi) / 2 / Math.max(1, crown.rx);
+  };
+  // The canopy set over the trunk: a family whose centred son's own family
+  // is most of the canopy, spread further on one side than the other,
+  // leaned that way (a private 340-person family at A0: its names' centre
+  // 20.5 mm right of the trunk, reaching 229 mm left and 299 mm right).
+  // His children's slices are moved across within his span (at most
+  // LEAD_SHIFT_MAX of it) until the weight is almost over the trunk; his brothers,
+  // the order of every family and their shares stay as they were. (Moving
+  // the whole fan's middle, or narrowing its ends, set the names smaller
+  // and crossed lines.)
+  let leadShift = 0;
+  let weighed = false;
+  // (judged without the halves' evening-out, which this replaces where it
+  // acts: the two together pulled against each other, and set names smaller)
+  const bias0 = sideBias;
+  sideBias = 0;
+  lay();
+  const off0 = weightOff();
+  // (only a canopy whose outline leans the same way: one reaching as far
+  // either side, its names a little denser on one, is balanced as it is;
+  // moving it bent its leader for nothing, as on the Nouri sample)
+  const outline0 = outlineOff();
+  const leans = Math.abs(off0) > WEIGHT_OFF_OK && Math.abs(outline0) > OUTLINE_OFF_OK && Math.sign(outline0) === Math.sign(off0);
+  if (opts.weighOver === false || !(leans && [...centerPath].some((n) => n.parent === base))) { sideBias = bias0; lay(); }
+  else {
+    weighed = true;
+    // (aimed just short of the trunk: set right over it, the shift went further
+    // than the names needed and set them smaller at A0)
+    const goal = Math.sign(off0) * WEIGHT_GOAL;
+    const at = (s: number) => { leadShift = s; lay(); return weightOff() - goal; };
+    // (the shift that moves the weight the other way, found by halving)
+    let lo = -LEAD_SHIFT_MAX, hi = LEAD_SHIFT_MAX;
+    const fLo = at(lo), fHi = at(hi);
+    if (Math.sign(fLo) !== Math.sign(fHi)) {
+      for (let i = 0; i < 14; i++) {
+        const m = (lo + hi) / 2;
+        if (Math.sign(at(m)) === Math.sign(fLo)) lo = m; else hi = m;
+      }
+      at((lo + hi) / 2);
+    } else at(Math.abs(fLo) < Math.abs(fHi) ? lo : hi);
+    // (no nearer the trunk for it: as before, with the halves' evening-out)
+    if (Math.abs(weightOff()) >= Math.abs(off0)) { leadShift = 0; sideBias = bias0; lay(); }
   }
 
   const nodes: LiveNode[] = [];
@@ -4225,6 +4343,7 @@ function layoutAttempt(
     soilOverShare,
     soilKeptNearest: keepNearest > 0,
     sweepLift: lift,
+    weighShift: weighed ? leadShift : undefined,
     centerLine: [...centerPath].sort((a, b) => a.depth - b.depth).map((n) => n.data.member!.id),
     legibility,
     overlaps,

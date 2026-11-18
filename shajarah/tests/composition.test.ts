@@ -138,8 +138,14 @@ describe("legibility and poster size", () => {
     const minUnits = (l: PosterLayout) => Math.min(...l.nodes.map((n) => n.fontSize));
     // in poster units the A0 layout may use smaller type, because it prints
     // larger (never larger type: at most the same, within rounding of the
-    // size search, when both come out clean near full size)
-    expect(minUnits(a0)).toBeLessThanOrEqual(minUnits(a2) * 1.02);
+    // size search, when both come out clean near full size). Judged as both
+    // are sized: without the canopy's weight set over the trunk, which on
+    // A0 (not A2, already over it) lets this family's names reach full size
+    // (5.41 -> 6.90 mm), and is never kept for smaller ones.
+    const plain = (paper: PaperSize) => computePosterLayout(families.large, { ...layoutOptionsFor(resolveTheme(families.large.settings), paper), showFemales: families.large.settings?.showFemales, weighOver: false });
+    const a0Plain = plain("A0");
+    expect(minUnits(a0Plain)).toBeLessThanOrEqual(minUnits(plain("A2")) * 1.02);
+    expect(a0.legibility.smallestTextMm).toBeGreaterThanOrEqual(a0Plain.legibility.smallestTextMm * 0.99);
     expect(a0.legibility.smallestTextMm).toBeGreaterThanOrEqual(a2.legibility.smallestTextMm);
     expect(a0.legibility.ok).toBe(true);
   });
