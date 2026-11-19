@@ -1635,6 +1635,18 @@ undo.
   Tiled PDF has no such limit: each sheet is drawn from the vector poster
   on its own, at full resolution, and the menu shows how many sheets it
   takes.
+- **Names on very large papers.** On such a paper the smallest legible
+  size is a small fraction of the names' full size, and at that fraction
+  every line, no thinner than its minimum width beside names a twentieth
+  of their size, merges with its neighbours. Where neither the full size
+  nor the legible one is clean, the sizes between are now tried, from 0.6
+  of full size down, and the largest clean one is kept. (A private
+  340-person family on 1024A0 with its daughters hidden had its canopy's
+  names at 0.04 of their size, 7.7 mm against 97 mm, its 34-name trunk
+  filling the page; now 150 mm and clean, and laid out faster. The layout
+  QA's 448 posters and 56 invented families on large papers are
+  unchanged: none of them reaches this case, so it has no test of its
+  own.)
 - **iPhone and iPad.** Safari there draws at most 16.7 million pixels, and
   a larger canvas stays blank without any error. The menu uses that limit
   on those devices (an A2 PNG or PDF at 207 DPI rather than 300; a Tiled
