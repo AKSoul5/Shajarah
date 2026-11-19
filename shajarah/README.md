@@ -576,8 +576,22 @@ in each design.
   her placed as before, and the one with the larger names is kept: in the
   layout QA 9 of 448 posters otherwise had smaller names (one at 82%).
   Layout QA against `main`: 448 clean, 5 changed, 3 with larger names,
-  none smaller; those posters take up to twice as long to lay out
-  (tests/the-centred-sons-mother-stands-upright-above-her-husband.test.ts).
+  none smaller (tests/the-centred-sons-mother-stands-upright-above-her-husband.test.ts).
+- Laid out one after the other, those posters took up to twice as long.
+  The editor lays the two out side by side in two workers: the layout is
+  a series of steps (the other balances, more room for the wives' boxes,
+  the compact foundation, clean first), and each step's two layouts are
+  made at once and the better kept by the same rule as the export, so the
+  editor shows exactly the exported poster (448 QA posters identical to
+  1.0.54). The second worker starts at once only where the canopy base's
+  largest branch has his mother recorded as the base's wife, or the
+  family's last poster stood a mother upright; started on every poster
+  with wives shown, it made one without such a mother 16% slower.
+  Measured in the browser (production build, 4 cores, median of 3, wives
+  switched on): a family that needs both 3.38 s → 2.57 s; one with no
+  upright mother, laid out the first time, 2.61 → 2.78 s; a small one
+  0.30 → 0.34 s
+  (tests/the-editor-lays-out-both-placements-of-the-mother-at-once.test.ts).
 - A thin line must not ride along a thick limb. The check of merging lines
   asked for touching and passed over where brothers' lines leave their
   father together, so a thin line parting from a brother's limb at a narrow

@@ -413,14 +413,30 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
-  const layout = withBoxRoom(tree, opts);
+  const steps = posterSteps(opts);
+  let r = steps.next();
+  while (!r.done) r = steps.next(keepGuarded(tree, r.value));
+  return r.value;
+}
+
+/**
+ * The poster's layout as a series of steps: each yields the options of one
+ * layout it needs and is given back that layout, guarded (keepGuarded), and
+ * decides from it what to lay out next. computePosterLayout lays each step
+ * out at once; the editor lays out each step's two placements of the
+ * centred son's mother in two workers side by side (see twoLayouts.ts), and
+ * so comes to the same poster.
+ */
+export type PosterSteps = Generator<LayoutOptions, PosterLayout, PosterLayout>;
+export function* posterSteps(opts: LayoutOptions = {}): PosterSteps {
+  const layout = yield* withBoxRoom(opts);
   // A dense family on small paper: its names set smaller to fit, while the
   // foundation (and the trunk) kept the full size, standing two or three
   // times larger and taking height the tree needed. Laid out again with
   // them following the names (LayoutOptions.compactLower); that poster is
   // used when it is as clean and as legible, its names no smaller.
   if (opts.compactLower === undefined && oversizedLower(layout)) {
-    const compact = withBoxRoom(tree, { ...opts, compactLower: true });
+    const compact = yield* withBoxRoom({ ...opts, compactLower: true });
     const asGood = (isCleanPoster(compact) || !isCleanPoster(layout))
       && (compact.legibility.ok || !layout.legibility.ok)
       && compact.overlaps <= layout.overlaps
@@ -439,15 +455,15 @@ function oversizedLower(l: PosterLayout): boolean {
   return l.soil.fontSize > LOWER_RATIO * sizes[sizes.length >> 1];
 }
 
-function withBoxRoom(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
-  const layout = posterLayout(tree, opts);
+function* withBoxRoom(opts: LayoutOptions): PosterSteps {
+  const layout = yield* posterLayout(opts);
   // A child set back behind his father's box (the line to him turning back
   // into the tree): laid out again with room for the boxes between the
   // generations, kept when it is clean, as legible, with fewer such.
   if (opts.boxRoom === undefined) {
     const back = setBack(layout);
     if (back > 0) {
-      const roomy = posterLayout(tree, { ...opts, boxRoom: true });
+      const roomy = yield* posterLayout({ ...opts, boxRoom: true });
       const asGood = isCleanPoster(layout)
         // (a clean poster stays clean and as legible, its names not much smaller)
         ? isCleanPoster(roomy) && (roomy.legibility.ok || !layout.legibility.ok) && roomy.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.8
@@ -478,9 +494,9 @@ export function setBack(l: PosterLayout): number {
   return n;
 }
 
-function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+function* posterLayout(opts: LayoutOptions): PosterSteps {
   const started = Date.now();
-  const layout = keepGuarded(tree, opts);
+  const layout = yield opts;
   if (isCleanPoster(layout) && layout.legibility.ok) return layout;
   // Another balance of the canopy's two halves: the balance is judged once,
   // early, from the first attempt (see sideLean); a poster left legible
@@ -496,7 +512,7 @@ function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
     const budget = Math.max(BALANCE_BUDGET_MS, Math.min(BALANCE_BUDGET_MAX_MS, (Date.now() - started) * BALANCE_BUDGET_FACTOR));
     for (const sideBias of BALANCES) {
       if (Date.now() - started > budget) break;
-      const l = keepGuarded(tree, { ...opts, sideBias });
+      const l = yield { ...opts, sideBias };
           if (isCleanPoster(l) && l.legibility.ok) return l;
       if (l.overlaps === 0 && l.legibility.ok && l.clarity.issues.length < best.clarity.issues.length
         && l.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.98) best = l;
@@ -508,7 +524,7 @@ function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // (Its names below the legible size, the editor recommends a larger
   // paper, where it is both.)
   if (!isCleanPoster(best)) {
-    const c = keepGuarded(tree, { ...opts, cleanFirst: true });
+    const c = yield { ...opts, cleanFirst: true };
     if (isCleanPoster(c)) return c;
   }
   return best;
@@ -524,23 +540,37 @@ const isCleanPoster = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
  * less clean (a clean poster is never traded for one with ambiguities).
  */
 function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
-  const layout = soilGuarded(tree, opts);
-  // The centred son's mother set straight above her husband, where that left
-  // the names smaller than they could be: laid out again with her placed as
-  // any other wife, and that kept when its names are larger (in the layout
-  // QA, 9 of 448 posters came out with smaller names, one at 82%). Also where
-  // a thin line runs along her upright stem (a son's with no mother
-  // recorded, rising from his father beside it): that kept when it has fewer
-  // such lines and names as large.
-  const along = layout.uprightUsed ? linesAlongside(layout).length : 0;
-  if (layout.uprightUsed && ((layout.fontScale ?? 1) < 0.999 || along > 0)) {
-    const plain = soilGuarded(tree, { ...opts, uprightOff: true });
-    const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
-    const larger = plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.005;
-    const asLarge = plain.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.995;
-    if (ok(plain) > ok(layout) || (ok(plain) === ok(layout) && (larger || (asLarge && linesAlongside(plain).length < along)))) return plain;
-  }
-  return layout;
+  const layout = layoutStep(tree, opts);
+  return uprightNeedsPlain(layout) ? pickUpright(layout, layoutStep(tree, { ...opts, uprightOff: true })) : layout;
+}
+
+/** One step's layout, without the comparison of the two placements (the editor's workers lay these out). */
+export function layoutStep(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+  return soilGuarded(tree, opts);
+}
+
+/**
+ * Whether a layout with the centred son's mother set straight above her
+ * husband is to be compared with one where she is placed as any other
+ * wife: where its names came out below full size (laid out upright alone,
+ * 9 of 448 QA posters had smaller names, one at 82%), or a thin line runs
+ * along her upright stem (a son's with no mother recorded, rising from his
+ * father beside it).
+ */
+export function uprightNeedsPlain(l: PosterLayout): boolean {
+  return !!l.uprightUsed && ((l.fontScale ?? 1) < 0.999 || linesAlongside(l).length > 0);
+}
+
+/**
+ * Of the two, the better: clean and legible first, then larger names,
+ * then (names as large) fewer lines running along a limb; ties keep her
+ * upright.
+ */
+export function pickUpright(upright: PosterLayout, plain: PosterLayout): PosterLayout {
+  const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
+  const a = upright.legibility.smallestTextMm, b = plain.legibility.smallestTextMm;
+  if (ok(plain) > ok(upright) || (ok(plain) === ok(upright) && (b > a * 1.005 || (b >= a * 0.995 && linesAlongside(plain).length < linesAlongside(upright).length)))) return plain;
+  return upright;
 }
 
 function soilGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
