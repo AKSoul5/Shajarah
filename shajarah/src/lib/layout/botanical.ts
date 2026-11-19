@@ -50,7 +50,7 @@ import {
   add, circlePath, cubicPoint as cubicPointAt, cubicTangent, len, norm, ribbonPath, scale, sub,
   type Cubic, type Vec,
 } from "./geometry";
-import { leavingParent, validateRelationships, type ClarityReport } from "./clarity";
+import { leavingParent, linesAlongside, validateRelationships, type ClarityReport } from "./clarity";
 import { soilStyle, type SoilContext, type SoilGeometry, type SoilStyleId } from "./soil";
 import { namesOf, shortenSoil, wordsOf } from "./soil/common";
 import { mulberry32 } from "./random";
@@ -121,6 +121,8 @@ export interface LayoutOptions {
   soilShorten?: boolean;
   /** Internal: false lays a shortened lineage out with the cut that fits its share (see computePosterLayout). */
   soilKeep?: boolean;
+  /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
+  uprightOff?: boolean;
   /**
    * Internal (see computePosterLayout): a poster that cannot be clean at a
    * legible size is laid out clean, its names as large as that allows.
@@ -371,6 +373,10 @@ export interface PosterLayout {
   soilOverShare?: boolean;
   /** Set when a shortened lineage kept more of its nearest ancestors than its share held (see KEEP_MIN). */
   soilKeptNearest?: boolean;
+  /** Set when the centred son's mother stands straight above her husband (see uprightHolder). */
+  uprightUsed?: boolean;
+  /** The size the names were set at, against their full size (1). */
+  fontScale?: number;
   /** How far above horizontal the canopy's sweep started (radians; see SWEEP_LIFT). */
   sweepLift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
@@ -518,6 +524,26 @@ const isCleanPoster = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
  * less clean (a clean poster is never traded for one with ambiguities).
  */
 function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+  const layout = soilGuarded(tree, opts);
+  // The centred son's mother set straight above her husband, where that left
+  // the names smaller than they could be: laid out again with her placed as
+  // any other wife, and that kept when its names are larger (in the layout
+  // QA, 9 of 448 posters came out with smaller names, one at 82%). Also where
+  // a thin line runs along her upright stem (a son's with no mother
+  // recorded, rising from his father beside it): that kept when it has fewer
+  // such lines and names as large.
+  const along = layout.uprightUsed ? linesAlongside(layout).length : 0;
+  if (layout.uprightUsed && ((layout.fontScale ?? 1) < 0.999 || along > 0)) {
+    const plain = soilGuarded(tree, { ...opts, uprightOff: true });
+    const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
+    const larger = plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.005;
+    const asLarge = plain.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.995;
+    if (ok(plain) > ok(layout) || (ok(plain) === ok(layout) && (larger || (asLarge && linesAlongside(plain).length < along)))) return plain;
+  }
+  return layout;
+}
+
+function soilGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = layoutOnce(tree, opts);
   if (layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout))) {
     const plain = layoutOnce(tree, { ...opts, soilKeep: false });
@@ -646,7 +672,18 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       const legibleScale = clamp((full.legibility.minTextMm / Math.max(1e-6, full.legibility.smallestTextMm)) * 1.02, MIN_SCALE, 1);
       // and a size below it, to tell whether only illegible names would do
       const below = Math.min(0.35, legibleScale * 0.8);
-      if (legibleScale < 0.999 && isClean(at(legibleScale))) chosen = bisect(legibleScale, 1);
+      if (legibleScale < 0.999 && isClean(at(legibleScale))) {
+        chosen = bisect(legibleScale, 1);
+        // (left at the legible size itself, the halving's steps being coarse:
+        // a few sizes just above it, as tried where the legible size is nearly
+        // clean, so a slightly larger clean size is not missed)
+        if (chosen === legibleScale && full.uprightUsed) {
+          for (const k of [0.1, 0.08, 0.06, 0.04, 0.02]) {
+            const sc = Math.min(1, chosen * (1 + k));
+            if (sc > chosen && isClean(at(sc))) { chosen = sc; break; }
+          }
+        }
+      }
       else if (isClean(at(below))) {
         chosen = bisect(below, legibleScale); // clean only below legible size?
         // The count of ambiguities does not fall evenly with the names' size:
@@ -1050,6 +1087,8 @@ const LIFT_FULL_UNTIL = 50;
 const LIFT_NONE_FROM = 100;
 /** Above this many names, the sweep is chosen on the layout's first attempt rather than by laying the family out twice. */
 const LARGE_FAMILY = 150;
+/** How far straight up the centred son's mother's box stands: 1 is touching her husband's name. */
+const UPRIGHT_TS = [1.7, 2, 1.45, 2.4, 2.8, 3.3];
 /** The old sweep: a little below horizontal on each side, the widest the canopy can be. */
 const WIDE_SWEEP = -0.12;
 
@@ -2330,8 +2369,8 @@ function layoutAttempt(
   const edges: Edge[] = [];
   const sample = (c: Cubic, n = 16): Vec[] => Array.from({ length: n + 1 }, (_, i) => cubicPointAt(c, i / n));
   /** A clean tapered branch with a rounded joint where it starts. */
-  const shaded = (curve: Cubic, w0: number, w1: number, samples = 14, ease = 2): Branch => ({
-    d: ribbonPath(curve, w0, w1, samples, ease) + circlePath(curve.p0, w0 / 2),
+  const shaded = (curve: Cubic, w0: number, w1: number, samples = 14, ease = 2, ends?: { start?: number; end?: number }): Branch => ({
+    d: ribbonPath(curve, w0, w1, ends ? Math.max(samples, 28) : samples, ease, ends) + circlePath(curve.p0, Math.min(w0, ends?.start ?? w0) / 2),
     w: w0,
   });
   const stemStart = new Map<string, Vec>();
@@ -2888,11 +2927,12 @@ function layoutAttempt(
     return origin;
   };
   /** Where the line to a spouse's holder starts: the partner (as for the children's lines). */
-  const fromOf = (h: Holder): Vec => (h.lone ? { x: h.anchorOf.x, y: h.anchorOf.y } : startOf(h.anchorOf));
+  const fromOf = (h: Holder): Vec => (h.lone ? { x: h.anchorOf.x, y: h.anchorOf.y } : uprightHolder(h) ? origin : startOf(h.anchorOf));
   const baseBoxOf = () => (base.data.member ? { x: origin.x, y: origin.y, w: baseOval.rx * 2, h: baseOval.ry * 2 } : null);
   // A holder sits on the way from the partner to the children she bore,
   // nearer the partner, wherever it and the lines to and from it are clear
   // of every other name and holder.
+  const uprightHolder = (h: Holder) => !opts.uprightOff && !h.lone && !!base.data.member && h.partnerId === base.data.member.id && h.kids.some((k) => centerIds.has(k.id));
   const placeHolders = () => {
     if (!holders.length) return;
     // the lines as last drawn, sampled once for this placement
@@ -2929,6 +2969,7 @@ function layoutAttempt(
     for (const group of byPartner.values()) {
       const lone = !!group[0].lone;
       const P = fromOf(group[0]);
+      const P0 = P;
       const partnerBox = obstacles.find((o) => o.id === group[0].partnerId) ?? { x: P.x, y: P.y, w: 0, h: 0 };
       for (const h of group) {
         if (lone) {
@@ -2938,7 +2979,13 @@ function layoutAttempt(
           continue;
         }
         const G = h.kids.reduce((a, k) => add(a, scale({ x: k.x, y: k.y }, 1 / h.kids.length)), { x: 0, y: 0 } as Vec);
-        h.dir = norm(sub(G, P));
+        // The canopy base's wife who is the centred son's mother stands
+        // straight above him, on the trunk's axis, her children's lines
+        // fanning out from her to both sides and her centred son's rising
+        // straight on. (Set towards the middle of her children, most of whom
+        // were on one side, her box leaned 33° off the axis against her
+        // husband's name, and the main limb bent through it.)
+        h.dir = uprightHolder(h) ? UP : norm(sub(G, P));
       }
       const reach = Math.max(0, Math.min(...group.flatMap((h) => h.kids.map((k) => (k.x - P.x) * h.dir.x + (k.y - P.y) * h.dir.y))));
       // (holders placed in this pass are judged where they are going, J,
@@ -2949,6 +2996,8 @@ function layoutAttempt(
         // name's rim touching it read as one shape)
         const pad = h.fontSize * 0.4;
         const me = { x: J.x, y: J.y, w: h.w + pad * 2, h: h.h + pad * 2 };
+        // (for the centred son's mother, her line from her husband's centre)
+        const P = uprightHolder(h) ? fromOf(h) : P0;
         const others = [...obstacles, ...also.map(at)];
         // (and further from its own children, so the line to each shows:
         // a box right against a child's name looked squeezed between names)
@@ -2959,8 +3008,12 @@ function layoutAttempt(
         })) return false;
         if (!linesToo) return true;
         // the partner's line to it, and its lines to the children
-        if (others.some((o) => o !== partnerBox && lineHits(P, J, o, [partnerBox, me]))) return false;
-        for (const k of h.kids) if (others.some((o) => o !== k && lineHits(J, k, o, [me, k]))) return false;
+        // (the line up to the centred son's mother starts inside her
+        // husband's own round space, kept clear of names: not under a name)
+        if (others.some((o) => o !== partnerBox && !(o.id === "base:obstacle" && uprightHolder(h)) && lineHits(P, J, o, [partnerBox, me]))) return false;
+        // (the centred son's mother upright: her lines are judged as drawn,
+        // curving round her own children's names, by the clarity check)
+        for (const k of h.kids) if (others.some((o) => o !== k && !(uprightHolder(h) && kidIds.has(o.id ?? "")) && lineHits(J, k, o, [me, k]))) return false;
         // and no line already drawn to another holder runs under it, nor any
         // other line (as drawn last time round)
         if (also.some((q) => lineHits(q.from, at(q), me, [at(q)]))) return false;
@@ -3038,12 +3091,22 @@ function layoutAttempt(
         const bySpot = [...got].sort((a, b) => around(a.J, ref) - around(b.J, ref)).map((g) => g.h.id).join();
         return byKids === bySpot;
       };
+      // (the upright one: straight up, clear of her husband's name by about
+      // her own box's height; further up if need be)
+      const uprightSpot = (h: Holder, also: { h: Holder; from: Vec; J?: Vec }[]) => {
+        const Q = fromOf(h);
+        for (const t of UPRIGHT_TS) {
+          const c = add(Q, scale(UP, (edge(UP, partnerBox.w, partnerBox.h) + edge(UP, h.w + h.fontSize * 0.5, h.h + h.fontSize * 0.5)) * t));
+          if (fits(h, c, also)) return c;
+        }
+        return null;
+      };
       const tryAt = (ts: number[]) => {
         const got: { h: Holder; from: Vec; J: Vec }[] = [];
         for (const h of group) {
-          const J = spot(h, ts, [...placed, ...got]);
+          const J = (uprightHolder(h) ? uprightSpot(h, [...placed, ...got]) : null) ?? spot(h, ts, [...placed, ...got]);
           if (!J) return null;
-          got.push({ h, from: P, J });
+          got.push({ h, from: uprightHolder(h) ? fromOf(h) : P, J });
         }
         return inOrder(got) ? got : null;
       };
@@ -3273,6 +3336,7 @@ function layoutAttempt(
     return { c: sp.organicOn ? organic(sp.node, raw, followAlt === null ? 1 : followAlt) : raw, e0 };
   };
   /** Bends the given lines (the ones the clarity check found a problem with) where another shape does better. */
+  const uprightKid = (id: string) => { const h = holderOf.get(id); return !!h && uprightHolder(h) && centerIds.has(id); };
   const refineLines = (targets: Set<string>) => {
     // every drawn connection, as the clarity check sees it
     const lines = new Map<string, Line>();
@@ -3340,10 +3404,16 @@ function layoutAttempt(
       }
       return cost;
     };
-    for (let pass = 0; pass < 2; pass++) {
+    // (the centred son's line from his mother, set straight above her
+    // husband, is left straight on the first pass, the lines beside it
+    // giving way; it bends only if it still has a problem after that:
+    // never bending it left one poster unclean at every size, its names
+    // shrunk to two fifths)
+    const holdUp = [...lines.keys()].some(uprightKid);
+    for (let pass = 0; pass < (holdUp ? 3 : 2); pass++) {
       let changed = false;
       for (const l of lines.values()) {
-        if (!lineSpec.has(l.id) || !targets.has(l.id)) continue;
+        if (!lineSpec.has(l.id) || !targets.has(l.id) || (pass === 0 && holdUp && uprightKid(l.id))) continue;
         const now = costOf(l, l.pts);
         if (!now) continue;
         let best: { c: Cubic; pts: Vec[]; cost: number } | null = null;
@@ -3362,7 +3432,7 @@ function layoutAttempt(
         curveOf.set(l.id, best.c);
         changed = true;
       }
-      if (!changed) break;
+      if (!changed && !(holdUp && pass === 0)) break;
     }
     // A line from the rim of the base's oval still crossing a brother's (a
     // childless son's thin line, set out towards his name, crossed by a
@@ -3498,17 +3568,24 @@ function layoutAttempt(
         // children's lines from the holder onwards
         if (holder.kids[0] === node) {
           const S: Vec = { x: holder.x, y: holder.y };
-          const L = len(sub(S, P)) || 1;
-          const dv = scale(sub(S, P), 1 / L);
+          // (the centred son's mother: from her husband's centre, straight up)
+          const up = uprightHolder(holder);
+          const Ph = up ? origin : P;
+          const L = len(sub(S, Ph)) || 1;
+          const dv = scale(sub(S, Ph), 1 / L);
           const fan = fanOf(holder.partnerId);
           const follow = 0.5 * (1 - 0.8 * fan), reach0 = 0.38 - 0.16 * fan;
-          const s0 = norm(add(scale(gP, follow), scale(dv, 1 - follow)));
-          const e0 = norm(add(scale(dv, 0.6), scale(holder.dir, 0.4)));
-          holderCurve.set(holder.id, organic({ ...node, parentId: null }, { p0: P, c1: add(P, scale(s0, L * reach0)), c2: sub(S, scale(e0, L * 0.3)), p1: S }));
+          const s0 = up ? dv : norm(add(scale(gP, follow), scale(dv, 1 - follow)));
+          const e0 = up ? dv : norm(add(scale(dv, 0.6), scale(holder.dir, 0.4)));
+          holderCurve.set(holder.id, organic({ ...node, parentId: null }, { p0: Ph, c1: add(Ph, scale(s0, L * reach0)), c2: sub(S, scale(e0, L * 0.3)), p1: S }));
           growthDir.set(holder.id, e0);
         }
         P = { x: holder.x, y: holder.y };
         gP = growthDir.get(holder.id) ?? holder.dir;
+        // (from the centred son's mother, standing straight up, her other
+        // children's lines set out each its own way at once: rising first
+        // along her straight limb, they ran together with it)
+        if (uprightHolder(holder) && !centerIds.has(node.id)) gP = norm(sub(node, P));
       }
       const fan = fanOf(holder ? holder.id : node.parentId);
       // Several children on dotted lines from one place leave it together,
@@ -3995,20 +4072,43 @@ function layoutAttempt(
   const mainLimbs = growing.filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal && !holderOf.has(n.id)).length
     + holders.filter(baseHolder).length;
   const limbShare = mainLimbs ? clamp(1.05 / mainLimbs, 0.14, 0.4) : 0;
+  // A limb wider than the name it leaves or reaches starts (and ends) about
+  // as wide as that name, behind it, and widens to its full width over the
+  // first stretch: a full-width start with a round joint made a disc much
+  // wider than the name, a cup around it, on the centred branches.
+  const boxAt = new Map<string, { x: number; y: number; w: number; h: number }>();
+  for (const n of nodes) boxAt.set(n.id, n);
+  for (const h of holders) boxAt.set(h.id, h);
+  const neck = (id: string | null | undefined, at: Vec): number | undefined => {
+    const b = id ? boxAt.get(id) : undefined;
+    if (!b || Math.hypot(at.x - b.x, at.y - b.y) > 0.5) return undefined;
+    return 0.8 * Math.min(b.w, b.h);
+  };
+  // No limb is drawn wider than the name it reaches (a twig's width at the
+  // least): the centred son's, carrying most of the family, came out twice
+  // as wide as his name and bulged between the two. (Drawn only: the
+  // clarity check still judges each line at its full width.)
+  const fitTo = (id: string, w: number) => {
+    const b = boxAt.get(id);
+    return b ? Math.max(widthOf(1), Math.min(w, 0.8 * Math.min(b.w, b.h) / 0.85)) : w;
+  };
   for (const h of holders) {
     const c = holderCurve.get(h.id)!;
     const leaves = Math.max(1, h.kids.reduce((a, k) => a + (k.shape === "leaf" ? 1 : k.leafCount), 0));
-    const w = widthOf(leaves);
+    const wFull = widthOf(leaves);
+    const w = h.dotted ? wFull : fitTo(h.id, wFull);
     if (h.dotted) {
       const wd = holderDots(h);
       const p = (v: Vec) => `${v.x.toFixed(1)} ${v.y.toFixed(1)}`;
       branches.push({ d: `M${p(c.p0)}C${p(c.c1)} ${p(c.c2)} ${p(c.p1)}`, w: wd, lineage: h.lineage ?? null, dotted: true, length: curveLength(c) });
       edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: wd, w1: wd, lineage: h.lineage ?? null });
     } else {
+      // (a wife's line from the canopy base: an ordinary limb, like her
+      // sons' from her, not flaring out of the trunk, which showed as a
+      // shoulder of wood beside her husband's name)
       const mainLimb = baseHolder(h);
-      const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : w;
-      branches.push({ ...shaded(c, w0, w * 0.85, 14, mainLimb ? 4 : 2), lineage: h.lineage ?? null });
-      edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: mainLimb ? w * 1.15 : w, w1: w * 0.85, lineage: h.lineage ?? null });
+      branches.push({ ...shaded(c, w, w * 0.85, 14, 2, { start: neck(h.partnerId, c.p0), end: neck(h.id, c.p1) }), lineage: h.lineage ?? null });
+      edges.push({ parentId: h.partnerId, childId: h.id, points: sample(c), w0: mainLimb ? wFull * 1.15 : wFull, w1: wFull * 0.85, lineage: h.lineage ?? null });
     }
   }
   const stemDrawn = new Set<string>();
@@ -4074,8 +4174,9 @@ function layoutAttempt(
         edges.push({ parentId: from, childId: node.id, points: [spur.from, ...sample(c)], w0: sw, w1: Math.min(w * 0.7, sw), lineage: node.lineage ?? null });
         continue;
       }
-      const w0 = mainLimb ? Math.max(w * 1.15, trunkWidth * limbShare) : node.depth === 1 && !holder ? w * 1.15 : w;
-      branches.push({ ...shaded(c, w0, w * 0.7, 14, mainLimb ? 4 : 2), lineage: node.lineage ?? null });
+      const wd = fitTo(node.id, w);
+      const w0 = mainLimb ? Math.max(wd * 1.15, trunkWidth * limbShare) : node.depth === 1 && !holder ? wd * 1.15 : wd;
+      branches.push({ ...shaded(c, w0, wd * 0.7, 14, mainLimb ? 4 : 2, { start: neck(from, c.p0), end: neck(node.id, c.p1) }), lineage: node.lineage ?? null });
       // (the line's own width, for the clarity check: a main limb's wide
       // start lies under the canopy base's oval)
       edges.push({ parentId: from, childId: node.id, points: sample(c), w0: node.depth === 1 && !holder ? w * 1.15 : w, w1: w * 0.7, lineage: node.lineage ?? null });
@@ -4197,8 +4298,10 @@ function layoutAttempt(
     trunkPath: trunkOutline(
       // (a collar: as wide as the canopy base, a little wider than the
       // trunk, so the limbs visibly grow out of it)
-      origin, groundY, trunkWidth, TW, Math.max(trunkWidth * 1.3, baseOval.rx * 1.9),
-      soil ? soil.trunkSpread : 1, soil?.trunkTaper ?? 0,
+      // (under an oval, no wider than it: wider, its rounded top stood out
+      // round the name as a hump; the trunk now rises into the oval)
+      origin, groundY, trunkWidth, TW, baseNode ? baseOval.rx * 1.9 : Math.max(trunkWidth * 1.3, baseOval.rx * 1.9),
+      soil ? soil.trunkSpread : 1, soil?.trunkTaper ?? 0, baseNode ? baseOval : undefined,
     ),
     trunkWidth,
     rtl,
@@ -4224,6 +4327,8 @@ function layoutAttempt(
     unplacedIds,
     soilOverShare,
     soilKeptNearest: keepNearest > 0,
+    uprightUsed: holders.some(uprightHolder),
+    fontScale,
     sweepLift: lift,
     centerLine: [...centerPath].sort((a, b) => a.depth - b.depth).map((n) => n.data.member!.id),
     legibility,
@@ -4301,15 +4406,22 @@ const flareOf = (w: number, flareW: number, spread: number) => (flareW + (w - fl
 /** The trunk outline's base line: its flare ends a little below the ground line. */
 const trunkBase = (groundY: number, w: number, flareW: number, spread: number) => groundY + flareOf(w, flareW, spread) * 0.2;
 
-function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, topW = w, spread = 1, taper = 0): string {
+function trunkOutline(o: Vec, groundY: number, w: number, flareW = w, topW = w, spread = 1, taper = 0, oval?: { rx: number; ry: number }): string {
   const h = groundY - o.y;
   const f = (n: number) => n.toFixed(1);
   const L = (dx: number) => f(o.x - dx), R = (dx: number) => f(o.x + dx);
   // the flare under the canopy base: from topW wide to w, over a short height
   const flare = Math.min(h * 0.32, Math.max(topW, w) * 0.9);
-  // the top is a low dome hidden under the canopy base's medallion
-  const head = `M${L(topW * 0.5)} ${f(o.y - topW * 0.1)}`;
-  const close = `C${R(topW * 0.5)} ${f(o.y + flare * 0.1)} ${R(topW * 0.5)} ${f(o.y)} ${R(topW * 0.5)} ${f(o.y - topW * 0.1)}Q${f(o.x)} ${f(o.y - topW * 0.45)} ${L(topW * 0.5)} ${f(o.y - topW * 0.1)}Z`;
+  // The top is a low dome hidden under the canopy base's medallion. Under
+  // an oval it is the oval's own curve, a little inside it: a dome of its
+  // own stood above the oval as a rounded hump with shoulders at its sides,
+  // a joint showing where the limbs leave the name.
+  const a = topW * 0.5;
+  const b = oval ? oval.ry * (a / oval.rx) : 0;
+  const head = oval ? `M${L(a)} ${f(o.y)}` : `M${L(topW * 0.5)} ${f(o.y - topW * 0.1)}`;
+  const close = oval
+    ? `C${R(a)} ${f(o.y + flare * 0.1)} ${R(a)} ${f(o.y)} ${R(a)} ${f(o.y)}A${f(a)} ${f(b)} 0 0 0 ${L(a)} ${f(o.y)}Z`
+    : `C${R(topW * 0.5)} ${f(o.y + flare * 0.1)} ${R(topW * 0.5)} ${f(o.y)} ${R(topW * 0.5)} ${f(o.y - topW * 0.1)}Q${f(o.x)} ${f(o.y - topW * 0.45)} ${L(topW * 0.5)} ${f(o.y - topW * 0.1)}Z`;
   if (taper > 0) {
     const tip = Math.max(w * 0.02, 0.6);
     // the narrowing starts above the ground line and ends `taper` below it

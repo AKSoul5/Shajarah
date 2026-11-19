@@ -61,15 +61,26 @@ const f = (n: number) => (Math.round(n * 10) / 10).toString();
  * and export cleanly to every vector format.
  */
 /** `ease`: how fast the width falls from w0 (2: gently; higher: mostly in the first stretch). */
-export function ribbonPath(curve: Cubic, w0: number, w1: number, samples = 14, ease = 2): string {
+/**
+ * `ends`: narrower widths at the very start and end (where a limb wider than
+ * a name leaves or reaches it), reached smoothly over the first and last
+ * stretch, so a thick limb grows out from behind a name gradually instead
+ * of ending in a blunt edge or a disc wider than the name.
+ */
+export function ribbonPath(curve: Cubic, w0: number, w1: number, samples = 14, ease = 2, ends?: { start?: number; end?: number }): string {
   const left: Vec[] = [];
   const right: Vec[] = [];
+  const smooth = (x: number) => { const k = Math.min(1, Math.max(0, x)); return k * k * (3 - 2 * k); };
+  const RAMP = 0.4;
   for (let i = 0; i <= samples; i++) {
     const t = i / samples;
     const p = cubicPoint(curve, t);
     const n = perp(cubicTangent(curve, t));
     // ease-out taper reads more natural than a linear one
-    const w = (w1 + (w0 - w1) * (1 - t) ** ease) / 2;
+    let full = w1 + (w0 - w1) * (1 - t) ** ease;
+    if (ends?.start !== undefined && ends.start < full) full = ends.start + (full - ends.start) * smooth(t / RAMP);
+    if (ends?.end !== undefined && ends.end < full) full = ends.end + (full - ends.end) * smooth((1 - t) / RAMP);
+    const w = full / 2;
     left.push(add(p, scale(n, w)));
     right.push(add(p, scale(n, -w)));
   }
