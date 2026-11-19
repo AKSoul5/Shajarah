@@ -562,6 +562,22 @@ in each design.
   crossings, now none; names 3.27 to 7.28 mm, 4.51 to 7.33, 7.18 to 9.77),
   none worse
   (tests/spouse-box-lines-do-not-cross-each-other.test.ts).
+- The centred son's mother stands straight above her husband at the base
+  of the canopy, clear of his name, and her line to him is a straight
+  upright stem. She used to be set towards the middle of her children;
+  with most of them on one side she leaned off the trunk's axis, close
+  against his name (on a private 340-person family at A0, 33° off and
+  26 mm to one side), and the main limb bent through her. Her centred
+  son's limb rises straight on from her; her other children's lines set
+  out each its own way at once, so none runs along it. It bends only when
+  nothing else clears a problem: never bending it left one poster unclean
+  at every size, its names shrunk to two fifths. Where she stands upright
+  and the names come out below full size, the poster is also laid out with
+  her placed as before, and the one with the larger names is kept: in the
+  layout QA 9 of 448 posters otherwise had smaller names (one at 82%).
+  Layout QA against `main`: 448 clean, 5 changed, 3 with larger names,
+  none smaller; those posters take up to twice as long to lay out
+  (tests/the-centred-sons-mother-stands-upright-above-her-husband.test.ts).
 - A thin line must not ride along a thick limb. The check of merging lines
   asked for touching and passed over where brothers' lines leave their
   father together, so a thin line parting from a brother's limb at a narrow
@@ -926,8 +942,19 @@ ignored.)
 The tree is pure vector SVG. The only bitmap is the optional frame
 artwork, which is embedded into the exported file.
 
-- **Branches:** flat, tapered filled outlines in the branch colour, with
-  rounded joints. The trunk has a gentle side-to-side tone. No shadows.
+- **Branches:** flat, tapered filled outlines in the branch colour. A limb
+  is never drawn wider than the name it reaches, and one wider than the
+  name it leaves starts about as wide as that name, behind it, and widens
+  over the first two fifths of its length, so every joint is hidden behind
+  a name. (Each limb began at its full width with a round joint: the
+  centred son's, carrying most of the family, was twice as wide as his
+  name and drew a disc round it, like a cup; a wife's line from the canopy
+  base flared out of the trunk and showed as a shoulder of wood beside
+  her husband's name. Drawn only: the relationship check still judges
+  each line at its full width.) The trunk has a gentle side-to-side tone.
+  No shadows. Under the canopy base's oval the trunk narrows to the oval's
+  width and its top follows the oval's curve: wider, its rounded top stood
+  out round the name as a hump.
 - **Names:** a soft three-stop satin finish (`satinStops`: highlight, body,
   shade), a thin darker rim, and dark ink text. No gloss or drop shadows.
 - **Hierarchy:**
