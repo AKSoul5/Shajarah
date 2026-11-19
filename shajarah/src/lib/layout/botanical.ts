@@ -121,6 +121,8 @@ export interface LayoutOptions {
   soilShorten?: boolean;
   /** Internal: false lays a shortened lineage out with the cut that fits its share (see computePosterLayout). */
   soilKeep?: boolean;
+  /** Internal: also tries a few sizes above the legible one where that is not clean (see laddered). */
+  sizeLadder?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
   uprightOff?: boolean;
   /**
@@ -377,6 +379,8 @@ export interface PosterLayout {
   uprightUsed?: boolean;
   /** The size the names were set at, against their full size (1). */
   fontScale?: number;
+  /** Internal: the size search found nothing clean at the legible size or above (see laddered). */
+  searchedBelow?: boolean;
   /** How far above horizontal the canopy's sweep started (radians; see SWEEP_LIFT). */
   sweepLift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
@@ -574,7 +578,7 @@ export function pickUpright(upright: PosterLayout, plain: PosterLayout): PosterL
 }
 
 function soilGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
-  const layout = layoutOnce(tree, opts);
+  const layout = laddered(tree, opts);
   if (layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout))) {
     const plain = layoutOnce(tree, { ...opts, soilKeep: false });
     if (plain.legibility.ok && (isCleanPoster(plain) || !isCleanPoster(layout))) return plain;
@@ -582,6 +586,23 @@ function soilGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
     if (isCleanPoster(plain) && isCleanPoster(layout) && !layout.legibility.ok && plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.05) return plain;
   }
   return layout;
+}
+
+/**
+ * One layout, and where its size search found nothing clean at the legible
+ * size or above and went below it, once more with a few sizes above the
+ * legible one tried (LayoutOptions.sizeLadder); the one with the larger
+ * names is kept, as clean and as legible. (Decided inside the size search,
+ * later steps undid it on 5 of 448 QA posters; tried after every poster
+ * left at the legible size, it added 42% to the layout QA's time and
+ * changed none of its posters.)
+ */
+function laddered(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+  const layout = layoutOnce(tree, opts);
+  if (opts.sizeLadder !== undefined || !layout.searchedBelow) return layout;
+  const up = layoutOnce(tree, { ...opts, sizeLadder: true });
+  const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
+  return ok(up) >= ok(layout) && up.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.005 ? up : layout;
 }
 
 /**
@@ -678,6 +699,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       return lo;
     };
     let chosen = 1;
+    let searchedBelow = false;
     const full = at(1);
     if (dense) {
       // (legible sizes only: smaller names would be thinner than their lines)
@@ -715,6 +737,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         }
       }
       else if (isClean(at(below))) {
+        searchedBelow = true;
         chosen = bisect(below, legibleScale); // clean only below legible size?
         // The count of ambiguities does not fall evenly with the names' size:
         // before settling for illegible names, a few more sizes around the
@@ -751,6 +774,40 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         }
       }
     }
+    // The legible size itself left with an ambiguity or two, a larger size
+    // can still be clean (the count does not fall evenly with the names'
+    // size), which the search above, going down from there, never tried: a
+    // few sizes above it, the largest clean one first, kept only when its
+    // names come out larger than those found. (Childless sons beside the
+    // trunk set smaller left one family's legible size with one ambiguity,
+    // and its names at 3.2 mm where 6.0 mm were clean.)
+    if (!isClean(full)) {
+      const legibleScale = clamp((full.legibility.minTextMm / Math.max(1e-6, full.legibility.smallestTextMm)) * 1.02, MIN_SCALE, 1);
+      const found = at(chosen);
+      // (tried apart from the search's own sizes, which later steps choose
+      // among: only the size kept joins them)
+      if (opts.sizeLadder && legibleScale < 0.999 && !(isClean(found) && found.legibility.ok && chosen > legibleScale)) {
+        const key = (sc: number) => Math.round(sc * 1000) / 1000;
+        for (const k of [1.6, 1.45, 1.3, 1.15]) {
+          const sc = key(Math.min(0.999, legibleScale * k));
+          if (sc <= legibleScale || sc <= chosen || tried.has(sc)) continue;
+          let best = attempt(sc);
+          if (!isClean(best)) continue;
+          let lo = sc, hi = Math.min(1, sc * 1.15);
+          for (let i = 0; i < 2; i++) {
+            const mid = key((lo + hi) / 2);
+            if (tried.has(mid)) break;
+            const l = attempt(mid);
+            if (isClean(l)) { lo = mid; best = l; } else hi = mid;
+          }
+          if ((best.legibility.ok || !found.legibility.ok) && best.legibility.smallestTextMm > found.legibility.smallestTextMm * 1.005) {
+            tried.set(lo, best);
+            chosen = lo;
+          }
+          break;
+        }
+      }
+    }
     // A clean layout can still have lines crossing (at a clear angle, so the
     // check accepts them): typically many childless brothers and sisters
     // crowding the first ring push a father off his sector. Strict family
@@ -775,6 +832,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         }
       }
     }
+    if (searchedBelow) layout.searchedBelow = true;
     return { layout, chosen, strict, attempt, tried, dense };
   };
   type Found = { layout: PosterLayout; chosen: number; strict: boolean; attempt: (s: number, f?: boolean, st?: boolean, u?: number, fit?: number, cr?: boolean, fan?: { step: number; ends?: boolean }) => PosterLayout; untangle?: number; fit?: number };
@@ -2142,13 +2200,13 @@ function layoutAttempt(
   const byId = new Map<string, LiveNode>();
 
   const makeNode = (
-    n: HNode, p: Vec, depth: number, from: Vec, region: Region, side: number,
+    n: HNode, p: Vec, depth: number, from: Vec, region: Region, side: number, fsScale = 1,
   ): LiveNode => {
     const m = n.data.member!;
     const { label, subLabel: oneLine } = labelOf(m);
     const medallion = isMedallion(n, depth, region);
     const terminal = !n.children;
-    let fs = fontFor(depth, medallion, fl);
+    let fs = Math.max(floorFor(fl), fontFor(depth, medallion, fl) * fsScale);
     // a round name holder grows with its widest line: a second line much
     // wider than the name goes onto two ("أمها منيرة" / "المطيري")
     const round = medallion || (nodeShape === "circle" && !isLeaf(n));
@@ -2483,9 +2541,17 @@ function layoutAttempt(
       const slice = sideFan(o.node, start, reachX);
       const th = (slice.hi + slice.lo) / 2;
       if (plan) { plan.set(o.node, th); return; }
-      const fs = Math.max(floorFor(f), trunkFont * 0.8);
-      const { label, subLabel } = labelOf(m);
-      const size = Math.max(fs * 3.2, textWidth(label, fs) + fs, subLabel ? textWidth(subLabel, fs * 0.68) + fs * 1.4 : 0);
+      // A childless son is an ordinary son's name, a little smaller than his
+      // brothers' with families (0.9): no medallion, which is kept for the
+      // canopy's branch heads, and no ivory, which the key gives the line of
+      // fathers. (Set from the trunk's badges, 1.5 times the canopy's names,
+      // in a roundel 3.2 times its type, he was the largest name off the
+      // trunk, larger than his brothers who had whole families.)
+      const box = makeNode(o.node, start, 2, start, "fixed", side, 0.9);
+      nodes.pop();
+      byId.delete(box.id);
+      const fs = box.fontSize;
+      const size = Math.max(box.w, box.h);
       // (further out along its way while it would touch a stub already
       // placed: started each at its own badge, two from neighbouring badges
       // came to overlap, which the check of names, passing over two fixed
@@ -2547,9 +2613,7 @@ function layoutAttempt(
       // (drawn once every name is placed: settlePorts)
       stubDraw.set(m.id, { o, side, th: thS, reachS, end });
       const stub: LiveNode = {
-        id: m.id, member: m, x: end.x, y: end.y, tx: end.x, ty: end.y, depth: 0,
-        generation: genOf(m), w: size, h: size, fontSize: fs, shape: "medallion", label,
-        subLabel, terminal: true, angle: 0, leafLength: 0, leafWidth: 0, leafCount: 1,
+        ...box, x: end.x, y: end.y, tx: end.x, ty: end.y, depth: 0, terminal: true, leafCount: 1,
         parentId: o.anchor.data.member!.id, mass: 1e6, region: "fixed", side,
       };
       stubs.push(stub);

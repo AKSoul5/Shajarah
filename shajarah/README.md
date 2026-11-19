@@ -634,8 +634,27 @@ on any member's panel:
   (الشيخ، رحمه الله …). In the foundation text they use the classical ornate
   brackets «يريم ﴿ذو رعين الأكبر﴾».
 - **Side branches:** brothers of trunk ancestors grow as side branches with
-  their own small canopy. Brothers without descendants become small
-  medallions beside the trunk.
+  their own small canopy. Brothers without descendants are ordinary sons'
+  names beside the trunk, a little smaller (0.9) than their brothers'
+  with families.
+  - A childless son used to be an ivory medallion set from the trunk's
+    badges: 1.5 times the canopy's names, in a roundel 3.2 times its type,
+    the largest name off the trunk, larger than his brothers with whole
+    families, and in the ivory the key gives the line of fathers. On an
+    invented family on the Al-Kalali trunk with families and childless sons
+    on most ancestors, the smallest names went from 3.78 to 4.39 mm at A1
+    and 5.44 to 6.02 mm at A0; on a private 340-person family, and in the
+    layout QA (448 posters), no name changed size. In English on A2 and A3
+    a side family's line no longer clips a childless son's name (a known
+    defect). One poster is worse, accepted by the owner: that family in the
+    Refined design at A1, 4.95 to 4.59 mm (the size search now finds a
+    clean size at once and stops, where it used to go on to a larger one)
+    (tests/childless-sons-beside-the-trunk-are-ordinary-names.test.ts).
+  - That family at A0 needed one change to the size search: its legible
+    size was left with one ambiguity, and the search went straight to
+    smaller sizes, though larger ones were clean. Where the search goes
+    below the legible size, the poster is now laid out once more with a few
+    sizes above it tried, and the one with the larger names is kept.
   - A side branch fans outward and never rises above the canopy base: it
     turns down into the free room beside the trunk, above the ground. (One
     from the badge nearest the crown used to fan up into the canopy's
