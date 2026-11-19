@@ -2,9 +2,9 @@
 
 *Approved by the owner on 8 Nov 2026.*
 
-> **Version numbers moved (10 and 19 Nov 2026).** The owner brought poster fixes forward as 1.0.53, 1.0.54 and 1.0.55. Every release from S2 on is three versions later than written below: S2 is 1.0.56, S3 1.0.57, S4 1.0.58, S5 1.0.59, S6 1.0.60, and the inclusion release 1.0.61. The plan's contents and order are unchanged; [`/ROADMAP.md`](../ROADMAP.md) carries the current numbers.
+> **Version numbers moved (10 and 19 Nov 2026).** The owner brought poster fixes forward as 1.0.53 to 1.0.56. Every release from S2 on is four versions later than written below: S2 is 1.0.57, S3 1.0.58, S4 1.0.59, S5 1.0.60, S6 1.0.61, and the inclusion release 1.0.62. The plan's contents and order are unchanged; [`/ROADMAP.md`](../ROADMAP.md) carries the current numbers.
 
-**Status:** S0 (the release pipeline) and S1 (1.0.52, the start-up fix) are **done and released**, and so are the poster fixes of 1.0.53 and 1.0.54; 1.0.55 is poster fixes and speed. Next is S2 (1.0.56). The overview, the defect register and the open decisions are in [`/ROADMAP.md`](../ROADMAP.md); this file is the detailed plan behind it. Where it says "you", it means the owner.
+**Status:** S0 (the release pipeline) and S1 (1.0.52, the start-up fix) are **done and released**, and so are the poster fixes of 1.0.53 and 1.0.54; 1.0.55 and 1.0.56 are poster fixes and speed. Next is S2 (1.0.57). The overview, the defect register and the open decisions are in [`/ROADMAP.md`](../ROADMAP.md); this file is the detailed plan behind it. Where it says "you", it means the owner.
 
 The investigation reports this plan cites (`SHAJARAH-SAFETY-INVESTIGATION.md`, `SHAJARAH-STRATEGY.md`) contain details of real families and are kept outside the repository. Everything needed to carry out the plan is in this file and in `ROADMAP.md`.
 

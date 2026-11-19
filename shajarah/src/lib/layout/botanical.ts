@@ -602,7 +602,10 @@ function laddered(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   if (opts.sizeLadder !== undefined || !layout.searchedBelow) return layout;
   const up = layoutOnce(tree, { ...opts, sizeLadder: true });
   const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
-  return ok(up) >= ok(layout) && up.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.005 ? up : layout;
+  // (only a clean one: two unclean ones counted as alike, and the larger
+  // names kept with six ambiguities, where the first had been the size
+  // search's way to a clean poster through its later steps)
+  return isCleanPoster(up) && ok(up) >= ok(layout) && up.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.005 ? up : layout;
 }
 
 /**
@@ -773,6 +776,35 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
           }
         }
       }
+    }
+    // Still not clean, on a very large paper: sizes between tried.
+    if (!isClean(full) && !isClean(at(chosen))) {
+      const legibleScale = clamp((full.legibility.minTextMm / Math.max(1e-6, full.legibility.smallestTextMm)) * 1.02, MIN_SCALE, 1);
+      ((): boolean => {
+        // On a very large paper the legible size is a small fraction of the
+        // full one, and there, with every line no thinner than its minimum
+        // width beside names a twentieth of their size, lines merge and
+        // meet: neither end of the range is clean, though sizes between are.
+        // Those are tried, from the larger down, and the largest clean one
+        // refined upwards. (A 340-person family on 1024A0 with its daughters
+        // hidden kept its names at 0.04 of their size, 7.7 mm against
+        // 97 mm, its trunk filling the page: only 1, 0.8, 0.05 and 0.04
+        // were ever tried.)
+        // (tried apart from the search's own sizes, which its later steps
+        // choose among: only a clean one found joins them)
+        if (legibleScale > 0.2) return false;
+        let prev = 1;
+        for (let sc = 0.6; sc > legibleScale * 1.25; sc *= 0.7) {
+          const k = Math.round(sc * 1000) / 1000;
+          if (tried.has(k)) { prev = k; continue; }
+          const l = attempt(k);
+          if (!isClean(l)) { prev = k; continue; }
+          tried.set(k, l);
+          chosen = bisect(k, prev);
+          return true;
+        }
+        return false;
+      })();
     }
     // The legible size itself left with an ambiguity or two, a larger size
     // can still be clean (the count does not fall evenly with the names'
