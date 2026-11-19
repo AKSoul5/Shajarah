@@ -101,18 +101,21 @@ describe("a childless son's line clears his neighbours' names", () => {
           // the legible paper for both: clean, names no smaller than before
           expect(l.clarity.issues).toEqual([]);
           expect(l.legibility.ok).toBe(true);
-          expect(l.legibility.smallestTextMm).toBeGreaterThanOrEqual(lang === "en" ? 3.78 - 0.01 : 4.95 - 0.01);
+          // (Arabic A1 was 4.95 mm; 4.59 since the childless sons' names
+          // were made ordinary and smaller in 1.0.55: the size search then
+          // finds a clean size at once and stops, where it used to go on to
+          // a larger one. Accepted by the owner for the gains elsewhere.)
+          expect(l.legibility.smallestTextMm).toBeGreaterThanOrEqual(lang === "en" ? 3.78 - 0.01 : 4.59 - 0.01);
         }
       });
     }
   }
-  // Not yet fixed: in English on A2 and A3 (both below the legible size, so
-  // not offered for this family) a side family's line, to its leaf
-  // "Mubarak 2", clips the medallion of the childless son "Salim 2" next to
-  // it. A separate defect (a side branch's line, not a stub's); when fixed,
-  // this expected failure fails and must become an ordinary check.
+  // In English on A2 and A3 (both below the legible size, so not offered
+  // for this family) a side family's line, to its leaf "Mubarak 2", clipped
+  // the medallion of the childless son "Salim 2" next to it. Fixed with the
+  // childless sons' ordinary, smaller names (1.0.55).
   for (const paper of ["A2", "A3"]) {
-    it.fails(`en, ${paper}: no line under a childless son's name (known defect)`, { timeout: 600_000 }, () => {
+    it(`en, ${paper}: no line under a childless son's name`, { timeout: 600_000 }, () => {
       const l = lay(english(crowdedTrunk()), paper);
       const stubIds = new Set(l.stubs.map((s) => s.id));
       expect(l.clarity.issues.filter((i) => stubIds.has(String(i.other)))).toEqual([]);

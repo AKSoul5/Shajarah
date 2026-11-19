@@ -261,7 +261,11 @@ export const TreePoster = memo(
 
         {/* People */}
         {layout.stubs.map((n) => (
-          <Medallion key={n.id} node={n} pal={pal} onClick={click(n.id)} />
+          // (a childless son beside the trunk: an ordinary son's name; a
+          // medallion in posters laid out before 1.0.55)
+          n.shape === "medallion"
+            ? <Medallion key={n.id} node={n} pal={pal} onClick={click(n.id)} />
+            : <PersonNode key={n.id} node={n} {...withRim(n)} pal={pal} onClick={click(n.id)} detail={pal.mono || theme.colorBy === "generation" ? null : pal.rimStyle} />
         ))}
         {layout.nodes.map((n) =>
           n.shape === "medallion" ? (

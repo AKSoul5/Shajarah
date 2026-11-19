@@ -121,6 +121,8 @@ export interface LayoutOptions {
   soilShorten?: boolean;
   /** Internal: false lays a shortened lineage out with the cut that fits its share (see computePosterLayout). */
   soilKeep?: boolean;
+  /** Internal: also tries a few sizes above the legible one where that is not clean (see laddered). */
+  sizeLadder?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
   uprightOff?: boolean;
   /**
@@ -377,6 +379,8 @@ export interface PosterLayout {
   uprightUsed?: boolean;
   /** The size the names were set at, against their full size (1). */
   fontScale?: number;
+  /** Internal: the size search found nothing clean at the legible size or above (see laddered). */
+  searchedBelow?: boolean;
   /** How far above horizontal the canopy's sweep started (radians; see SWEEP_LIFT). */
   sweepLift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
@@ -413,14 +417,30 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * below the minimum is flagged rather than silently shrunk.
  */
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
-  const layout = withBoxRoom(tree, opts);
+  const steps = posterSteps(opts);
+  let r = steps.next();
+  while (!r.done) r = steps.next(keepGuarded(tree, r.value));
+  return r.value;
+}
+
+/**
+ * The poster's layout as a series of steps: each yields the options of one
+ * layout it needs and is given back that layout, guarded (keepGuarded), and
+ * decides from it what to lay out next. computePosterLayout lays each step
+ * out at once; the editor lays out each step's two placements of the
+ * centred son's mother in two workers side by side (see twoLayouts.ts), and
+ * so comes to the same poster.
+ */
+export type PosterSteps = Generator<LayoutOptions, PosterLayout, PosterLayout>;
+export function* posterSteps(opts: LayoutOptions = {}): PosterSteps {
+  const layout = yield* withBoxRoom(opts);
   // A dense family on small paper: its names set smaller to fit, while the
   // foundation (and the trunk) kept the full size, standing two or three
   // times larger and taking height the tree needed. Laid out again with
   // them following the names (LayoutOptions.compactLower); that poster is
   // used when it is as clean and as legible, its names no smaller.
   if (opts.compactLower === undefined && oversizedLower(layout)) {
-    const compact = withBoxRoom(tree, { ...opts, compactLower: true });
+    const compact = yield* withBoxRoom({ ...opts, compactLower: true });
     const asGood = (isCleanPoster(compact) || !isCleanPoster(layout))
       && (compact.legibility.ok || !layout.legibility.ok)
       && compact.overlaps <= layout.overlaps
@@ -439,15 +459,15 @@ function oversizedLower(l: PosterLayout): boolean {
   return l.soil.fontSize > LOWER_RATIO * sizes[sizes.length >> 1];
 }
 
-function withBoxRoom(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
-  const layout = posterLayout(tree, opts);
+function* withBoxRoom(opts: LayoutOptions): PosterSteps {
+  const layout = yield* posterLayout(opts);
   // A child set back behind his father's box (the line to him turning back
   // into the tree): laid out again with room for the boxes between the
   // generations, kept when it is clean, as legible, with fewer such.
   if (opts.boxRoom === undefined) {
     const back = setBack(layout);
     if (back > 0) {
-      const roomy = posterLayout(tree, { ...opts, boxRoom: true });
+      const roomy = yield* posterLayout({ ...opts, boxRoom: true });
       const asGood = isCleanPoster(layout)
         // (a clean poster stays clean and as legible, its names not much smaller)
         ? isCleanPoster(roomy) && (roomy.legibility.ok || !layout.legibility.ok) && roomy.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.8
@@ -478,9 +498,9 @@ export function setBack(l: PosterLayout): number {
   return n;
 }
 
-function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+function* posterLayout(opts: LayoutOptions): PosterSteps {
   const started = Date.now();
-  const layout = keepGuarded(tree, opts);
+  const layout = yield opts;
   if (isCleanPoster(layout) && layout.legibility.ok) return layout;
   // Another balance of the canopy's two halves: the balance is judged once,
   // early, from the first attempt (see sideLean); a poster left legible
@@ -496,7 +516,7 @@ function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
     const budget = Math.max(BALANCE_BUDGET_MS, Math.min(BALANCE_BUDGET_MAX_MS, (Date.now() - started) * BALANCE_BUDGET_FACTOR));
     for (const sideBias of BALANCES) {
       if (Date.now() - started > budget) break;
-      const l = keepGuarded(tree, { ...opts, sideBias });
+      const l = yield { ...opts, sideBias };
           if (isCleanPoster(l) && l.legibility.ok) return l;
       if (l.overlaps === 0 && l.legibility.ok && l.clarity.issues.length < best.clarity.issues.length
         && l.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.98) best = l;
@@ -508,7 +528,7 @@ function posterLayout(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   // (Its names below the legible size, the editor recommends a larger
   // paper, where it is both.)
   if (!isCleanPoster(best)) {
-    const c = keepGuarded(tree, { ...opts, cleanFirst: true });
+    const c = yield { ...opts, cleanFirst: true };
     if (isCleanPoster(c)) return c;
   }
   return best;
@@ -524,27 +544,41 @@ const isCleanPoster = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
  * less clean (a clean poster is never traded for one with ambiguities).
  */
 function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
-  const layout = soilGuarded(tree, opts);
-  // The centred son's mother set straight above her husband, where that left
-  // the names smaller than they could be: laid out again with her placed as
-  // any other wife, and that kept when its names are larger (in the layout
-  // QA, 9 of 448 posters came out with smaller names, one at 82%). Also where
-  // a thin line runs along her upright stem (a son's with no mother
-  // recorded, rising from his father beside it): that kept when it has fewer
-  // such lines and names as large.
-  const along = layout.uprightUsed ? linesAlongside(layout).length : 0;
-  if (layout.uprightUsed && ((layout.fontScale ?? 1) < 0.999 || along > 0)) {
-    const plain = soilGuarded(tree, { ...opts, uprightOff: true });
-    const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
-    const larger = plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.005;
-    const asLarge = plain.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.995;
-    if (ok(plain) > ok(layout) || (ok(plain) === ok(layout) && (larger || (asLarge && linesAlongside(plain).length < along)))) return plain;
-  }
-  return layout;
+  const layout = layoutStep(tree, opts);
+  return uprightNeedsPlain(layout) ? pickUpright(layout, layoutStep(tree, { ...opts, uprightOff: true })) : layout;
+}
+
+/** One step's layout, without the comparison of the two placements (the editor's workers lay these out). */
+export function layoutStep(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+  return soilGuarded(tree, opts);
+}
+
+/**
+ * Whether a layout with the centred son's mother set straight above her
+ * husband is to be compared with one where she is placed as any other
+ * wife: where its names came out below full size (laid out upright alone,
+ * 9 of 448 QA posters had smaller names, one at 82%), or a thin line runs
+ * along her upright stem (a son's with no mother recorded, rising from his
+ * father beside it).
+ */
+export function uprightNeedsPlain(l: PosterLayout): boolean {
+  return !!l.uprightUsed && ((l.fontScale ?? 1) < 0.999 || linesAlongside(l).length > 0);
+}
+
+/**
+ * Of the two, the better: clean and legible first, then larger names,
+ * then (names as large) fewer lines running along a limb; ties keep her
+ * upright.
+ */
+export function pickUpright(upright: PosterLayout, plain: PosterLayout): PosterLayout {
+  const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
+  const a = upright.legibility.smallestTextMm, b = plain.legibility.smallestTextMm;
+  if (ok(plain) > ok(upright) || (ok(plain) === ok(upright) && (b > a * 1.005 || (b >= a * 0.995 && linesAlongside(plain).length < linesAlongside(upright).length)))) return plain;
+  return upright;
 }
 
 function soilGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
-  const layout = layoutOnce(tree, opts);
+  const layout = laddered(tree, opts);
   if (layout.soilKeptNearest && !(layout.legibility.ok && isCleanPoster(layout))) {
     const plain = layoutOnce(tree, { ...opts, soilKeep: false });
     if (plain.legibility.ok && (isCleanPoster(plain) || !isCleanPoster(layout))) return plain;
@@ -552,6 +586,23 @@ function soilGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
     if (isCleanPoster(plain) && isCleanPoster(layout) && !layout.legibility.ok && plain.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.05) return plain;
   }
   return layout;
+}
+
+/**
+ * One layout, and where its size search found nothing clean at the legible
+ * size or above and went below it, once more with a few sizes above the
+ * legible one tried (LayoutOptions.sizeLadder); the one with the larger
+ * names is kept, as clean and as legible. (Decided inside the size search,
+ * later steps undid it on 5 of 448 QA posters; tried after every poster
+ * left at the legible size, it added 42% to the layout QA's time and
+ * changed none of its posters.)
+ */
+function laddered(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
+  const layout = layoutOnce(tree, opts);
+  if (opts.sizeLadder !== undefined || !layout.searchedBelow) return layout;
+  const up = layoutOnce(tree, { ...opts, sizeLadder: true });
+  const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
+  return ok(up) >= ok(layout) && up.legibility.smallestTextMm > layout.legibility.smallestTextMm * 1.005 ? up : layout;
 }
 
 /**
@@ -648,6 +699,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       return lo;
     };
     let chosen = 1;
+    let searchedBelow = false;
     const full = at(1);
     if (dense) {
       // (legible sizes only: smaller names would be thinner than their lines)
@@ -685,6 +737,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         }
       }
       else if (isClean(at(below))) {
+        searchedBelow = true;
         chosen = bisect(below, legibleScale); // clean only below legible size?
         // The count of ambiguities does not fall evenly with the names' size:
         // before settling for illegible names, a few more sizes around the
@@ -721,6 +774,40 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         }
       }
     }
+    // The legible size itself left with an ambiguity or two, a larger size
+    // can still be clean (the count does not fall evenly with the names'
+    // size), which the search above, going down from there, never tried: a
+    // few sizes above it, the largest clean one first, kept only when its
+    // names come out larger than those found. (Childless sons beside the
+    // trunk set smaller left one family's legible size with one ambiguity,
+    // and its names at 3.2 mm where 6.0 mm were clean.)
+    if (!isClean(full)) {
+      const legibleScale = clamp((full.legibility.minTextMm / Math.max(1e-6, full.legibility.smallestTextMm)) * 1.02, MIN_SCALE, 1);
+      const found = at(chosen);
+      // (tried apart from the search's own sizes, which later steps choose
+      // among: only the size kept joins them)
+      if (opts.sizeLadder && legibleScale < 0.999 && !(isClean(found) && found.legibility.ok && chosen > legibleScale)) {
+        const key = (sc: number) => Math.round(sc * 1000) / 1000;
+        for (const k of [1.6, 1.45, 1.3, 1.15]) {
+          const sc = key(Math.min(0.999, legibleScale * k));
+          if (sc <= legibleScale || sc <= chosen || tried.has(sc)) continue;
+          let best = attempt(sc);
+          if (!isClean(best)) continue;
+          let lo = sc, hi = Math.min(1, sc * 1.15);
+          for (let i = 0; i < 2; i++) {
+            const mid = key((lo + hi) / 2);
+            if (tried.has(mid)) break;
+            const l = attempt(mid);
+            if (isClean(l)) { lo = mid; best = l; } else hi = mid;
+          }
+          if ((best.legibility.ok || !found.legibility.ok) && best.legibility.smallestTextMm > found.legibility.smallestTextMm * 1.005) {
+            tried.set(lo, best);
+            chosen = lo;
+          }
+          break;
+        }
+      }
+    }
     // A clean layout can still have lines crossing (at a clear angle, so the
     // check accepts them): typically many childless brothers and sisters
     // crowding the first ring push a father off his sector. Strict family
@@ -745,6 +832,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         }
       }
     }
+    if (searchedBelow) layout.searchedBelow = true;
     return { layout, chosen, strict, attempt, tried, dense };
   };
   type Found = { layout: PosterLayout; chosen: number; strict: boolean; attempt: (s: number, f?: boolean, st?: boolean, u?: number, fit?: number, cr?: boolean, fan?: { step: number; ends?: boolean }) => PosterLayout; untangle?: number; fit?: number };
@@ -2112,13 +2200,13 @@ function layoutAttempt(
   const byId = new Map<string, LiveNode>();
 
   const makeNode = (
-    n: HNode, p: Vec, depth: number, from: Vec, region: Region, side: number,
+    n: HNode, p: Vec, depth: number, from: Vec, region: Region, side: number, fsScale = 1,
   ): LiveNode => {
     const m = n.data.member!;
     const { label, subLabel: oneLine } = labelOf(m);
     const medallion = isMedallion(n, depth, region);
     const terminal = !n.children;
-    let fs = fontFor(depth, medallion, fl);
+    let fs = Math.max(floorFor(fl), fontFor(depth, medallion, fl) * fsScale);
     // a round name holder grows with its widest line: a second line much
     // wider than the name goes onto two ("أمها منيرة" / "المطيري")
     const round = medallion || (nodeShape === "circle" && !isLeaf(n));
@@ -2453,9 +2541,17 @@ function layoutAttempt(
       const slice = sideFan(o.node, start, reachX);
       const th = (slice.hi + slice.lo) / 2;
       if (plan) { plan.set(o.node, th); return; }
-      const fs = Math.max(floorFor(f), trunkFont * 0.8);
-      const { label, subLabel } = labelOf(m);
-      const size = Math.max(fs * 3.2, textWidth(label, fs) + fs, subLabel ? textWidth(subLabel, fs * 0.68) + fs * 1.4 : 0);
+      // A childless son is an ordinary son's name, a little smaller than his
+      // brothers' with families (0.9): no medallion, which is kept for the
+      // canopy's branch heads, and no ivory, which the key gives the line of
+      // fathers. (Set from the trunk's badges, 1.5 times the canopy's names,
+      // in a roundel 3.2 times its type, he was the largest name off the
+      // trunk, larger than his brothers who had whole families.)
+      const box = makeNode(o.node, start, 2, start, "fixed", side, 0.9);
+      nodes.pop();
+      byId.delete(box.id);
+      const fs = box.fontSize;
+      const size = Math.max(box.w, box.h);
       // (further out along its way while it would touch a stub already
       // placed: started each at its own badge, two from neighbouring badges
       // came to overlap, which the check of names, passing over two fixed
@@ -2517,9 +2613,7 @@ function layoutAttempt(
       // (drawn once every name is placed: settlePorts)
       stubDraw.set(m.id, { o, side, th: thS, reachS, end });
       const stub: LiveNode = {
-        id: m.id, member: m, x: end.x, y: end.y, tx: end.x, ty: end.y, depth: 0,
-        generation: genOf(m), w: size, h: size, fontSize: fs, shape: "medallion", label,
-        subLabel, terminal: true, angle: 0, leafLength: 0, leafWidth: 0, leafCount: 1,
+        ...box, x: end.x, y: end.y, tx: end.x, ty: end.y, depth: 0, terminal: true, leafCount: 1,
         parentId: o.anchor.data.member!.id, mass: 1e6, region: "fixed", side,
       };
       stubs.push(stub);
