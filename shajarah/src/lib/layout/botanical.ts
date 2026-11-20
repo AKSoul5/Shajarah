@@ -1478,6 +1478,19 @@ function layoutAttemptBody(
     rootT = candidates[0]?.t ?? build(visible[0]);
   }
   const root = hierarchy<TNode>(rootT, (d) => d.children).count() as HNode;
+  // How many people a limb carries on solid lines, which sets its width: a
+  // daughter whose family is shown through her counts as one (her children,
+  // of their father's family, hang from her on dotted lines; counted in, her
+  // limb was the heaviest of her brothers' and sisters' and ended in dots).
+  const solidMemo = new Map<HNode, number>();
+  const solidCount = (n: HNode): number => {
+    let v = solidMemo.get(n);
+    if (v === undefined) {
+      v = !n.children?.length || (n.data.member && through.has(n.data.member.id)) ? 1 : n.children.reduce((a, c) => a + solidCount(c as HNode), 0);
+      solidMemo.set(n, v);
+    }
+    return v;
+  };
 
   // Families through a daughter: her children (drawn from her, not from
   // their father) and all their descendants are relatives outside the
@@ -1580,7 +1593,9 @@ function layoutAttemptBody(
 
   // Label sizing, shared by the space estimate and the real nodes.
   // Branch heads (sons with descendants on the first ring) are medallions.
-  const isMedallion = (n: HNode, depth: number, region: Region) => depth === 1 && region === "crown" && !!n.children?.length;
+  // A daughter whose family is shown through her never heads a branch: her
+  // children carry their father's family name, not this one.
+  const isMedallion = (n: HNode, depth: number, region: Region) => depth === 1 && region === "crown" && !!n.children?.length && !through.has(n.data.member!.id);
   const isLeaf = (n: HNode) =>
     !n.children && nodeShape === "leaf" && !(opts.femaleCapsule && n.data.member!.gender === "FEMALE");
   const floorFor = (f: number) => Math.min(f, minFont);
@@ -2401,7 +2416,7 @@ function layoutAttemptBody(
       id: m.id, member: m, x: p.x, y: p.y, tx: p.x, ty: p.y, depth,
       generation: genOf(m), w, h, fontSize: fs, shape, label, subLabel, terminal,
       childrenOutside: !terminal && !dotted.has(m.id) && n.children!.every((c) => dotted.has(c.data.member!.id)),
-      angle, leafLength, leafWidth, leafCount: n.value ?? 1,
+      angle, leafLength, leafWidth, leafCount: solidCount(n),
       parentId: n.parent?.data.member?.id ?? null,
       mass: medallion ? 4 : 1, region, side,
     };
@@ -2852,7 +2867,7 @@ function layoutAttemptBody(
   // the trunk; everyone descended from it carries its index.
   {
     const limbs = nodes
-      .filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal)
+      .filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal && !through.has(n.member.id))
       .sort((a, b) => (b.ray ?? 0) - (a.ray ?? 0));
     const index = new Map<string, number>();
     limbs.forEach((n, i) => index.set(n.id, i));
