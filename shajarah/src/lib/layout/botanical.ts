@@ -123,6 +123,8 @@ export interface LayoutOptions {
   soilKeep?: boolean;
   /** Internal: also tries a few sizes above the legible one where that is not clean (see laddered). */
   sizeLadder?: boolean;
+  /** Internal: room between the fans of side families whose badges are close (see posterSteps). */
+  sideGap?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
   uprightOff?: boolean;
   /**
@@ -381,6 +383,8 @@ export interface PosterLayout {
   fontScale?: number;
   /** How this layout was made (see replayLayout). */
   recipe?: LayoutRecipe;
+  /** How many side families grow from the trunk. */
+  sideFamilies?: number;
   /** Internal: the size search found nothing clean at the legible size or above (see laddered). */
   searchedBelow?: boolean;
   /** How far above horizontal the canopy's sweep started (radians; see SWEEP_LIFT). */
@@ -435,6 +439,25 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
  */
 export type PosterSteps = Generator<LayoutOptions, PosterLayout, PosterLayout>;
 export function* posterSteps(opts: LayoutOptions = {}): PosterSteps {
+  const layout = yield* coreSteps(opts);
+  // Neighbouring side families apart: where the poster is left with
+  // problems and the trunk has side families, it is laid out again with a
+  // little room between the fans of families whose badges are close
+  // (LayoutOptions.sideGap), and that kept when it is cleaner, as legible,
+  // its names no smaller. (On a private 340-person family, a son of one
+  // side family stood inside the next one's fan, under its lines, at A0
+  // and 4A0; given the room everywhere, a clean poster elsewhere came out
+  // with smaller names, so only a poster with problems is tried.)
+  if (opts.sideGap === undefined && !isCleanPoster(layout) && (layout.sideFamilies ?? 0) > 1) {
+    const gapped = yield* coreSteps({ ...opts, sideGap: true });
+    const cleaner = isCleanPoster(gapped) || gapped.overlaps + gapped.clarity.issues.length < layout.overlaps + layout.clarity.issues.length;
+    if (cleaner && gapped.overlaps <= layout.overlaps && (gapped.legibility.ok || !layout.legibility.ok)
+      && gapped.legibility.smallestTextMm >= layout.legibility.smallestTextMm * 0.98) return gapped;
+  }
+  return layout;
+}
+
+function* coreSteps(opts: LayoutOptions): PosterSteps {
   const layout = yield* withBoxRoom(opts);
   // A dense family on small paper: its names set smaller to fit, while the
   // foundation (and the trunk) kept the full size, standing two or three
@@ -2576,12 +2599,19 @@ function layoutAttemptBody(
     });
     for (const list of bySide.values()) {
       list.sort((a, b) => a.y - b.y);
-      const total = list.reduce((s2, e) => s2 + e.w, 0) || 1;
+      // (with LayoutOptions.sideGap, a little room between the shares of
+      // two families whose badges are close: their fans, from points that
+      // near, ran side by side)
+      const sum = list.reduce((s2, e) => s2 + e.w, 0);
+      const near = (k: number) => !!opts.sideGap && k > 0 && list[k].y - list[k - 1].y < trunkStep * 2.5 && !!list[k].o.node.children && !!list[k - 1].o.node.children;
+      const gapW = sum * 0.08;
+      const total = (sum + list.reduce((g, _e, k) => g + (near(k) ? gapW : 0), 0)) || 1;
       let acc = 0;
-      for (const e of list) {
+      list.forEach((e, k) => {
+        if (near(k)) acc += gapW;
         sideShare.set(e.o.node, [acc / total, (acc + e.w) / total]);
         acc += e.w;
-      }
+      });
     }
   }
   // The range a side branch (or stub) at A may fan over at reach R: up and
@@ -4525,6 +4555,7 @@ function layoutAttemptBody(
     soilOverShare,
     soilKeptNearest: keepNearest > 0,
     uprightUsed: holders.some(uprightHolder),
+    sideFamilies: visibleOffshoots.filter((o) => !!o.node.children).length,
     fontScale,
     sweepLift: lift,
     centerLine: [...centerPath].sort((a, b) => a.depth - b.depth).map((n) => n.data.member!.id),
