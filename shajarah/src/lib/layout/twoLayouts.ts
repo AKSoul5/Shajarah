@@ -6,12 +6,47 @@
 // exported. computePosterLayout lays the two out one after the other, which
 // took up to twice as long; here they are laid out side by side, and the
 // second costs no waiting on a computer with two cores or more.
+//
+// Before all that, the family's last poster's recipe (how it was made, see
+// replayLayout) is made again in a third worker: one attempt, a fraction of
+// a second where the whole search takes up to minutes (a 340-person family:
+// 0.4 s against 104 s, the same poster). After a small change it is most
+// often as clean and legible as before, and is shown, ready to export, at
+// once; the whole search goes on behind it and replaces it only when it
+// does better.
 
-import { computePosterLayout, pickUpright, posterSteps, uprightNeedsPlain, type LayoutOptions, type PosterLayout, type PosterSteps } from "./botanical";
+import { computePosterLayout, pickUpright, posterSteps, uprightNeedsPlain, type LayoutOptions, type LayoutRecipe, type PosterLayout, type PosterSteps } from "./botanical";
 import type { TreeDTO } from "@/lib/types";
 
 export type LayoutJob = { id: number; tree: TreeDTO; options: LayoutOptions };
-export type StepRequest = { id: number; kind: "step"; tree: TreeDTO; options: LayoutOptions };
+export type StepRequest =
+  | { id: number; kind: "step"; tree: TreeDTO; options: LayoutOptions }
+  | { id: number; kind: "replay"; tree: TreeDTO; recipe: LayoutRecipe };
+
+/** Where recipes are kept between sessions (the editor: the browser's storage). */
+export interface RecipeStore {
+  get(key: string): { recipe: LayoutRecipe; rank: number } | undefined;
+  set(key: string, value: { recipe: LayoutRecipe; rank: number }): void;
+}
+
+/** A short, stable fingerprint of a text (53-bit, cyrb53). */
+export function fingerprint(text: string): string {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/** How good a poster is, for comparing two: clean first, then legible, then the larger names. */
+export function posterRank(l: PosterLayout): number {
+  const clean = l.overlaps === 0 && l.clarity.ok;
+  return (clean ? 2e6 : 0) + (l.legibility.ok ? 1e6 : 0) - Math.min(999, l.overlaps * 10 + l.clarity.issues.length) * 100 + Math.min(99, l.legibility.smallestTextMm);
+}
 export type LayoutReply = { id: number; ok: boolean; layout?: PosterLayout; error?: string };
 
 /** What a worker must offer (a Web Worker does; tests pass a stand-in). */
@@ -56,7 +91,7 @@ export function mayStandUpright(tree: TreeDTO, options: LayoutOptions): boolean 
 }
 
 type Step = { options: LayoutOptions; a?: PosterLayout; b?: PosterLayout; bSent: boolean };
-type Running = LayoutJob & { steps: PosterSteps; step: Step; seq: number; speculate: boolean; sawUpright: boolean };
+type Running = LayoutJob & { steps: PosterSteps; step: Step; seq: number; speculate: boolean; sawUpright: boolean; key: string; quick?: PosterLayout; replaySeq?: number };
 
 /**
  * Lays out one request at a time: the newest request counts, and requests
@@ -67,6 +102,9 @@ type Running = LayoutJob & { steps: PosterSteps; step: Step; seq: number; specul
 export class TwoLayouts {
   private a: WorkerLike | null = null;
   private b: WorkerLike | null = null;
+  private r: WorkerLike | null = null;
+  /** Each family's last poster's recipe on these settings, and how good that poster was. */
+  private recipes = new Map<string, { recipe: LayoutRecipe; rank: number }>();
   private running: Running | null = null;
   private waiting: LayoutJob | null = null;
   private failed = false;
@@ -77,24 +115,39 @@ export class TwoLayouts {
 
   constructor(
     private readonly make: () => WorkerLike,
-    private readonly done: (id: number, layout: PosterLayout | null, error?: string) => void,
+    /** `final`: the poster may be exported (a replayed one as good as before, or the search's own). */
+    private readonly done: (id: number, layout: PosterLayout | null, error?: string, final?: boolean) => void,
+    private readonly store?: RecipeStore,
   ) {}
 
+  /** The newest request starts at once: a search still going for an older one is given up. */
   request(job: LayoutJob) {
     this.waiting = job;
-    if (!this.running) this.next();
+    if (this.running) {
+      this.a?.terminate();
+      this.b?.terminate();
+      this.r?.terminate();
+      this.a = this.b = this.r = null;
+      this.running = null;
+    }
+    this.next();
   }
 
   dispose() {
     this.a?.terminate();
     this.b?.terminate();
-    this.a = this.b = null;
+    this.r?.terminate();
+    this.a = this.b = this.r = null;
     this.running = this.waiting = null;
   }
 
-  private worker(which: "a" | "b"): WorkerLike | null {
+  private recipeKey(job: LayoutJob) {
+    return `${job.tree.id}:${fingerprint(JSON.stringify(job.options))}`;
+  }
+
+  private worker(which: "a" | "b" | "r"): WorkerLike | null {
     if (this.failed) return null;
-    const have = which === "a" ? this.a : this.b;
+    const have = which === "a" ? this.a : which === "b" ? this.b : this.r;
     if (have) return have;
     let w: WorkerLike;
     try {
@@ -103,22 +156,27 @@ export class TwoLayouts {
       this.failed = true;
       return null;
     }
-    w.onmessage = (e) => this.reply(which, e.data);
+    w.onmessage = (e) => (which === "r" ? this.replayed(e.data) : this.reply(which, e.data));
     w.onerror = (e) => {
-      // (a worker that cannot run: the page lays the poster out instead)
       e.preventDefault?.();
+      // (one given up for a newer request can fail while it was still
+      // loading: that says nothing about whether workers can run here)
+      if (w !== this.a && w !== this.b && w !== this.r) return;
+      // (a worker that cannot run: the page lays the poster out instead)
       console.error("Layout worker failed; laying out on the page:", e.message);
       this.failed = true;
       const job = this.running;
       this.a?.terminate();
       this.b?.terminate();
-      this.a = this.b = null;
+      this.r?.terminate();
+      this.a = this.b = this.r = null;
       this.running = null;
       if (job && !this.waiting) this.waiting = { id: job.id, tree: job.tree, options: job.options };
       this.next();
     };
     if (which === "a") this.a = w;
-    else this.b = w;
+    else if (which === "b") this.b = w;
+    else this.r = w;
     return w;
   }
 
@@ -133,10 +191,18 @@ export class TwoLayouts {
     }
     const steps = posterSteps(job.options);
     const first = steps.next();
-    const key = `${job.tree.id}:${!!job.options.motherNames}`;
-    const speculate = this.upright.get(key) ?? mayStandUpright(job.tree, job.options);
-    const run: Running = { ...job, steps, step: { options: {}, bSent: false }, seq: 0, speculate, sawUpright: false };
+    const ukey = `${job.tree.id}:${!!job.options.motherNames}`;
+    const speculate = this.upright.get(ukey) ?? mayStandUpright(job.tree, job.options);
+    const key = this.recipeKey(job);
+    const run: Running = { ...job, steps, step: { options: {}, bSent: false }, seq: 0, speculate, sawUpright: false, key };
     this.running = run;
+    // (the last poster's recipe made again, at once, while the search runs)
+    const known = this.recipes.get(key) ?? this.store?.get(key);
+    const wr = known && this.worker("r");
+    if (known && wr) {
+      run.replaySeq = ++this.seq;
+      wr.postMessage({ id: run.replaySeq, kind: "replay", tree: job.tree, recipe: known.recipe });
+    }
     if (first.done) this.finish(first.value);
     else this.start(run, first.value);
   }
@@ -160,6 +226,15 @@ export class TwoLayouts {
   private dropB() {
     this.b?.terminate();
     this.b = null;
+  }
+
+  /** The replayed recipe: shown at once; ready to export when it is as good as the poster it was made from. */
+  private replayed(r: LayoutReply) {
+    const run = this.running;
+    if (!run || r.id !== run.replaySeq || !r.ok || !r.layout) return;
+    run.quick = r.layout;
+    const before = this.recipes.get(run.key) ?? this.store?.get(run.key);
+    this.done(run.id, r.layout, undefined, !!before && posterRank(r.layout) >= Math.floor(before.rank / 1e6) * 1e6);
   }
 
   private reply(which: "a" | "b", r: LayoutReply) {
@@ -205,8 +280,18 @@ export class TwoLayouts {
   private finish(layout: PosterLayout) {
     const run = this.running!;
     this.running = null;
+    this.r?.terminate();
+    this.r = null;
     this.upright.set(`${run.tree.id}:${!!run.options.motherNames}`, run.sawUpright);
-    this.done(run.id, layout);
+    // (the better of the search's poster and the replayed one, which after
+    // a small change can be the better)
+    const best = run.quick && posterRank(run.quick) > posterRank(layout) ? run.quick : layout;
+    if (best.recipe) {
+      const entry = { recipe: best.recipe, rank: posterRank(best) };
+      this.recipes.set(run.key, entry);
+      try { this.store?.set(run.key, entry); } catch { /* storage full or blocked: kept for this session */ }
+    }
+    this.done(run.id, best, undefined, true);
     this.next();
   }
 }

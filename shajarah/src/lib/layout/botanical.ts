@@ -379,6 +379,8 @@ export interface PosterLayout {
   uprightUsed?: boolean;
   /** The size the names were set at, against their full size (1). */
   fontScale?: number;
+  /** How this layout was made (see replayLayout). */
+  recipe?: LayoutRecipe;
   /** Internal: the size search found nothing clean at the legible size or above (see laddered). */
   searchedBelow?: boolean;
   /** How far above horizontal the canopy's sweep started (radians; see SWEEP_LIFT). */
@@ -546,6 +548,19 @@ const isCleanPoster = (l: PosterLayout) => l.overlaps === 0 && l.clarity.ok;
 function keepGuarded(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
   const layout = layoutStep(tree, opts);
   return uprightNeedsPlain(layout) ? pickUpright(layout, layoutStep(tree, { ...opts, uprightOff: true })) : layout;
+}
+
+/**
+ * A draft of the poster, for the editor to show at once while the finished
+ * one is laid out: a single quick attempt at the given size (the size the
+ * family's last poster on this paper came out at, where known), without
+ * the size search, the untangling or the retries. Never exported: the
+ * editor offers export only once the finished poster is in.
+ */
+export function draftLayout(tree: TreeDTO, opts: LayoutOptions, scale = 0.75): PosterLayout {
+  const l = layoutAttempt(tree, { ...opts, sideBias: opts.sideBias ?? 0 }, clamp(scale, MIN_SCALE, 1), false, false, false, { checks: 0 });
+  l.clarity = validateRelationships(l, tree);
+  return l;
 }
 
 /** One step's layout, without the comparison of the two placements (the editor's workers lay these out). */
@@ -1231,7 +1246,34 @@ const MOVES = 12;
 export const CLARITY_LIMIT = 5;
 
 
+/** How one layout was made: replayed by replayLayout, it comes out the same. */
+export type LayoutRecipe = {
+  opts: LayoutOptions; fontScale: number; final: boolean; strict: boolean; dense: boolean;
+  budget: { checks: number; fit?: number; crossings?: boolean; fan?: number; ends?: boolean };
+};
+
 function layoutAttempt(
+  tree: TreeDTO, opts: LayoutOptions, fontScale: number, final = true, strictFamilies = false, dense = false,
+  budget: { checks: number; fit?: number; crossings?: boolean; fan?: number; ends?: boolean } = { checks: CHECKS },
+): PosterLayout {
+  const recipe: LayoutRecipe = { opts, fontScale, final, strict: strictFamilies, dense, budget: { ...budget } };
+  const layout = layoutAttemptBody(tree, opts, fontScale, final, strictFamilies, dense, budget);
+  layout.recipe = recipe;
+  return layout;
+}
+
+/**
+ * The layout a recipe describes, made again in one attempt: for an
+ * unchanged family the poster laid out before; after a small change, most
+ * often a clean poster at once (see twoLayouts.ts).
+ */
+export function replayLayout(tree: TreeDTO, r: LayoutRecipe): PosterLayout {
+  const l = layoutAttempt(tree, r.opts, r.fontScale, r.final, r.strict, r.dense, { ...r.budget });
+  l.clarity = validateRelationships(l, tree);
+  return l;
+}
+
+function layoutAttemptBody(
   tree: TreeDTO, opts: LayoutOptions, fontScale: number, final = true, strictFamilies = false, dense = false,
   budget: { checks: number; fit?: number; crossings?: boolean; fan?: number; ends?: boolean } = { checks: CHECKS },
 ): PosterLayout {

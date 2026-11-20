@@ -79,10 +79,10 @@ with `&poster=A1`, `&soil=<style>`, `&focus=<id or name>`,
 
 Genealogy (`treeService.ts`, tested):
 - No loops: nobody becomes their own ancestor. This is the intent, but not
-  yet enforced on every API path (defect C3, fixed in 1.0.59).
+  yet enforced on every API path (defect C3, fixed in 1.0.60).
 - Parents and spouses are in the same tree; no duplicate marriages.
 - Today a father must be male and a mother female. This is current
-  behaviour, not a principle: an approved change for 1.0.59 keeps a
+  behaviour, not a principle: an approved change for 1.0.60 keeps a
   parent's role separate from their gender. Do not defend the old check.
 - `generation` is recomputed in a transaction when parentage changes.
 - Tiers are two pointers (`trunkStartId`, `crownBaseId`), never per-member flags.
