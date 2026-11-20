@@ -2997,7 +2997,7 @@ function layoutAttemptBody(
   // other parent is not recorded grow from the partner directly.
   // (lone: a spouse with no children on the poster, on a short line from
   // the partner; anchorOf is then the partner)
-  type Holder = SpouseHolder & { anchorOf: LiveNode; kids: LiveNode[]; dir: Vec; clear: boolean; pin?: Vec; lone?: boolean };
+  type Holder = SpouseHolder & { anchorOf: LiveNode; kids: LiveNode[]; dir: Vec; clear: boolean; lined?: boolean; pin?: Vec; lone?: boolean };
   const holders: Holder[] = [];
   const holderOf = new Map<string, Holder>();
   {
@@ -3390,7 +3390,7 @@ function layoutAttemptBody(
         continue;
       }
       // all at one distance; failing that, each where it finds room
-      let got: { h: Holder; from: Vec; J: Vec }[] | null = null;
+      let got: { h: Holder; from: Vec; J: Vec; lined?: boolean }[] | null = null;
       // (a knot, where children of an unrecorded father part, nearer their
       // mother: close to their own row, their dotted lines ran nearly level
       // under the names, a band of dots)
@@ -3399,15 +3399,19 @@ function layoutAttemptBody(
       if (!got) {
         got = [];
         // (where no spot keeps every line clear, one clear of every name:
-        // the clarity check reports the line)
+        // the clarity check reports the line, and the holder counts as
+        // without room, so her children are given more: see the untangling)
         for (const h of group) {
-          const J = spot(h, order, [...placed, ...got], true, false) ?? spot(h, order, [...placed, ...got], false, false);
-          if (J) got.push({ h, from: P, J });
+          const lined = spot(h, order, [...placed, ...got], true, false);
+          const J = lined ?? spot(h, order, [...placed, ...got], false, false);
+          if (J) got.push({ h, from: P, J, lined: !!lined });
         }
       }
       for (const h of group) {
-        const J = got?.find((g) => g.h === h)?.J;
+        const g = got?.find((q) => q.h === h);
+        const J = g?.J;
         h.clear = !!J;
+        h.lined = !!J && g?.lined !== false;
         // (no room anywhere: towards her children, never on the partner's
         // name, and not on another spouse's holder)
         const others = [...placed, ...(got ?? [])].filter((q) => q.h !== h).map(at);
@@ -4125,8 +4129,12 @@ function layoutAttemptBody(
     // tree)
     const fromTrunk = (p: { x: number; y: number }) => len(sub(p, origin));
     const behind = (h: Holder) => !h.lone && !h.knot && h.kids.some((k) => fromTrunk(k) - k.h / 2 < fromTrunk(h) + h.h / 2);
-    for (let round = 0; round < 3 && holders.some((h) => !h.clear || behind(h)); round++) {
-      for (const h of holders.filter((x) => !x.clear || behind(x))) {
+    // (and a holder placed clear of names only, its lines under another
+    // holder or name: a daughter's four husbands between her and her
+    // children's row once stood one above another)
+    const cramped = (h: Holder) => !h.clear || h.lined === false || behind(h);
+    for (let round = 0; round < 3 && holders.some(cramped); round++) {
+      for (const h of holders.filter(cramped)) {
         for (const k of h.kids) {
           const saved = { x: k.x, y: k.y };
           outward(k, h.h * 1.6 + h.fontSize);
