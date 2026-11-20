@@ -163,6 +163,13 @@ export interface LayoutOptions {
    * panels clear of its corner flourishes and mid-side rosettes.
    */
   framed?: boolean;
+  /**
+   * How deep a drawn frame reaches in from the page's edge, in widths (its
+   * rules, band and corner ornaments). Unset: the gold-foil artwork, whose
+   * rosettes at the centre of its top and foot the header and footer keep
+   * clear of.
+   */
+  frameInset?: number;
   /** Daughters are drawn as capsules even where sons are leaves. */
   femaleCapsule?: boolean;
   /** Printed width of the poster (mm); legibility is judged at this size. Default A2 (420). */
@@ -1379,8 +1386,10 @@ function layoutAttemptBody(
   // footer, and never below the legible minimum for the paper size.
   const framed = !!opts.framed;
   const margin = W * (framed ? 0.1 : 0.05);
-  const place = framePlacement(W, H, framed);
-  const contentTop = H * (opts.headerBand ?? 0.095);
+  const place = framePlacement(W, H, framed, opts.frameInset);
+  // (inside a drawn frame the header starts higher, and the tree with it)
+  const headerLift = framed && opts.frameInset !== undefined ? H * 0.112 - place.header.basmala : 0;
+  const contentTop = H * (opts.headerBand ?? 0.095) - headerLift;
   // the footer (key, the counts' cards, the credit) takes ~5 lines of
   // W·0.012 text above footerY
   const contentBottom = place.footerY - W * 0.062;
@@ -2845,7 +2854,7 @@ function layoutAttemptBody(
   // ── Corner medallions (verse / hadith) ──────────────────────────────
   const medallions = opts.cornerMedallions
     ? framed
-      ? [{ x: W * 0.205, y: H * 0.205, r: W * 0.07 }, { x: W * 0.795, y: H * 0.205, r: W * 0.07 }]
+      ? [{ x: W * 0.205, y: H * 0.205 - headerLift, r: W * 0.07 }, { x: W * 0.795, y: H * 0.205 - headerLift, r: W * 0.07 }]
       : [{ x: W * 0.18, y: H * 0.112, r: W * 0.094 }, { x: W * 0.82, y: H * 0.112, r: W * 0.094 }]
     : [];
   // The crown base medallion is a fixed obstacle too.
@@ -4580,14 +4589,26 @@ function layoutAttemptBody(
 // ── helpers ─────────────────────────────────────────────────────────────
 
 /**
- * Where the header and the footer line go. Inside a frame artwork they keep
- * clear of the top and bottom centre rosettes.
+ * Where the header and the footer line go. Inside the gold-foil artwork they
+ * keep clear of its top and bottom centre rosettes. A drawn frame (rules, a
+ * band, corner ornaments; nothing at the middle of its edges) only needs a
+ * clear band of paper inside it: the basmala's top and the credit sit
+ * W·0.032 inside the frame, as an unframed poster's sit from the page's
+ * edge (at A0 the empty bands above the basmala and below the credit were
+ * 78 and 73 mm in the Classic design, now about 30).
  */
-function framePlacement(W: number, H: number, framed: boolean): PosterLayout["frame"] {
+function framePlacement(W: number, H: number, framed: boolean, inset?: number): PosterLayout["frame"] {
   if (!framed) {
     return { framed, header: { basmala: H * 0.041, title: H * 0.078, maxTitleWidth: W * 0.6 }, footerY: H - W * 0.04 };
   }
-  return { framed, header: { basmala: H * 0.112, title: H * 0.145, maxTitleWidth: W * 0.42 }, footerY: H * 0.905 };
+  if (inset === undefined) {
+    return { framed, header: { basmala: H * 0.112, title: H * 0.145, maxTitleWidth: W * 0.42 }, footerY: H * 0.905 };
+  }
+  // (the basmala glyph rises W·0.022 above its baseline; the credit's
+  // half-height is W·0.004)
+  const basmala = Math.min(H * 0.112, W * (inset + 0.032 + 0.022));
+  const up = H * 0.112 - basmala;
+  return { framed, header: { basmala, title: H * 0.145 - up, maxTitleWidth: W * 0.42 }, footerY: Math.max(H * 0.905, H - W * (inset + 0.032 + 0.004)) };
 }
 
 /** Stable grouping of siblings by mother, mothers in order of first appearance. */

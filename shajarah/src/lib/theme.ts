@@ -406,6 +406,15 @@ export function satinStops(c: string): [string, string, string] {
   return [shade(c, 0.55), shade(c, 0.12), shade(c, -0.1)];
 }
 
+/**
+ * How far each drawn frame reaches in from the page's edge, in widths: its
+ * innermost rule, band or ornament (see poster/frames.tsx). The gold foil is
+ * an artwork with rosettes and is placed round instead (framePlacement).
+ */
+export const FRAME_INSET: Record<PosterPalette["frame"], number | undefined> = {
+  foil: undefined, rule: 0.034, hairline: 0.031, manuscript: 0.061, metal: 0.052, botanical: 0.044, regal: 0.054,
+};
+
 /** Layout options implied by a theme and poster size (shape, labels, legibility, header space). */
 export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
   return {
@@ -416,6 +425,9 @@ export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
     branchScale: isInkOnly(theme) ? 0.35 : 1,
     cornerMedallions: theme.verse || theme.hadith,
     framed: theme.frame,
+    // (how deep a drawn frame reaches in; the gold-foil artwork's rosettes
+    // are kept clear of instead)
+    frameInset: theme.frame ? FRAME_INSET[paletteOf(theme).frame] : undefined,
     soilStyle: theme.soilStyle,
     soilShorten: theme.soilShorten ?? false,
     femaleCapsule: theme.femaleCapsule,
