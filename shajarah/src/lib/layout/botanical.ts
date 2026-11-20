@@ -123,6 +123,8 @@ export interface LayoutOptions {
   soilKeep?: boolean;
   /** Internal: also tries a few sizes above the legible one where that is not clean (see laddered). */
   sizeLadder?: boolean;
+  /** Internal: the tree keeps the height it had before a drawn frame gave its room back (see posterSteps). */
+  frameRoomOff?: boolean;
   /** Internal: room between the fans of side families whose badges are close (see posterSteps). */
   sideGap?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
@@ -446,6 +448,26 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
  */
 export type PosterSteps = Generator<LayoutOptions, PosterLayout, PosterLayout>;
 export function* posterSteps(opts: LayoutOptions = {}): PosterSteps {
+  const layout = yield* gappedSteps(opts);
+  // A drawn frame gives back the room once kept for the foil's rosettes
+  // (framePlacement). The tree takes it, but a taller canopy is not always
+  // laid out better: the size search can settle on smaller names (QA
+  // family B, Heritage A1: 10.8 to 8.6 mm). So the tree is also laid out at
+  // the height it had, centred in the room, and the better kept: the
+  // cleaner, else the one with the larger names.
+  if (opts.framed && opts.frameInset !== undefined && opts.frameRoomOff === undefined) {
+    const kept = yield* gappedSteps({ ...opts, frameRoomOff: true });
+    const problems = (l: PosterLayout) => l.overlaps + l.clarity.issues.length;
+    const better = isCleanPoster(kept) !== isCleanPoster(layout) ? isCleanPoster(kept)
+      : kept.legibility.ok !== layout.legibility.ok ? kept.legibility.ok
+      : problems(kept) !== problems(layout) ? problems(kept) < problems(layout)
+      : kept.legibility.smallestTextMm > layout.legibility.smallestTextMm;
+    if (better) return kept;
+  }
+  return layout;
+}
+
+function* gappedSteps(opts: LayoutOptions): PosterSteps {
   const layout = yield* coreSteps(opts);
   // Neighbouring side families apart: where the poster is left with
   // problems and the trunk has side families, it is laid out again with a
@@ -1389,10 +1411,17 @@ function layoutAttemptBody(
   const place = framePlacement(W, H, framed, opts.frameInset);
   // (inside a drawn frame the header starts higher, and the tree with it)
   const headerLift = framed && opts.frameInset !== undefined ? H * 0.112 - place.header.basmala : 0;
-  const contentTop = H * (opts.headerBand ?? 0.095) - headerLift;
+  let contentTop = H * (opts.headerBand ?? 0.095) - headerLift;
   // the footer (key, the counts' cards, the credit) takes ~5 lines of
   // W·0.012 text above footerY
-  const contentBottom = place.footerY - W * 0.062;
+  let contentBottom = place.footerY - W * 0.062;
+  if (opts.frameRoomOff && headerLift > 0) {
+    // (the tree in the height it had beside the foil's rosettes, centred in
+    // the room the drawn frame gives: see posterSteps)
+    const was = contentBottom - contentTop - headerLift - (place.footerY - H * 0.905);
+    contentTop += (contentBottom - contentTop - was) / 2;
+    contentBottom = contentTop + was;
+  }
   const unitMm = (opts.paperWidthMm ?? 420) / W;
   const minTextMm = opts.minTextMm ?? 3.2;
   const minFont = minTextMm / unitMm;
