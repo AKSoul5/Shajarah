@@ -676,7 +676,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               ))}
             </select>
           </label>
-          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
+          <ExportMenu key={posterSize} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} waiting={layoutPending} />
         </div>
       </header>
       {conflict && (
@@ -1118,7 +1118,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
                 ✕ Exit full screen
               </button>
-              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} />
+              <ExportMenu key={`fs-${posterSize}`} svgRef={svgRef} filename={exportName(tree.name)} defaultPaper={posterSize} smallText={smallText} waiting={layoutPending} />
             </div>
           )}
           {view === "poster" && layout && (

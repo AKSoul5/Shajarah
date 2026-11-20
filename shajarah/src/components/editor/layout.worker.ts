@@ -3,7 +3,7 @@
 // smallest paper on which the family is clear (useReadablePaper), which
 // lays it out once per size tried.
 
-import { computePosterLayout, layoutStep, type LayoutOptions } from "@/lib/layout/botanical";
+import { computePosterLayout, layoutStep, replayLayout, type LayoutOptions, type LayoutRecipe } from "@/lib/layout/botanical";
 import { smallestClearPaper } from "@/lib/layout/branches";
 import type { PaperSize } from "@/lib/paper";
 import type { TreeDTO } from "@/lib/types";
@@ -12,12 +12,16 @@ type Request =
   | { id: number; kind?: "layout"; tree: TreeDTO; options: LayoutOptions }
   // (one step of the layout, for the editor's two workers: see twoLayouts.ts)
   | { id: number; kind: "step"; tree: TreeDTO; options: LayoutOptions }
+  // (a family's last poster made again from its recipe: see twoLayouts.ts)
+  | { id: number; kind: "replay"; tree: TreeDTO; recipe: LayoutRecipe }
   | { id: number; kind: "paper"; tree: TreeDTO; papers: { paper: PaperSize; options: LayoutOptions }[] };
 
 self.onmessage = (e: MessageEvent<Request>) => {
   const req = e.data;
   try {
-    if (req.kind === "step") {
+    if (req.kind === "replay") {
+      self.postMessage({ id: req.id, ok: true, layout: replayLayout(req.tree, req.recipe) });
+    } else if (req.kind === "step") {
       self.postMessage({ id: req.id, ok: true, layout: layoutStep(req.tree, req.options) });
     } else if (req.kind === "paper") {
       const byPaper = new Map(req.papers.map((p) => [p.paper, p.options]));

@@ -16,12 +16,13 @@ import type { TreeDTO } from "@/lib/types";
 /** A stand-in worker: lays the step out for real, a moment later. */
 class FakeWorker implements WorkerLike {
   static made: FakeWorker[] = [];
-  posted: StepRequest[] = [];
+  posted: (StepRequest & { kind: "step" })[] = [];
   terminated = false;
   onmessage: ((e: { data: LayoutReply }) => void) | null = null;
   onerror: WorkerLike["onerror"] = null;
   constructor() { FakeWorker.made.push(this); }
   postMessage(job: StepRequest) {
+    if (job.kind !== "step") return;
     this.posted.push(job);
     setTimeout(() => {
       if (this.terminated) return;
@@ -105,11 +106,11 @@ describe("the editor lays out both placements of the mother at once", () => {
     expect(FakeWorker.made.length).toBe(1);
   });
 
-  it("folds requests made meanwhile into the newest", { timeout: 300_000 }, async () => {
+  it("gives up older requests for the newest", { timeout: 300_000 }, async () => {
     FakeWorker.made = [];
     const tree = twoWives();
     const options = optionsOf(tree, "A1");
     const got = await run([1, 2, 3].map((id) => ({ id, tree, options })));
-    expect(got.map((g) => g.id)).toEqual([1, 3]);
+    expect(got.map((g) => g.id)).toEqual([3]);
   });
 });

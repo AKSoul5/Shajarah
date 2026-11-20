@@ -17,6 +17,8 @@ interface Props {
    * the paper it was laid out for (its clean layout needed them smaller).
    */
   smallText?: { smallestMm: number; minMm: number };
+  /** The poster on screen is still being worked out: export waits for the finished one. */
+  waiting?: boolean;
 }
 
 export type ExportKind = "svg" | "png" | "pdf" | "tiles";
@@ -35,7 +37,7 @@ export async function exportPoster(
   if (kind === "tiles") await exportTiledPdf(svg, filename, paper, sheet, dpi, onProgress);
 }
 
-export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText }: Props) {
+export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText, waiting = false }: Props) {
   const [open, setOpen] = useState(false);
   const [paper, setPaper] = useState<PaperSize>(defaultPaper);
   // (very large papers default to a lower resolution: they are seen from further away)
@@ -101,19 +103,24 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText }:
               comfortably. A larger paper, or a poster of one branch, keeps every name readable.
             </p>
           )}
+          {waiting && (
+            <p role="status" className="rounded border border-parchment-300 bg-white px-2 py-1.5 text-xs text-bark-600">
+              Finishing the poster… export is ready in a moment.
+            </p>
+          )}
           <div className="grid gap-2">
-            <button type="button" className="btn-outline justify-between" disabled={!!busy} onClick={() => run("svg")}>
+            <button type="button" className="btn-outline justify-between" disabled={!!busy || waiting} onClick={() => run("svg")}>
               <span>Vector SVG</span><span className="text-xs text-gray-500">{busy === "svg" ? "Working…" : "infinite resolution"}</span>
             </button>
-            <button type="button" className="btn-outline justify-between" disabled={!!busy} onClick={() => run("pdf")}>
+            <button type="button" className="btn-outline justify-between" disabled={!!busy || waiting} onClick={() => run("pdf")}>
               <span>Print PDF</span><span className="text-xs text-gray-500">{busy === "pdf" ? "Rendering…" : `${paper} @ ${rasterDpi} DPI`}</span>
             </button>
-            <button type="button" className="btn-outline justify-between" disabled={!!busy} onClick={() => run("png")}>
+            <button type="button" className="btn-outline justify-between" disabled={!!busy || waiting} onClick={() => run("png")}>
               <span>PNG image</span><span className="text-xs text-gray-500">{busy === "png" ? "Rendering…" : `${paper} @ ${rasterDpi} DPI`}</span>
             </button>
           </div>
           <div className="flex items-center gap-2 border-t border-parchment-200 pt-3">
-            <button type="button" className="btn-outline flex-1 justify-between" disabled={!!busy} onClick={() => run("tiles")}>
+            <button type="button" className="btn-outline flex-1 justify-between" disabled={!!busy || waiting} onClick={() => run("tiles")}>
               <span className="whitespace-nowrap">Tiled PDF</span><span className="text-xs text-gray-500">{busy === "tiles" ? (progress ? `Sheet ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : "Rendering…") : `${paper} on ${(tiles.rows * tiles.cols).toLocaleString()} ${sheet} sheets`}</span>
             </button>
             <select className="input w-20" value={sheet} onChange={(e) => setSheet(e.target.value as SheetSize)} aria-label="Sheet size">

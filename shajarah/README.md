@@ -1461,8 +1461,22 @@ never lost.
   family takes a few seconds to lay out (about 3 s for 245 people). That
   now happens in the background (a web worker): the list, the forms and the
   menus answer at once. The last poster stays on screen, marked
-  *Updating the poster…*, until the new one is ready. Several quick changes
-  make one new layout, not a queue of them.
+  *Updating the poster…*, until the new one is ready. A change made while
+  a poster is being laid out starts the next layout at once.
+- **A family's poster comes back at once.** Every poster records how it was
+  made (its recipe: the one attempt of the layout's search it came from),
+  and the editor keeps each family's last recipe for each paper and
+  setting, also in the browser's storage. Asked for the poster again, or
+  after a change, it first makes the poster again from that recipe, in one
+  attempt: the same poster in a fraction of the time (a private 340-person
+  family at A0: 0.4 s against 104 s; an invented family on screen, turning
+  spouses back on: 1.73 s to 0.29 s). It is shown at once, and may be
+  exported as soon as it is as clean and legible as the poster the recipe
+  came from; the whole search goes on behind it and replaces it only when
+  it does better. Export waits while a poster is still being worked out
+  (*Finishing the poster…*). (A quick draft of the whole poster was tried
+  first: one attempt without the search came out with a hundred problems
+  and overlapping names, and would have jumped when the poster came in.)
 - **Menus** (View, Style, Export for print, the undo history) close on a
   click outside them or on Escape, and only one is open at a time.
 - **The header** keeps to one row on a laptop (1024 px and up): undo and
