@@ -721,6 +721,20 @@ on any member's panel:
   hidden, A2 went from one problem to none and its other papers stayed
   clean; as saved, A2 from three problems to two. Layout QA: one poster's
   names larger, none worse, no change in time.
+- **Side families apart.** Two brothers of trunk ancestors on badges close
+  together (less than two and a half trunk steps apart, both with
+  children) fanned out side by side, and a son of one could stand inside
+  the next one's fan, under its lines. Where a poster is left with
+  problems and the trunk has more than one side family, it is laid out
+  again with room between such fans (8% of their share of the side) and
+  that kept only when it is cleaner, has no more overlapping names, is as
+  legible and its names are no smaller (at least 0.98 of the size). A clean
+  poster is never laid out again: given the room everywhere, some clean
+  posters came out with smaller names. On a private 340-person family with
+  wives and daughters hidden, 4A0 went from one problem to none (names 6.58
+  to 7.73 mm); as saved, A0 from two problems to one. Layout QA unchanged.
+  An unclean poster takes a second layout; the editor shows the poster
+  from its recipe meanwhile (tests/side-families-sit-apart-where-a-poster-has-problems.test.ts).
 - **Crossing lines:** a crossing at a clear angle is allowed, but on a
   clean poster the people at each end are still tried a little further out
   or along their ring, kept only when the poster stays clean and readable
