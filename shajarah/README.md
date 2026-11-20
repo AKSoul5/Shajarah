@@ -708,6 +708,19 @@ on any member's panel:
     with no more crossings (tests/fan.test.ts).
   - On a 245-person family, the worst break in any theme went from
     0.13–0.14 to 0.08–0.11 of a generation's distance.
+- **Untangling, side families and dotted lines.** The untangling (which
+  moves a name a little to clear a line from under another, and gives up
+  on a drawing with more than fifteen problems) now sees the drawing as it
+  is finally drawn: several dotted lines leaving a daughter's husband
+  along one shared stem were checked from the end of the stem, each read
+  as attached to nothing, and a family through a daughter counted a score
+  of false problems, so the real one was never tried. The names of the
+  trunk's side families can now be moved too, out from or along their own
+  fan (the moves it had were defined for the canopy only and left them
+  where they were). On a private 340-person family, with its daughters
+  hidden, A2 went from one problem to none and its other papers stayed
+  clean; as saved, A2 from three problems to two. Layout QA: one poster's
+  names larger, none worse, no change in time.
 - **Crossing lines:** a crossing at a clear angle is allowed, but on a
   clean poster the people at each end are still tried a little further out
   or along their ring, kept only when the poster stays clean and readable

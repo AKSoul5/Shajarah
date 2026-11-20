@@ -792,9 +792,9 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         // were ever tried.)
         // (tried apart from the search's own sizes, which its later steps
         // choose among: only a clean one found joins them)
-        if (legibleScale > 0.2) return false;
+        // (on any paper: from near full size down to the legible size)
         let prev = 1;
-        for (let sc = 0.6; sc > legibleScale * 1.25; sc *= 0.7) {
+        for (let sc = legibleScale > 0.2 ? 0.92 : 0.6; sc > legibleScale * 1.05; sc *= legibleScale > 0.2 ? 0.88 : 0.7) {
           const k = Math.round(sc * 1000) / 1000;
           if (tried.has(k)) { prev = k; continue; }
           const l = attempt(k);
@@ -2494,6 +2494,8 @@ function layoutAttempt(
     w: w0,
   });
   const stemStart = new Map<string, Vec>();
+  /** Where each side family's fan opens from (its spur's end beside the trunk), by every name in it. */
+  const sideCentre = new Map<string, Vec>();
   const stemDir = new Map<string, Vec>();
   // Each side branch and stub grows out of its own ancestor's badge: from
   // under the badge's rounded end, level, at the height of the badge's
@@ -2706,7 +2708,8 @@ function layoutAttempt(
       let p = add(A, scale(dirOf(theta), r));
       p = { x: clamp(p.x, margin, W - margin), y: Math.min(p.y, groundY - W * 0.03) };
       const parent = byId.get(n.parent?.data.member?.id ?? "");
-      makeNode(n, p, d + 1, parent ? { x: parent.tx, y: parent.ty } : A, "side", side);
+      const sn = makeNode(n, p, d + 1, parent ? { x: parent.tx, y: parent.ty } : A, "side", side);
+      sideCentre.set(sn.id, A);
     }
   };
   // Sons of one ancestor on one side sit on his badge in the order their
@@ -3919,7 +3922,18 @@ function layoutAttempt(
     const validate = () => {
       const drawnEdges: Edge[] = [
         ...edges,
-        ...growingNodes.map((n) => ({ parentId: holderOf.get(n.id)?.id ?? parentIdOf(n), childId: n.id, points: sample(curveOf.get(n.id)!), ...nodeWidths(n) })),
+        ...growingNodes.map((n) => {
+          // (a dotted line from a fork starts, as drawn, at the box it
+          // shares its stem from, not at the fork: checked from the fork,
+          // each read as attached to nothing, a family through a daughter
+          // counted a score of false problems, and the untangling, which
+          // gives up past fifteen, never reached the real one)
+          const from = holderOf.get(n.id)?.id ?? parentIdOf(n);
+          const c = curveOf.get(n.id)!;
+          const fork = dotted.has(n.member.id) ? forks.get(from) : undefined;
+          const stem = fork && len(sub(fork.at, c.p0)) < 0.5 ? [fork.from, add(fork.from, scale(sub(fork.at, fork.from), 0.5))] : [];
+          return { parentId: from, childId: n.id, points: [...stem, ...sample(c)], ...nodeWidths(n) };
+        }),
         ...holders.map((h) => ({ parentId: h.partnerId, childId: h.id, points: sample(holderCurve.get(h.id)!), ...holderWidths(h) })),
       ];
       const provisional = {
@@ -3958,8 +3972,23 @@ function layoutAttempt(
     const overlapsAny = (n: LiveNode) =>
       [...nodes, ...holders].some((o) => o !== n && Math.abs(o.x - n.x) < (o.w + n.w) / 2 && Math.abs(o.y - n.y) < (o.h + n.h) / 2);
     const nodeById = (id: string) => growingNodes.find((n) => n.id === id);
+    // (a name in one of the trunk's side families moves about its own
+    // fan's centre, beside the trunk, as a canopy name moves about the
+    // canopy base: with neither move, every attempt on a line under a side
+    // family's name was spent on moves that left it where it was)
+    const sideMove = (n: LiveNode, by: number, turnBy: number) => {
+      const A = sideCentre.get(n.id);
+      if (!A) return false;
+      const v = sub(n, A);
+      const r = len(v) || 1;
+      const a = Math.atan2(v.y, v.x) + turnBy / r;
+      const rr = Math.max(r * 0.3, r + by);
+      n.x = clamp(A.x + Math.cos(a) * rr, margin + n.w / 2, W - margin - n.w / 2);
+      n.y = Math.min(A.y + Math.sin(a) * rr, groundY - n.h / 2 - W * 0.01);
+      return true;
+    };
     const outward = (n: LiveNode, by: number) => {
-      if (n.ray === undefined) return;
+      if (n.ray === undefined) { sideMove(n, by, 0); return; }
       const d = dirOf(n.ray);
       const parent = n.parentId ? byId.get(n.parentId) : undefined;
       const rp = parent && parent.region === "crown" ? (parent.x - origin.x) * d.x + (parent.y - origin.y) * d.y + (parent.h + n.h) * 0.3 : 0;
@@ -3968,7 +3997,7 @@ function layoutAttempt(
       n.y = origin.y + d.y * r;
     };
     const turn = (n: LiveNode, k: number) => {
-      if (n.ray === undefined) return;
+      if (n.ray === undefined) { sideMove(n, 0, k * (n.h + f * 0.3)); return; }
       const d0 = dirOf(n.ray);
       const r = (n.x - origin.x) * d0.x + (n.y - origin.y) * d0.y;
       const th = clamp(n.ray + (k * (n.h + f * 0.3)) / Math.max(r, 1), thetaEnd, thetaStart);
