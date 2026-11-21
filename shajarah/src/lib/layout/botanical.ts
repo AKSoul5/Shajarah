@@ -125,6 +125,14 @@ export interface LayoutOptions {
   sizeLadder?: boolean;
   /** Internal: the tree keeps the height it had before a drawn frame gave its room back (see posterSteps). */
   frameRoomOff?: boolean;
+  /** Internal (experiment): rings open like a hand fan, inner folds shorter. */
+  handFan?: boolean;
+  /** Internal (experiment): the highest a side family's fan may reach, radians above horizontal (negative: below). */
+  droopSides?: number;
+  /** Internal (experiment): every generation's ring a circle round the canopy base. */
+  circleRings?: boolean;
+  /** Internal (experiment): how much room a name takes along the fan's sides, against 4.2 at its top (default 1.7). */
+  sideSpacing?: number;
   /** Internal: room between the fans of side families whose badges are close (see posterSteps). */
   sideGap?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
@@ -448,23 +456,9 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
  */
 export type PosterSteps = Generator<LayoutOptions, PosterLayout, PosterLayout>;
 export function* posterSteps(opts: LayoutOptions = {}): PosterSteps {
-  const layout = yield* gappedSteps(opts);
-  // A drawn frame gives back the room once kept for the foil's rosettes
-  // (framePlacement). The tree takes it, but a taller canopy is not always
-  // laid out better: the size search can settle on smaller names (QA
-  // family B, Heritage A1: 10.8 to 8.6 mm). So the tree is also laid out at
-  // the height it had, centred in the room, and the better kept: the
-  // cleaner, else the one with the larger names.
-  if (opts.framed && opts.frameInset !== undefined && opts.frameRoomOff === undefined) {
-    const kept = yield* gappedSteps({ ...opts, frameRoomOff: true });
-    const problems = (l: PosterLayout) => l.overlaps + l.clarity.issues.length;
-    const better = isCleanPoster(kept) !== isCleanPoster(layout) ? isCleanPoster(kept)
-      : kept.legibility.ok !== layout.legibility.ok ? kept.legibility.ok
-      : problems(kept) !== problems(layout) ? problems(kept) < problems(layout)
-      : kept.legibility.smallestTextMm > layout.legibility.smallestTextMm;
-    if (better) return kept;
-  }
-  return layout;
+  // (inside a drawn frame the tree takes the room once kept for the foil's
+  // rosettes: see framePlacement)
+  return yield* gappedSteps(opts);
 }
 
 function* gappedSteps(opts: LayoutOptions): PosterSteps {
@@ -1269,6 +1263,14 @@ const CENTER_SHARE = 0.3;
  * a steeper sweep starts to cost name size.)
  */
 const SWEEP_LIFT = 0.3;
+/** Widest generation (names) up to which a fan of circle rings keeps the rising crown's lift; see FAN_OPEN_FULL. */
+const FAN_OPEN_FROM = 12;
+/** Widest generation (names) from which a fan of circle rings opens to FAN_OPEN_MAX. */
+const FAN_OPEN_FULL = 40;
+/** How far a fan of circle rings opens, radians above horizontal (negative: below; −0.25 ≈ 14° below). */
+const FAN_OPEN_MAX = -0.25;
+/** The highest a side family's fan reaches, radians above horizontal (−0.2 ≈ 11° below: it droops from its badge). */
+const DROOP_SIDES = -0.2;
 /** The full lift up to this many names in the canopy's most crowded generation; none (the old sweep) from LIFT_NONE_FROM. */
 const LIFT_FULL_UNTIL = 50;
 const LIFT_NONE_FROM = 100;
@@ -1329,6 +1331,11 @@ function layoutAttemptBody(
   tree: TreeDTO, opts: LayoutOptions, fontScale: number, final = true, strictFamilies = false, dense = false,
   budget: { checks: number; fit?: number; crossings?: boolean; fan?: number; ends?: boolean } = { checks: CHECKS },
 ): PosterLayout {
+  // Every generation's ring a circle round the canopy base, the side
+  // families drooping from their badges (owner's decisions, 21 Nov 2026);
+  // false brings back the rings that follow the canopy's outline.
+  const circleRings = opts.circleRings !== false;
+  const droopSides = opts.droopSides ?? (circleRings ? DROOP_SIDES : undefined);
   const W = opts.width ?? 2400;
   const H = opts.height ?? Math.round(W * Math.SQRT2);
   const seed = opts.seed ?? tree.settings?.seed ?? 7;
@@ -1681,7 +1688,14 @@ function layoutAttemptBody(
   // LIFT_NONE_FROM; names stay legible and clean before the shape is tidy)
   const widestRing = Math.max(0, ...[...crownNodes.reduce((m, n) => m.set(n.depth, (m.get(n.depth) ?? 0) + 1), new Map<number, number>()).values()]);
   const crowding = clamp((widestRing - LIFT_FULL_UNTIL) / (LIFT_NONE_FROM - LIFT_FULL_UNTIL), 0, 1);
-  let lift = opts.sweepLift ?? SWEEP_LIFT + (WIDE_SWEEP - SWEEP_LIFT) * crowding;
+  // With rings that are circles (circleRings, the default) the fan opens
+  // further, equally on both sides: from the rising crown's lift for a
+  // generation of up to FAN_OPEN_FROM names to FAN_OPEN_MAX below horizontal
+  // for one of FAN_OPEN_FULL or more (on a private 340-person family, whose
+  // widest generation has 46 names, 14° below: names 3.39 to 4.48 mm at 2A0,
+  // clean).
+  const fanOpening = clamp((widestRing - FAN_OPEN_FROM) / (FAN_OPEN_FULL - FAN_OPEN_FROM), 0, 1);
+  let lift = opts.sweepLift ?? (circleRings ? SWEEP_LIFT + (FAN_OPEN_MAX - SWEEP_LIFT) * fanOpening : SWEEP_LIFT + (WIDE_SWEEP - SWEEP_LIFT) * crowding);
   let ARC = Math.PI - 2 * lift; // the canopy's angular range (thetaStart - thetaEnd)
   const RING_FILL = 0.85; // families leave a little room between them
   // Where each ring must be at least (as a fraction of the way from r0 to
@@ -2019,13 +2033,46 @@ function layoutAttemptBody(
   const top0 = contentTop + Math.max(0, slack) / 2;
   crown = { cx: W / 2, cy: top0 + ry, rx, ry, exponent: 2.4 };
   origin = { x: W / 2, y: crown.cy + 0.8 * ry };
+  // (rings that are circles are as tall as they are wide: on tall paper the
+  // canopy rises to the header and the trunk grows into the height left)
+  let raised = 0;
+  if (circleRings) {
+    const across = W / 2 - margin;
+    const room = origin.y - contentTop;
+    if (room > across) {
+      raised = room - across;
+      origin = { x: W / 2, y: origin.y - raised };
+      crown = { ...crown, cy: crown.cy - raised };
+    }
+  }
   const baseMedallionR = baseRFor(f);
   // the oval drawn inside the base's space
   const baseOval = { rx: baseMedallionR * BASE_OVAL.w, ry: baseMedallionR * (baseText.subLabel ? 0.85 : BASE_OVAL.h) };
   const trunkFont = trunkFontFor(f);
+  // (the height the canopy rose by goes to the stretch of trunk the side
+  // families hang from, each gap there up to three times its usual
+  // spacing, so each family has its own band; the ancestors below the
+  // lowest of them keep their usual spacing, and any height left over goes
+  // back above the canopy)
   const trunkStep = stepFor(f);
+  const gaps = shownTrunk.slice(1).map(() => trunkStep);
+  if (raised > 0 && gaps.length) {
+    const anchors = new Set(offshoots.map((o) => o.anchor));
+    const lowest = Math.max(0, shownTrunk.findIndex((c) => anchors.has(c)));
+    const spread = gaps.length - lowest;
+    let add = 0;
+    if (spread > 0) {
+      add = Math.min(raised, trunkStep * 2 * spread);
+      for (let k = lowest; k < gaps.length; k++) gaps[k] += add / spread;
+    }
+    const left = raised - add;
+    if (left > 0) { origin = { ...origin, y: origin.y + left }; crown = { ...crown, cy: crown.cy + left }; }
+  } else if (raised > 0) {
+    stemExtra += raised;
+  }
   const labelTop = origin.y + baseMedallionR + trunkFont * 1.4;
-  const labelBottom = labelTop + Math.max(0, shownTrunk.length - 1) * trunkStep;
+  const labelBottom = labelTop + gaps.reduce((a, g) => a + g, 0);
+  const trunkYs = shownTrunk.map((_, i) => labelBottom - gaps.slice(0, i).reduce((a, g) => a + g, 0));
   groundY = shownTrunk.length ? labelBottom + trunkFont * 1.5 : origin.y + baseMedallionR + trunkSection(0, f) + stemExtra;
   const badgeW = (n: HNode) => Math.max(textWidth(n.data.member!.name, trunkFont) + trunkFont * 1.7, trunkFont * 3.4);
   const widest = Math.max(0, ...shownTrunk.map(badgeW));
@@ -2080,7 +2127,11 @@ function layoutAttemptBody(
     const den = fanSide ** -FAN_P - (sn / fanB) ** FAN_P;
     return den > 1e-12 && c > 1e-6 ? c / den ** (1 / FAN_P) : fanSide;
   })();
-  const reach = lift <= 0 ? outline : (theta: number) => {
+  // Every generation's ring a circle round the canopy base (circleRings):
+  // the same distance from the base at both ends of the fan and at its
+  // top, as large as the room above the base and either side allows.
+  const circleR = Math.min(origin.y - contentTop, W / 2 - margin);
+  const reach = circleRings ? () => circleR : lift <= 0 ? outline : (theta: number) => {
     const c = Math.abs(Math.cos(theta)), sn = Math.abs(Math.sin(theta));
     return ((c / fanA) ** FAN_P + (sn / fanB) ** FAN_P) ** (-1 / FAN_P);
   };
@@ -2096,7 +2147,7 @@ function layoutAttemptBody(
   for (let i = 0; i <= SAMPLES; i++) {
     const th = thetaStart + (thetaEnd - thetaStart) * (i / SAMPLES);
     const R = reach(th);
-    const cap = R / (4.2 * Math.abs(Math.sin(th)) + 1.7 * Math.abs(Math.cos(th)));
+    const cap = R / (4.2 * Math.abs(Math.sin(th)) + (opts.sideSpacing ?? 1.7) * Math.abs(Math.cos(th)));
     thetas.push(th);
     if (prevPt) cum.push(cum[cum.length - 1] + (cap + prevCap) / 2);
     prevPt = add(origin, scale(dirOf(th), R));
@@ -2114,6 +2165,18 @@ function layoutAttemptBody(
     return thetas[lo] + (thetas[hi] - thetas[lo]) * t;
   };
   const maxDepth = Math.max(1, base.height);
+  // Rings that are circles open like a hand fan: the inner folds shorter,
+  // the outer longer. The children's ring keeps the rising crown's lift
+  // (SWEEP_LIFT), each ring further out opens a little lower, the outermost
+  // to the sweep's own lift; every ring the same angle on both sides, the
+  // families in the same order round each.
+  const ringLift = (d: number) =>
+    circleRings && opts.handFan && maxDepth > 1 ? lift + (Math.max(lift, SWEEP_LIFT) - lift) * Math.max(0, Math.min(1, (maxDepth - d) / (maxDepth - 1))) : lift;
+  const thetaOn = (u: number, d: number) => {
+    const th = uToTheta(u);
+    if (!circleRings) return th;
+    return Math.PI / 2 + (th - Math.PI / 2) * ((Math.PI / 2 - ringLift(d)) / Math.max(1e-6, Math.PI / 2 - lift));
+  };
   const r0 = baseMedallionR + f * 1.6;
   // Where each generation's ring lies, as a fraction t of the way from r0
   // to the canopy's rim: evenly paced, but never closer than a name's
@@ -2438,7 +2501,7 @@ function layoutAttemptBody(
     // ("re-grow" no longer moves names: their place is fixed by the genealogy)
     void halfSpan;
     const u = n.u ?? 0.5;
-    const theta = uToTheta(u);
+    const theta = thetaOn(u, d);
     // Strictly by generation (rings): siblings share a ring and all their
     // descendants lie further out in their own sector, so no line ever has
     // to pass a sibling's place on its way out.
@@ -2447,7 +2510,7 @@ function layoutAttemptBody(
     const p = add(origin, scale(dirOf(theta), r0 + t * Math.max(0, R - r0)));
     const parent = byId.get(n.parent?.data.member?.id ?? "");
     const node = makeNode(n, p, d, parent ? { x: parent.tx, y: parent.ty } : origin, "crown", 0);
-    const a0 = uToTheta(n.u0 ?? 0), a1 = uToTheta(n.u1 ?? 1);
+    const a0 = thetaOn(n.u0 ?? 0, d), a1 = thetaOn(n.u1 ?? 1, d);
     node.sector = [Math.min(a0, a1), Math.max(a0, a1)];
     node.ray = theta;
   }
@@ -2493,6 +2556,8 @@ function layoutAttemptBody(
     for (const d of [...rings.keys()].sort((a, b) => a - b)) {
       const ring = rings.get(d)!;
       ring.sort((a, b) => b.ray! - a.ray!); // anticlockwise from the left
+      // (each ring its own range: see ringLift)
+      const lo = Math.PI / 2 - (Math.PI / 2 - ringLift(d)), hi = Math.PI - ringLift(d);
       const radiusAt = (th: number) => r0 + ringT[d] * Math.max(0, reach(th) * 0.95 - r0);
       // angular half-width of a label at angle th (its extent across the ray)
       const half = (n: LiveNode, th: number) =>
@@ -2595,7 +2660,7 @@ function layoutAttemptBody(
     const m = n.data.member!;
     return {
       member: m, label: m.name, x: origin.x, fontSize: trunkFont,
-      y: labelBottom - i * trunkStep,
+      y: trunkYs[i],
       w: widest, h: trunkFont * 1.6,
     };
   });
@@ -2672,7 +2737,9 @@ function layoutAttemptBody(
   // ground, and within its own slice of its side's range (sideShare).
   const sideFan = (node: HNode, A: Vec, R: number) => {
     const pad = f * 1.5;
-    const hi = Math.min(1.25, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R));
+    // (drooping: a side family hangs from its badge like a lower bough, its
+    // names never above the line it leaves the trunk on)
+    const hi = droopSides !== undefined ? Math.min(droopSides, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R)) : Math.min(1.25, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R));
     // (down no further than the names may go: above the ground by
     // 3% of the page; a fan reaching lower had its names clamped up into a
     // knot)
