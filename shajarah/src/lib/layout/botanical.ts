@@ -909,6 +909,24 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
         }
       }
     }
+    // With rings round the canopy base (circleRings) a clean size does not
+    // mean every larger one is unclean: a name lands on another ring's line
+    // at one size and clear of it at the next. The size found clean is
+    // climbed from: a few larger sizes, the largest clean one kept. (QA
+    // family B at A1: 7.21 mm found, 9.44 mm clean.)
+    if (opts.circleRings !== false && isClean(at(chosen)) && chosen < 0.999) {
+      const key = (sc: number) => Math.round(sc * 1000) / 1000;
+      for (const k of [1.7, 1.5, 1.3, 1.18, 1.08]) {
+        const sc = key(Math.min(1, chosen * k));
+        if (sc <= chosen) continue;
+        const l = tried.get(sc) ?? attempt(sc);
+        if (isClean(l) && (l.legibility.ok || !at(chosen).legibility.ok)) {
+          tried.set(sc, l);
+          chosen = sc;
+          break;
+        }
+      }
+    }
     // A clean layout can still have lines crossing (at a clear angle, so the
     // check accepts them): typically many childless brothers and sisters
     // crowding the first ring push a father off his sector. Strict family
