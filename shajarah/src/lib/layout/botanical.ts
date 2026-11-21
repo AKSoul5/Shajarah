@@ -125,6 +125,8 @@ export interface LayoutOptions {
   sizeLadder?: boolean;
   /** Internal: the tree keeps the height it had before a drawn frame gave its room back (see posterSteps). */
   frameRoomOff?: boolean;
+  /** Internal (experiment): each ring the oval through the old outline's top and sides. */
+  ringFit?: boolean;
   /** Internal (experiment): true spreads the trunk's ancestors where the side families hang (default: even spacing). */
   trunkSpread?: boolean;
   /** Internal (experiment): how much taller than wide each generation's ring is (1: circles). */
@@ -210,6 +212,8 @@ export interface PosterNode {
   label: string;
   /** A quieter second line (on round holders it may be two, split by "\n"). */
   subLabel: string | null;
+  /** A round medallion's long name, set on two lines (see stackName). */
+  nameLines?: string[];
   /** True for members without (visible) children. */
   terminal: boolean;
   /** Her children belong to another family (a daughter's, on dotted lines). */
@@ -1619,7 +1623,7 @@ function layoutAttemptBody(
     const med = isMedallion(n, d, "crown");
     let fs = fontFor(d, med, f);
     const label = labelOf(n.data.member!).label;
-    if (med) return Math.max(fs * 2.7, textWidth(label, fs) + fs * 0.9) ** 2;
+    if (med) return medallionSize(label, fs, 0) ** 2;
     if (isLeaf(n)) {
       fs = Math.max(floorFor(f), fs * 0.9);
       const L = textWidth(label, fs) + fs * 1.9;
@@ -2042,7 +2046,7 @@ function layoutAttemptBody(
   // (rings that are circles are as tall as they are wide: on tall paper the
   // canopy rises to the header and the trunk grows into the height left)
   let raised = 0;
-  if (circleRings) {
+  if (circleRings && !opts.ringFit) {
     const across = (W / 2 - margin) * (opts.ringAspect ?? RING_ASPECT);
     const room = origin.y - contentTop;
     if (room > across) {
@@ -2142,8 +2146,11 @@ function layoutAttemptBody(
   // (ringAspect > 1: each ring an oval round the canopy base, taller than
   // wide by that much where the page has the height; the same shape at
   // every generation)
-  const ovalB = Math.min(origin.y - contentTop, circleR * (opts.ringAspect ?? RING_ASPECT));
-  const reach = circleRings ? (theta: number) => (circleR * ovalB) / Math.hypot(ovalB * Math.cos(theta), circleR * Math.sin(theta)) : lift <= 0 ? outline : (theta: number) => {
+  // (ringFit: the oval through the old outline's top and sides, the room
+  // the names' size was chosen for)
+  const ovalA = opts.ringFit ? Math.min(fanA, W / 2 - margin) : circleR;
+  const ovalB = opts.ringFit ? fanB : Math.min(origin.y - contentTop, circleR * (opts.ringAspect ?? RING_ASPECT));
+  const reach = circleRings ? (theta: number) => (ovalA * ovalB) / Math.hypot(ovalB * Math.cos(theta), ovalA * Math.sin(theta)) : lift <= 0 ? outline : (theta: number) => {
     const c = Math.abs(Math.cos(theta)), sn = Math.abs(Math.sin(theta));
     return ((c / fanA) ** FAN_P + (sn / fanB) ** FAN_P) ** (-1 / FAN_P);
   };
@@ -2196,6 +2203,53 @@ function layoutAttemptBody(
   // canopy for that; a retry with smaller names keeps the canopy's size).
   let meanCrownReach = 0;
   for (let i = 0; i <= 32; i++) meanCrownReach += (reach(thetaEnd + ((thetaStart - thetaEnd) * i) / 32) * 0.95) / 33;
+  /**
+   * How far (as a fraction of the way out) ring d must stand beyond ring
+   * d − 1 so that no name of one reaches into the other where they face
+   * each other: per 2° of the fan, the radial half-extents of the names
+   * there (a name's width × |cos θ| + its height × |sin θ|, a leaf's
+   * length), plus a lane for the lines between them.
+   */
+  const facingRoom = (span: number) => {
+    const BINS = 90;
+    const half: number[][] = [];
+    const binOf = (th: number) => Math.max(0, Math.min(BINS - 1, Math.floor((th / Math.PI) * BINS)));
+    for (const n of crownNodes) {
+      const d = n.depth - base.depth;
+      const th = thetaOn(n.u ?? 0.5, d);
+      const med = isMedallion(n, d, "crown");
+      const fs = fontFor(d, med, fl);
+      const label = labelOf(n.data.member!).label;
+      const c = Math.abs(Math.cos(th)), sn = Math.abs(Math.sin(th));
+      let radial: number, across: number;
+      if (med) {
+        radial = across = Math.sqrt(estArea(n, fl));
+      } else if (isLeaf(n)) {
+        radial = textWidth(label, fs * 0.9) + fs * 1.9;
+        across = radial * 0.36;
+      } else {
+        const w = textWidth(label, fs) + fs * 1.2, h = fs * 1.6;
+        radial = w * c + h * sn;
+        across = w * sn + h * c;
+      }
+      const R = Math.max(1, r0 + (d / maxDepth) * span);
+      const reachRow = (half[d] ??= new Array(BINS).fill(0));
+      const a0 = binOf(th - (across / 2 + corridorFor(fl, f)) / R), a1 = binOf(th + (across / 2 + corridorFor(fl, f)) / R);
+      for (let k = a0; k <= a1; k++) reachRow[k] = Math.max(reachRow[k], radial / 2);
+    }
+    const lane = f * 1.2;
+    return (d: number) => {
+      let need = 0;
+      for (let k = 0; k < BINS; k++) {
+        const inner = d === 1 ? 0 : half[d - 1]?.[k] ?? 0, outer = half[d]?.[k] ?? 0;
+        if (!outer && !inner) continue;
+        const th = ((k + 0.5) / BINS) * Math.PI;
+        const local = Math.max(1, reach(th) * 0.95 - r0);
+        need = Math.max(need, (inner + outer + lane) / local);
+      }
+      return need;
+    };
+  };
   const ringT: number[] = (() => {
     // evenly paced, but a crowded generation further out, where its ring
     // is long enough for its names (crownDims sized the canopy for it)
@@ -2204,7 +2258,17 @@ function layoutAttemptBody(
     const room = (d: number) => (holderRoom.has(d) ? (f * 3.2) / span : 0);
     const need = ringChain(ringDemand(fl, f), r0, meanCrownReach, f);
     const t = [0];
-    for (let d = 1; d <= maxDepth; d++) t.push(Math.max(d / maxDepth, dense ? need[d] ?? 0 : 0, (d === 1 ? 0 : t[d - 1] + gap) + room(d)));
+    // Rings round the canopy base (circleRings) are spaced by the names
+    // that face each other across the gap, at each angle: towards the sides
+    // a name lies across the gap with its full width, at the top only its
+    // height. (Spaced by heights alone, a long name at the end of the first
+    // ring stood in the way of the next generation's lines: QA family C at
+    // 4A0, its names set at half the size to clear them.)
+    const facing = circleRings ? facingRoom(span) : null;
+    for (let d = 1; d <= maxDepth; d++) {
+      const prev = d === 1 ? 0 : t[d - 1];
+      t.push(Math.max(d / maxDepth, dense ? need[d] ?? 0 : 0, (d === 1 ? 0 : prev + gap) + room(d), facing ? prev + facing(d) + room(d) : 0));
+    }
     const top = t[maxDepth];
     return top > 1 ? t.map((v) => v / top) : t;
   })();
@@ -2442,10 +2506,12 @@ function layoutAttemptBody(
     const subH = subLabel ? fs * 0.8 * subLines.length : 0;
     let shape: PosterShape;
     let w: number, h: number, angle = 0, leafLength = 0, leafWidth = 0;
+    let nameLines: string[] | undefined;
     if (medallion) {
       shape = "medallion";
-      const tw = Math.max(textWidth(label, fs), subW);
-      w = h = Math.max(fs * 2.7, tw + fs * 0.9) + subH * 0.5;
+      w = h = medallionSize(label, fs, subW) + subH * 0.5;
+      const lines = stackName(label, fs);
+      if (lines.length > 1) nameLines = lines;
     } else if (isLeaf(n)) {
       // The leaf points away from its parent but stays close to horizontal
       // (at most 30° up, 12° down), so the name on it always reads easily.
@@ -2489,7 +2555,7 @@ function layoutAttemptBody(
     }
     const node: LiveNode = {
       id: m.id, member: m, x: p.x, y: p.y, tx: p.x, ty: p.y, depth,
-      generation: genOf(m), w, h, fontSize: fs, shape, label, subLabel, terminal,
+      generation: genOf(m), w, h, fontSize: fs, shape, label, subLabel, terminal, ...(nameLines ? { nameLines } : {}),
       childrenOutside: !terminal && !dotted.has(m.id) && n.children!.every((c) => dotted.has(c.data.member!.id)),
       angle, leafLength, leafWidth, leafCount: solidCount(n),
       parentId: n.parent?.data.member?.id ?? null,
@@ -5001,4 +5067,39 @@ export function relax<T extends Body>(nodes: T[], constrain: (n: T) => void, ite
   // the separation would never settle.
   for (let it = 0; it < 200 && separate() > 0; it++);
   if (bound) for (const n of nodes) bound(n);
+}
+
+/** Words a name is never broken after: they belong to the word that follows (عبد الله, أبو بكر, بن سعد). */
+const NO_BREAK_AFTER = new Set(["عبد", "أبو", "أبي", "ابو", "أم", "ام", "بن", "بنت", "ابن", "ذو", "ذي", "آل", "ال", "Abd", "Abu", "Umm", "bin", "ibn", "bint", "Al", "al"]);
+
+/**
+ * A round medallion's name, on one line or two. A long name on one line
+ * set the circle's size, and a branch head with a title ("الملقب بالأمين")
+ * was drawn two or three times the size of the names round it, in the way
+ * of its neighbours' lines (owner, 19 Nov 2026: "no reason for rounded names
+ * to be so big, especially stacking names or titles"). A name wider than
+ * the circle's least size is set on two lines, broken between words where
+ * the longer line is shortest, never after عبد, أبو or بن.
+ */
+export function stackName(label: string, fs: number): string[] {
+  if (textWidth(label, fs) <= fs * 1.8) return [label];
+  const words = label.split(" ");
+  if (words.length < 2) return [label];
+  let best: string[] = [label], bestW = textWidth(label, fs);
+  for (let k = 1; k < words.length; k++) {
+    if (NO_BREAK_AFTER.has(words[k - 1].replace(/\u00A0.*$/, ""))) continue;
+    const a = words.slice(0, k).join(" "), b = words.slice(k).join(" ");
+    const w = Math.max(textWidth(a, fs), textWidth(b, fs));
+    if (w < bestW) { best = [a, b]; bestW = w; }
+  }
+  return best;
+}
+
+/** A round medallion's diameter: its name (on one line or two, see stackName) and a little room round it, never under 2.7 times its type. */
+function medallionSize(label: string, fs: number, subW: number): number {
+  const lines = stackName(label, fs);
+  if (lines.length === 1) return Math.max(fs * 2.7, Math.max(textWidth(label, fs), subW) + fs * 0.9);
+  const tw = Math.max(subW, ...lines.map((l) => textWidth(l, fs)));
+  // (the circle round a block of two lines: its diagonal, and a margin)
+  return Math.max(fs * 2.7, Math.hypot(tw, fs * 2.15) + fs * 0.6);
 }

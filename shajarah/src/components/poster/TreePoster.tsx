@@ -551,10 +551,20 @@ function Medallion({ node, pal, onClick, strong, ring }: { node: PosterNode; pal
           <ellipse rx={rx - inset} ry={ry - inset} fill="none" stroke={pal.ornament} strokeWidth={fs * 0.03} />
         </>
       )}
-      <text y={nameY(node)} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={700} fill={own && !pal.mono ? own.text : pal.ink}>
-        {node.label}
-      </text>
-      <SubLines node={node} y={fs * 0.6} fontSize={fs * 0.68} fill={own && !pal.mono ? own.text : pal.ink} opacity={0.8} />
+      {node.nameLines && node.nameLines.length > 1 ? (
+        // (a long name on two lines, so the circle need not be wide enough for it on one)
+        node.nameLines.map((line, i) => (
+          <text key={i} y={nameY(node) + (i - (node.nameLines!.length - 1) / 2) * fs * 1.15 - (node.subLabel ? fs * 0.3 : 0)} textAnchor="middle" dominantBaseline="central"
+            fontSize={fs} fontWeight={700} fill={own && !pal.mono ? own.text : pal.ink}>
+            {line}
+          </text>
+        ))
+      ) : (
+        <text y={nameY(node)} textAnchor="middle" dominantBaseline="central" fontSize={fs} fontWeight={700} fill={own && !pal.mono ? own.text : pal.ink}>
+          {node.label}
+        </text>
+      )}
+      <SubLines node={node} y={fs * 0.6 + (node.nameLines && node.nameLines.length > 1 ? fs * 0.55 : 0)} fontSize={fs * 0.68} fill={own && !pal.mono ? own.text : pal.ink} opacity={0.8} />
     </g>
   );
 }
