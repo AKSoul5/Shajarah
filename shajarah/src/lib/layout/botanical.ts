@@ -125,6 +125,8 @@ export interface LayoutOptions {
   sizeLadder?: boolean;
   /** Internal: the tree keeps the height it had before a drawn frame gave its room back (see posterSteps). */
   frameRoomOff?: boolean;
+  /** Internal (experiment): how much taller than wide each generation's ring is (1: circles). */
+  ringAspect?: number;
   /** Internal (experiment): rings open like a hand fan, inner folds shorter. */
   handFan?: boolean;
   /** Internal (experiment): the highest a side family's fan may reach, radians above horizontal (negative: below). */
@@ -1271,6 +1273,8 @@ const FAN_OPEN_FULL = 40;
 const FAN_OPEN_MAX = -0.25;
 /** The highest a side family's fan reaches, radians above horizontal (−0.2 ≈ 11° below: it droops from its badge). */
 const DROOP_SIDES = -0.2;
+/** How much taller than wide each generation's ring is (owner's decision, 21 Nov 2026: ovals; circles made names smaller on 236 of 448 QA posters). */
+const RING_ASPECT = 1.3;
 /** The full lift up to this many names in the canopy's most crowded generation; none (the old sweep) from LIFT_NONE_FROM. */
 const LIFT_FULL_UNTIL = 50;
 const LIFT_NONE_FROM = 100;
@@ -2037,7 +2041,7 @@ function layoutAttemptBody(
   // canopy rises to the header and the trunk grows into the height left)
   let raised = 0;
   if (circleRings) {
-    const across = W / 2 - margin;
+    const across = (W / 2 - margin) * (opts.ringAspect ?? RING_ASPECT);
     const room = origin.y - contentTop;
     if (room > across) {
       raised = room - across;
@@ -2131,7 +2135,11 @@ function layoutAttemptBody(
   // the same distance from the base at both ends of the fan and at its
   // top, as large as the room above the base and either side allows.
   const circleR = Math.min(origin.y - contentTop, W / 2 - margin);
-  const reach = circleRings ? () => circleR : lift <= 0 ? outline : (theta: number) => {
+  // (ringAspect > 1: each ring an oval round the canopy base, taller than
+  // wide by that much where the page has the height; the same shape at
+  // every generation)
+  const ovalB = Math.min(origin.y - contentTop, circleR * (opts.ringAspect ?? RING_ASPECT));
+  const reach = circleRings ? (theta: number) => (circleR * ovalB) / Math.hypot(ovalB * Math.cos(theta), circleR * Math.sin(theta)) : lift <= 0 ? outline : (theta: number) => {
     const c = Math.abs(Math.cos(theta)), sn = Math.abs(Math.sin(theta));
     return ((c / fanA) ** FAN_P + (sn / fanB) ** FAN_P) ** (-1 / FAN_P);
   };
