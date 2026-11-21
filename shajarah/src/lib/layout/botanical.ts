@@ -125,6 +125,8 @@ export interface LayoutOptions {
   sizeLadder?: boolean;
   /** Internal: the tree keeps the height it had before a drawn frame gave its room back (see posterSteps). */
   frameRoomOff?: boolean;
+  /** Internal (experiment): true spreads the trunk's ancestors where the side families hang (default: even spacing). */
+  trunkSpread?: boolean;
   /** Internal (experiment): how much taller than wide each generation's ring is (1: circles). */
   ringAspect?: number;
   /** Internal (experiment): rings open like a hand fan, inner folds shorter. */
@@ -2065,7 +2067,9 @@ function layoutAttemptBody(
     const lowest = Math.max(0, shownTrunk.findIndex((c) => anchors.has(c)));
     const spread = gaps.length - lowest;
     let add = 0;
-    if (spread > 0) {
+    // (owner's decision, 21 Nov 2026: the trunk keeps its usual even
+    // spacing; opts.trunkSpread spreads the stretch the families hang from)
+    if (spread > 0 && opts.trunkSpread === true) {
       add = Math.min(raised, trunkStep * 2 * spread);
       for (let k = lowest; k < gaps.length; k++) gaps[k] += add / spread;
     }
