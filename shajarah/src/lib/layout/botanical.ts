@@ -1305,6 +1305,8 @@ const DROOP_SIDES = -0.2;
 const SIDE_INNER = 0.45;
 /** How far either side of the trunk's axis (a share of the page's width) a canopy ring's ends must stay before it opens below level. */
 const TRUNK_CLEAR = 0.2;
+/** How far round the spouse ring (radians) a spouse may stand from the partner, towards the middle of their children (no limit: held nearer, its boxes got in the way of the partner's other children's lines, and a private 340-person family's names fell from 3.58 to 2.5 mm at A0). */
+const SPOUSE_LEAN = Math.PI;
 /** How much taller than wide each generation's ring is (owner's decision, 21 Nov 2026: ovals; circles made names smaller on 236 of 448 QA posters). */
 const RING_ASPECT = 1.3;
 /** The full lift up to this many names in the canopy's most crowded generation; none (the old sweep) from LIFT_NONE_FROM. */
@@ -2564,7 +2566,9 @@ function layoutAttemptBody(
       fs = Math.max(floorFor(fl), fs * 0.9);
       const out = norm(add(scale(norm(sub(p, from)), 0.8), scale(UP, 0.2)));
       const dir = Math.abs(out.x) < 0.05 ? (p.x >= origin.x ? 1 : -1) : Math.sign(out.x);
-      const tilt = clamp((Math.atan2(-out.y, Math.abs(out.x)) * 180) / Math.PI, -12, 30);
+      // (level: Arabic is never tilted, owner's rule; the leaf points out on
+      // its own side of the tree, its name level on it)
+      const tilt = 0 * clamp((Math.atan2(-out.y, Math.abs(out.x)) * 180) / Math.PI, -12, 30);
       angle = dir > 0 ? -tilt : 180 + tilt;
       const e = { x: Math.cos((angle * Math.PI) / 180), y: Math.sin((angle * Math.PI) / 180) };
       const tw = Math.max(textWidth(label, fs), subLabel ? textWidth(subLabel, fs * 0.7) : 0);
@@ -3493,7 +3497,10 @@ function layoutAttemptBody(
       const byRing = new Map<number, { h: Holder; th: number; d: number }[]>();
       for (const h of onCanopy) {
         const p = partnerOf(h)!;
-        const th = h.kids.length && !h.lone ? h.kids.reduce((a, k) => a + angleOf(k), 0) / h.kids.length : p.ray!;
+        // (just outside the partner: a spouse with children leans only a
+        // little towards them, so the partner's line runs out, not across)
+        const kidsTh = h.kids.length && !h.lone ? h.kids.reduce((a, k) => a + angleOf(k), 0) / h.kids.length : p.ray!;
+        const th = p.ray! + clamp(kidsTh - p.ray!, -SPOUSE_LEAN, SPOUSE_LEAN);
         byRing.set(p.depth, [...(byRing.get(p.depth) ?? []), { h, th, d: p.depth }]);
       }
       for (const [d, list] of byRing) {
