@@ -3497,10 +3497,28 @@ function layoutAttemptBody(
       const byRing = new Map<number, { h: Holder; th: number; d: number }[]>();
       for (const h of onCanopy) {
         const p = partnerOf(h)!;
-        // (just outside the partner: a spouse with children leans only a
-        // little towards them, so the partner's line runs out, not across)
-        const kidsTh = h.kids.length && !h.lone ? h.kids.reduce((a, k) => a + angleOf(k), 0) / h.kids.length : p.ray!;
-        const th = p.ray! + clamp(kidsTh - p.ray!, -SPOUSE_LEAN, SPOUSE_LEAN);
+        // (owner's rule, 21 Nov 2026: the shortest way. A spouse with
+        // children stands where the straight line from the partner to the
+        // middle of those children crosses the spouse ring; one with none,
+        // straight out from the partner. Set at the mean of the children's
+        // angles from the canopy base, a daughter's husband stood far round
+        // the ring from both her and her child, beside another spouse.)
+        let th = p.ray!;
+        if (h.kids.length && !h.lone) {
+          const C = h.kids.reduce((a, k) => add(a, scale({ x: k.x, y: k.y }, 1 / h.kids.length)), { x: 0, y: 0 } as Vec);
+          const P = { x: p.x, y: p.y };
+          const off = (t: number) => {
+            const q = add(P, scale(sub(C, P), t));
+            return len(sub(q, origin)) - spouseRadius(p.depth, angleOf(q));
+          };
+          if (off(0) < 0 && off(1) > 0) {
+            let lo = 0, hi = 1;
+            for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (off(mid) < 0) lo = mid; else hi = mid; }
+            th = angleOf(add(P, scale(sub(C, P), (lo + hi) / 2)));
+          } else {
+            th = angleOf(C);
+          }
+        }
         byRing.set(p.depth, [...(byRing.get(p.depth) ?? []), { h, th, d: p.depth }]);
       }
       for (const [d, list] of byRing) {
