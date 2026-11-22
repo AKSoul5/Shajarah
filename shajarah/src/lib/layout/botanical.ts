@@ -141,6 +141,8 @@ export interface LayoutOptions {
   droopSides?: number;
   /** Internal (experiment): every generation's ring a circle round the canopy base. */
   circleRings?: boolean;
+  /** Internal (experiment): false places spouses each where it finds room, not on one ring per generation. */
+  spouseRing?: boolean;
   /** Internal (experiment): see CHILD_PULL. */
   childPull?: number;
   /** Internal (experiment): how much room a name takes along the fan's sides, against 4.2 at its top (default 1.7). */
@@ -2256,6 +2258,7 @@ function layoutAttemptBody(
   const facingRoom = (span: number) => {
     const BINS = 90;
     const half: number[][] = [];
+    const spouseHalf: number[][] = [];
     const binOf = (th: number) => Math.max(0, Math.min(BINS - 1, Math.floor((th / Math.PI) * BINS)));
     for (const n of crownNodes) {
       const d = n.depth - base.depth;
@@ -2279,6 +2282,19 @@ function layoutAttemptBody(
       const reachRow = (half[d] ??= new Array(BINS).fill(0));
       const a0 = binOf(th - (across / 2 + corridorFor(fl, f)) / R), a1 = binOf(th + (across / 2 + corridorFor(fl, f)) / R);
       for (let k = a0; k <= a1; k++) reachRow[k] = Math.max(reachRow[k], radial / 2);
+      // (and the spouse ring between this generation and the next: a
+      // partner's spouses' boxes, side by side across the partner's way)
+      const m = n.data.member!;
+      const spouseIds = new Set(tree.marriages.filter((x) => x.spouseAId === m.id || x.spouseBId === m.id).map((x) => (x.spouseAId === m.id ? x.spouseBId : x.spouseAId)));
+      if (circleRings && spouseIds.size && (through.has(m.id) || opts.motherNames)) {
+        const sfs = Math.max(floorFor(fl), fs * 0.85);
+        const bw = Math.max(...[...spouseIds].map((id) => textWidth(givenAndFamilyName(byMemberId.get(id)?.name ?? ""), sfs))) + sfs * 2;
+        const bh = sfs * 2.65;
+        const bRadial = bw * c + bh * sn, bAcross = (bw * sn + bh * c) * spouseIds.size;
+        const row = (spouseHalf[d] ??= new Array(BINS).fill(0));
+        const b0 = binOf(th - bAcross / 2 / R), b1 = binOf(th + bAcross / 2 / R);
+        for (let k = b0; k <= b1; k++) row[k] = Math.max(row[k], bRadial);
+      }
     }
     const lane = f * 1.2;
     return (d: number) => {
@@ -2288,7 +2304,9 @@ function layoutAttemptBody(
         if (!outer && !inner) continue;
         const th = ((k + 0.5) / BINS) * Math.PI;
         const local = Math.max(1, reach(th) * 0.95 - r0);
-        need = Math.max(need, (inner + outer + lane) / local);
+        // (a spouse ring between them: its boxes and a lane each side)
+        const sp = d > 1 ? spouseHalf[d - 1]?.[k] ?? 0 : 0;
+        need = Math.max(need, (inner + outer + lane + (sp ? sp + lane : 0)) / local);
       }
       return need;
     };
@@ -2694,6 +2712,21 @@ function layoutAttemptBody(
       const half = (n: LiveNode, th: number) =>
         // (+ a corridor so neighbouring lines stay clearly apart)
         (Math.abs((n.w / 2) * Math.sin(th)) + Math.abs((n.h / 2) * Math.cos(th)) + corridorFor(fl, f)) / Math.max(1, radiusAt(th));
+      // A ring too short for its names moves further out, with every ring
+      // outside it (owner's decision, 22 Nov 2026: a crowded generation
+      // gets a longer arc, the names their size; no name steps off its
+      // ring). Only where the page runs out are the names set smaller.
+      if (onRing) {
+        for (let it = 0; it < 6; it++) {
+          const need = ring.reduce((a, n) => a + 2 * half(n, n.ray!), 0);
+          const room = (hi - lo) * 0.97;
+          if (need <= room) break;
+          const t0 = ringT[d];
+          const grown = Math.min(t0 * (need / room) + 0.01, t0 + 0.5);
+          const delta = grown - t0;
+          for (let e = d; e < ringT.length; e++) ringT[e] += delta;
+        }
+      }
       // (the shortest way, owner's rule, 21 Nov 2026: each child's place on
       // its ring is drawn towards its father's own direction, siblings
       // gathered round him in their order, as far as their own families'
@@ -2956,7 +2989,11 @@ function layoutAttemptBody(
       const reachX = trunkWidth * (1.45 + Math.floor(stack / 3) * 0.9) - (start.x - origin.x) * side + trunkWidth * 0.42;
       // (out along the middle of its own slice of the side's fan)
       const slice = sideFan(o.node, start, reachX);
-      const th = (slice.hi + slice.lo) / 2;
+      // (with nested side families, a childless son is a short twig out
+      // from his badge, drooping as the boughs set off: the middle of a low
+      // badge's share of the drooping fan pointed straight down, and his
+      // twig hung down the trunk)
+      const th = sharedSides && droopSides !== undefined ? droopSides : (slice.hi + slice.lo) / 2;
       if (plan) { plan.set(o.node, th); return; }
       // A childless son is an ordinary son's name, a little smaller than his
       // brothers' with families (0.9): no medallion, which is kept for the
@@ -3496,7 +3533,7 @@ function layoutAttemptBody(
     // a daughter's four husbands stood at four depths and a wife with no
     // children sat on her husband's brother's limb.)
     const ringPlaced = new Set<Holder>();
-    if (onRing) {
+    if (onRing && opts.spouseRing !== false) {
       const partnerOf = (h: Holder) => byId.get(h.partnerId);
       const onCanopy = holders.filter((h) => {
         const p = partnerOf(h);
@@ -3539,7 +3576,15 @@ function layoutAttemptBody(
         // in order round the ring (by angle; a partner's childless spouses
         // beside each other in the order they were recorded)
         list.sort((a, b) => b.th - a.th);
-        const R = (th: number) => spouseRadius(d, th);
+        // (just outside the partners' names, with a lane between: halfway
+        // to the next ring, a wide box at the side of the fan stood in that
+        // ring's names)
+        const partnerHalf = Math.max(...list.map((e) => {
+          const p = partnerOf(e.h)!, c = Math.abs(Math.cos(e.th)), sn = Math.abs(Math.sin(e.th));
+          return (p.w * c + p.h * sn) / 2;
+        }));
+        const boxHalf = Math.max(...list.map((e) => (e.h.w * Math.abs(Math.cos(e.th)) + e.h.h * Math.abs(Math.sin(e.th))) / 2));
+        const R = (th: number) => Math.min(spouseRadius(d, th) * 2 - ringRadius(d, th), ringRadius(d, th) + partnerHalf + f * 0.9 + boxHalf);
         const halfAng = (e: { h: Holder; th: number }) => (Math.abs(e.h.w / 2 * Math.sin(e.th)) + Math.abs(e.h.h / 2 * Math.cos(e.th)) + f * 0.4) / Math.max(1, R(e.th));
         const th = list.map((e) => e.th);
         // (pushed apart along the ring, both ways, keeping their order)
