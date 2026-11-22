@@ -519,12 +519,21 @@ function* coreSteps(opts: LayoutOptions): PosterSteps {
   return layout;
 }
 
-/** The foundation's text more than LOWER_RATIO times the canopy's typical name. */
-const LOWER_RATIO = 2;
+/**
+ * The foundation's text, or the trunk's names, more than LOWER_RATIO times
+ * the canopy's typical name. (1.5 and the trunk counted since the owner's
+ * family at A0, 22 Nov 2026: its foundation at 1.98 times the canopy's
+ * names and its trunk at 1.8 times took half the page, the short trunk
+ * never tried, though it set the canopy's names larger, 3.38 mm against
+ * 3.26.)
+ */
+const LOWER_RATIO = 1.5;
 function oversizedLower(l: PosterLayout): boolean {
-  if (!l.soil || !l.nodes.length) return false;
+  if (!l.nodes.length) return false;
   const sizes = l.nodes.map((n) => n.fontSize).sort((a, b) => a - b);
-  return l.soil.fontSize > LOWER_RATIO * sizes[sizes.length >> 1];
+  const typical = sizes[sizes.length >> 1];
+  return (!!l.soil && l.soil.fontSize > LOWER_RATIO * typical)
+    || (l.trunkLabels ?? []).some((t) => t.fontSize > LOWER_RATIO * typical);
 }
 
 function* withBoxRoom(opts: LayoutOptions): PosterSteps {
@@ -654,6 +663,11 @@ export function uprightNeedsPlain(l: PosterLayout): boolean {
 export function pickUpright(upright: PosterLayout, plain: PosterLayout): PosterLayout {
   const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
   const a = upright.legibility.smallestTextMm, b = plain.legibility.smallestTextMm;
+  // (with rings round the canopy base, the mother stands upright whenever
+  // that is as clean and as legible: the line straight up the middle of the
+  // tree is the owner's rule, 1.0.54, not a matter of a few hundredths of a
+  // millimetre of type; owner, 22 Nov 2026)
+  if (upright.recipe?.opts.circleRings !== false && ok(upright) >= ok(plain)) return upright;
   if (ok(plain) > ok(upright) || (ok(plain) === ok(upright) && (b > a * 1.005 || (b >= a * 0.995 && linesAlongside(plain).length < linesAlongside(upright).length)))) return plain;
   return upright;
 }
@@ -1318,7 +1332,9 @@ const CHILD_PULL = 0;
 /** How far round the spouse ring (radians) a spouse may stand from the partner, towards the middle of their children (no limit: held nearer, its boxes got in the way of the partner's other children's lines, and a private 340-person family's names fell from 3.58 to 2.5 mm at A0). */
 const SPOUSE_LEAN = Math.PI;
 /** How much taller than wide each generation's ring is (owner's decision, 21 Nov 2026: ovals; circles made names smaller on 236 of 448 QA posters). */
-const RING_ASPECT = 1.3;
+const RING_ASPECT = 1.6;
+/** The trunk's ancestors' type with rings round the canopy base, as a multiple of the legible least (see trunkFontFor). */
+const TRUNK_TEXT = Infinity;
 /** The full lift up to this many names in the canopy's most crowded generation; none (the old sweep) from LIFT_NONE_FROM. */
 const LIFT_FULL_UNTIL = 50;
 const LIFT_NONE_FROM = 100;
@@ -1823,8 +1839,12 @@ function layoutAttemptBody(
   };
   // (see LayoutOptions.compactLower)
   const lowerF = (f: number) => (opts.compactLower && fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
+  // (with rings round the canopy base, the trunk's ancestors keep one
+  // legible size, TRUNK_TEXT times the least, not the canopy's: the trunk
+  // is context, and grown with larger canopy names it took the height the
+  // canopy needed; owner, 22 Nov 2026)
   const trunkFontFor = (f: number) =>
-    Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity));
+    Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity, circleRings ? minFont * TRUNK_TEXT : Infinity));
   const stepFor = (f: number) => trunkFontFor(f) * 1.75;
   const trunkSection = (count: number, f: number) => {
     // a bare trunk (no ancestors above the canopy base) still stands tall
@@ -2721,12 +2741,18 @@ function layoutAttemptBody(
       // gets a longer arc, the names their size; no name steps off its
       // ring). Only where the page runs out are the names set smaller.
       if (onRing && opts.ringGrow !== false) {
+        // (with the centred son on this ring, each side of him on its own:
+        // he stays straight up the middle, so a crowded side cannot borrow
+        // the other side's room)
+        const pin = ring.findIndex((n) => centerIds.has(n.id));
         for (let it = 0; it < 6; it++) {
-          const need = ring.reduce((a, n) => a + 2 * half(n, n.ray!), 0);
-          const room = (hi - lo) * 0.97;
-          if (need <= room) break;
+          const halves = ring.map((n) => half(n, n.ray!));
+          const crowd = pin < 0
+            ? (2 * halves.reduce((a, x) => a + x, 0)) / ((hi - lo) * 0.97)
+            : Math.max(halves.slice(0, pin + 1).reduce((a, x) => a + x, 0) * 2 - halves[pin], halves.slice(pin).reduce((a, x) => a + x, 0) * 2 - halves[pin]) / ((hi - lo) * 0.97);
+          if (crowd <= 1) break;
           const t0 = ringT[d];
-          const grown = Math.min(t0 * (need / room) + 0.01, t0 + 0.5);
+          const grown = Math.min(t0 * crowd + 0.01, t0 + 0.5);
           // (only into the room left inside the canopy: past it, the outer
           // rings ran off the page and the whole poster was set smaller)
           let tCap = Infinity;
@@ -2814,10 +2840,34 @@ function layoutAttemptBody(
           for (let i = Math.max(m, 0) + 1; i < th.length; i++) th[i] = Math.max(lo - ext, Math.min(th[i], th[i - 1] - need(i)));
         }
         const step = (i: number) => Math.min(need(i), (hi - lo) / th.length) * (budget.fan ?? RING_STEP);
-        for (let i = 1; i < th.length; i++) if (th[i] > th[i - 1] - step(i)) th[i] = th[i - 1] - step(i);
-        for (let i = th.length - 1; i > 0; i--) {
-          if (th[i] < bounds[i][0]) th[i] = bounds[i][0];
-          if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+        // (on rings round the canopy base the centred son holds the middle,
+        // owner's rule since 1.0.54: his brothers are packed out from him
+        // on either side, never pushing him off the trunk's axis; a side
+        // too crowded for its ring is left for the clarity check to judge,
+        // and the poster is set smaller where the ring cannot grow)
+        const pin = onRing ? ring.findIndex((n) => centerIds.has(n.id)) : -1;
+        if (pin >= 0) {
+          th[pin] = target[pin];
+          for (let i = pin + 1; i < th.length; i++) {
+            if (th[i] > th[i - 1] - step(i)) th[i] = th[i - 1] - step(i);
+          }
+          for (let i = th.length - 1; i > pin + 1; i--) {
+            if (th[i] < bounds[i][0]) th[i] = bounds[i][0];
+            if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+          }
+          for (let i = pin; i > 0; i--) {
+            if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+          }
+          for (let i = 0; i < pin - 1; i++) {
+            if (th[i] > bounds[i][1]) th[i] = bounds[i][1];
+            if (th[i + 1] > th[i] - step(i + 1)) th[i + 1] = th[i] - step(i + 1);
+          }
+        } else {
+          for (let i = 1; i < th.length; i++) if (th[i] > th[i - 1] - step(i)) th[i] = th[i - 1] - step(i);
+          for (let i = th.length - 1; i > 0; i--) {
+            if (th[i] < bounds[i][0]) th[i] = bounds[i][0];
+            if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+          }
         }
       }
       ringLoad = Math.max(ringLoad, ring.reduce((a, n, i) => a + 2 * half(n, th[i]), 0) / (hi - lo));
