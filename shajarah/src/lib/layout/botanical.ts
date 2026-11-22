@@ -1307,8 +1307,8 @@ const DROOP_SIDES = -0.2;
 const SIDE_INNER = 0.45;
 /** How far either side of the trunk's axis (a share of the page's width) a canopy ring's ends must stay before it opens below level. */
 const TRUNK_CLEAR = 0.2;
-/** How far each canopy child's place is drawn towards its father's direction (0: its own sector's middle, 1: the father's ray). On a private 340-person family 0.35 set its names 3.26 to 3.69 mm at A0, 4.66 to 4.82 mm at 2A0, clean; 0.7 left problems. */
-const CHILD_PULL = 0.35;
+/** How far each canopy child's place is drawn towards its father's direction (0: its own sector's middle, 1: the father's ray). (Off: the owner kept each child at the middle of its own slice, 22 Nov 2026.) */
+const CHILD_PULL = 0;
 /** How far round the spouse ring (radians) a spouse may stand from the partner, towards the middle of their children (no limit: held nearer, its boxes got in the way of the partner's other children's lines, and a private 340-person family's names fell from 3.58 to 2.5 mm at A0). */
 const SPOUSE_LEAN = Math.PI;
 /** How much taller than wide each generation's ring is (owner's decision, 21 Nov 2026: ovals; circles made names smaller on 236 of 448 QA posters). */
