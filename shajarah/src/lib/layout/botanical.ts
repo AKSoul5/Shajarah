@@ -141,6 +141,8 @@ export interface LayoutOptions {
   droopSides?: number;
   /** Internal (experiment): every generation's ring a circle round the canopy base. */
   circleRings?: boolean;
+  /** Internal (experiment): how far above level the inner rings end (radians; see ringLift). */
+  innerLift?: number;
   /** Internal (experiment): false leaves a crowded ring where it is (see onRing). */
   ringGrow?: boolean;
   /** Internal (experiment): false places spouses each where it finds room, not on one ring per generation. */
@@ -2236,7 +2238,7 @@ function layoutAttemptBody(
     if (lift >= 0) return lift;
     const R = r0 + (d / maxDepth) * Math.max(1, reach(0) * 0.95 - r0);
     const clearX = W * TRUNK_CLEAR;
-    return R <= clearX ? 0 : Math.max(lift, -Math.acos(clearX / R));
+    return R <= clearX ? (opts.innerLift ?? 0) : Math.max(lift, -Math.acos(clearX / R));
   };
   const thetaOn = (u: number, d: number) => {
     const th = uToTheta(u);
