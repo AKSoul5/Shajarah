@@ -141,6 +141,8 @@ export interface LayoutOptions {
   droopSides?: number;
   /** Internal (experiment): every generation's ring a circle round the canopy base. */
   circleRings?: boolean;
+  /** Internal (experiment): see CHILD_PULL. */
+  childPull?: number;
   /** Internal (experiment): how much room a name takes along the fan's sides, against 4.2 at its top (default 1.7). */
   sideSpacing?: number;
   /** Internal: room between the fans of side families whose badges are close (see posterSteps). */
@@ -1305,6 +1307,8 @@ const DROOP_SIDES = -0.2;
 const SIDE_INNER = 0.45;
 /** How far either side of the trunk's axis (a share of the page's width) a canopy ring's ends must stay before it opens below level. */
 const TRUNK_CLEAR = 0.2;
+/** How far each canopy child's place is drawn towards its father's direction (0: its own sector's middle, 1: the father's ray). On a private 340-person family 0.35 set its names 3.26 to 3.69 mm at A0, 4.66 to 4.82 mm at 2A0, clean; 0.7 left problems. */
+const CHILD_PULL = 0.35;
 /** How far round the spouse ring (radians) a spouse may stand from the partner, towards the middle of their children (no limit: held nearer, its boxes got in the way of the partner's other children's lines, and a private 340-person family's names fell from 3.58 to 2.5 mm at A0). */
 const SPOUSE_LEAN = Math.PI;
 /** How much taller than wide each generation's ring is (owner's decision, 21 Nov 2026: ovals; circles made names smaller on 236 of 448 QA posters). */
@@ -2690,7 +2694,17 @@ function layoutAttemptBody(
       const half = (n: LiveNode, th: number) =>
         // (+ a corridor so neighbouring lines stay clearly apart)
         (Math.abs((n.w / 2) * Math.sin(th)) + Math.abs((n.h / 2) * Math.cos(th)) + corridorFor(fl, f)) / Math.max(1, radiusAt(th));
-      const target = ring.map((n) => n.ray!);
+      // (the shortest way, owner's rule, 21 Nov 2026: each child's place on
+      // its ring is drawn towards its father's own direction, siblings
+      // gathered round him in their order, as far as their own families'
+      // room allows)
+      const toFather = opts.childPull ?? CHILD_PULL;
+      const target = ring.map((n) => {
+        const father = n.parentId ? byId.get(n.parentId) : undefined;
+        if (!onRing || !toFather || !father || father.region !== "crown" || father.ray === undefined) return n.ray!;
+        return n.ray! + (father.ray - n.ray!) * toFather;
+      });
+      if (onRing && toFather) ring.forEach((n, i) => { n.ray = target[i]; });
       // 1-D packing along the ring: neighbours pushed apart, kept in order,
       // with a gentle pull back to their targets. (Any overlap left is then
       // resolved by stepping out along the ray, which keeps each line close
