@@ -141,6 +141,8 @@ export interface LayoutOptions {
   droopSides?: number;
   /** Internal (experiment): every generation's ring a circle round the canopy base. */
   circleRings?: boolean;
+  /** Internal (experiment): false leaves a crowded ring where it is (see onRing). */
+  ringGrow?: boolean;
   /** Internal (experiment): false places spouses each where it finds room, not on one ring per generation. */
   spouseRing?: boolean;
   /** Internal (experiment): see CHILD_PULL. */
@@ -2716,14 +2718,23 @@ function layoutAttemptBody(
       // outside it (owner's decision, 22 Nov 2026: a crowded generation
       // gets a longer arc, the names their size; no name steps off its
       // ring). Only where the page runs out are the names set smaller.
-      if (onRing) {
+      if (onRing && opts.ringGrow !== false) {
         for (let it = 0; it < 6; it++) {
           const need = ring.reduce((a, n) => a + 2 * half(n, n.ray!), 0);
           const room = (hi - lo) * 0.97;
           if (need <= room) break;
           const t0 = ringT[d];
           const grown = Math.min(t0 * (need / room) + 0.01, t0 + 0.5);
-          const delta = grown - t0;
+          // (only into the room left inside the canopy: past it, the outer
+          // rings ran off the page and the whole poster was set smaller)
+          let tCap = Infinity;
+          for (let k = 0; k <= 24; k++) {
+            const a = lo + ((hi - lo) * k) / 24;
+            const span = reach(a) * 0.95 - r0;
+            if (span > 1) tCap = Math.min(tCap, (rMaxOnPage({ w: f * 4, h: f * 1.6 }, a) - r0) / span);
+          }
+          const delta = Math.min(grown - t0, tCap - ringT[ringT.length - 1]);
+          if (delta <= 1e-6) break;
           for (let e = d; e < ringT.length; e++) ringT[e] += delta;
         }
       }
