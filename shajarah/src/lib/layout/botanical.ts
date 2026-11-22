@@ -3613,6 +3613,27 @@ function layoutAttemptBody(
           }
           if (!moved) break;
         }
+        // (where a name stands on that spot, the box slides along its own
+        // ring to the nearest free one, either way, never in or out; boxes
+        // set on names made whole posters smaller)
+        const freeAt = (e: { h: Holder }, a: number, others: { x: number; y: number; w: number; h: number }[]) => {
+          const q = add(origin, scale(dirOf(a), R(a)));
+          const pad = f * 0.3;
+          return ![...nodes, ...others].some((n) => Math.abs(n.x - q.x) < (n.w + e.h.w) / 2 + pad && Math.abs(n.y - q.y) < (n.h + e.h.h) / 2 + pad);
+        };
+        const done: { x: number; y: number; w: number; h: number }[] = [...placed.map((q) => q.h)];
+        list.forEach((e, i) => {
+          if (!freeAt(e, th[i], done)) {
+            const step = (f * 0.5) / Math.max(1, R(th[i]));
+            for (let k = 1; k <= 60; k++) {
+              const a1 = th[i] + k * step, a2 = th[i] - k * step;
+              if (freeAt(e, a1, done)) { th[i] = a1; break; }
+              if (freeAt(e, a2, done)) { th[i] = a2; break; }
+            }
+          }
+          const q0 = add(origin, scale(dirOf(th[i]), R(th[i])));
+          done.push({ x: q0.x, y: q0.y, w: e.h.w, h: e.h.h });
+        });
         list.forEach((e, i) => {
           const p = add(origin, scale(dirOf(th[i]), R(th[i])));
           e.h.x = p.x;
