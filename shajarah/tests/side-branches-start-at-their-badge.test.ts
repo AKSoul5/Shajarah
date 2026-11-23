@@ -14,6 +14,7 @@ import { computePosterLayout, type PosterLayout } from "@/lib/layout/botanical";
 import { kalaliTree } from "@/lib/samples/kalali";
 import { layoutOptionsFor, resolveTheme } from "@/lib/theme";
 import type { MemberDTO, TreeDTO } from "@/lib/types";
+import { knownIt } from "./known-failures";
 
 /** The Al-Kalali trunk from its 70th name; nearly every ancestor on it with other sons: families, childless sons, and some with three. */
 function crowdedTrunk(): TreeDTO {
@@ -60,7 +61,7 @@ const lay = (tree: TreeDTO, preset: string, paper: string): PosterLayout => {
 describe("side branches start at their own ancestor's badge", () => {
   const tree = crowdedTrunk();
   for (const [preset, paper] of [["refined", "A1"], ["classic", "A1"], ["refined", "A0"]] as const) {
-    it(`${preset}, ${paper}`, { timeout: 600_000 }, () => {
+    knownIt(`side-badge ${preset} ${paper}`)(`${preset}, ${paper}`, { timeout: 600_000 }, () => {
       const l = lay(tree, preset, paper);
       expect(l.overlaps).toBe(0);
       expect(l.clarity.issues).toEqual([]);

@@ -9,7 +9,7 @@ import { computeGenerations, lineagePath } from "@/lib/genealogy";
 import { generateSampleTree } from "@/lib/sampleData";
 import { denseFamily, marriagesFamily, multiMarriageFamily, namesFamily, smallFamily } from "@/lib/samples/fixtures";
 import { kalaliTree } from "@/lib/samples/kalali";
-import { LINEAGE_COLORS, layoutOptionsFor, resolveTheme } from "@/lib/theme";
+import { LINEAGE_COLORS, layoutOptionsFor, lineageColours, resolveTheme } from "@/lib/theme";
 import type { MemberDTO, TreeDTO } from "@/lib/types";
 
 /** A matrilineal family: the line runs through mothers (fathers unrecorded). */
@@ -80,7 +80,11 @@ describe("lineage colours on the actual canopy", () => {
       const angle = (n: { x: number; y: number }) => Math.atan2(l.origin.y - n.y, n.x - l.origin.x);
       const heads = l.nodes.filter((n) => n.depth === 1 && n.lineage != null).sort((a, b) => angle(b) - angle(a));
       expect(heads.length).toBeGreaterThan(1);
-      const colour = (i: number) => LINEAGE_COLORS[i % LINEAGE_COLORS.length];
+      // (each branch's colour as the poster gives it, from the branches
+      // beside it: see lineageColours, since 1.0.60)
+      const count = 1 + l.nodes.reduce((m, n) => Math.max(m, n.lineage ?? -1), -1);
+      const colours = lineageColours(LINEAGE_COLORS, count, l.lineageNeighbours);
+      const colour = (i: number) => colours[i];
       for (let i = 1; i < heads.length; i++) {
         expect(colour(heads[i].lineage!), `${heads[i - 1].label} / ${heads[i].label}`).not.toBe(colour(heads[i - 1].lineage!));
       }
