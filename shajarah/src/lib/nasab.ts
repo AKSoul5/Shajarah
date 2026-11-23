@@ -66,6 +66,33 @@ export function nameLines(name: string): string[] {
   return [words.slice(0, at).join(" "), words.slice(at).join(" ")];
 }
 
+/**
+ * A title typed at the end of a name, apart from the name: "عبد الملك الملقب
+ * بالأمين" → { name: "عبد الملك", title: "الملقب بالأمين" }, "عبد العزيز ذو
+ * النورين", "عبد الرحمن الأكبر", "محمد رحمه الله", "Abd al-Rahman the Elder".
+ * The poster sets the title on a name plate's second line, as a laqab
+ * entered in its own field (owner, 23 Nov 2026). A name that is only a
+ * title ("الشيخ", "ذو الفقار") stays as it is; so does a chain of fathers
+ * ("سليمان بن عبد الكريم"), which is a name, not a title.
+ */
+export function splitTitle(raw: string): { name: string; title: string | null } {
+  const name = raw.replace(/\s+/g, " ").trim();
+  const words = name.split(" ");
+  const cut = (at: number) => (at >= 1 && at < words.length ? { name: words.slice(0, at).join(" "), title: words.slice(at).join(" ") } : null);
+  const hon = name.match(HONORIFIC);
+  if (hon && hon.index! > 0) return { name: name.slice(0, hon.index).trim(), title: hon[1] };
+  // "الملقب ب…", "known as …", "called …": from that word on
+  let at = words.findIndex((w, i) => i > 0 && /^(الملقب|الملقبة|المعروف|المعروفة|المكنى|known|called|nicknamed)$/i.test(w));
+  // "ذو النورين", "ذات النطاقين", "Dhu al-Nurayn": the epithet and its word
+  if (at < 0) at = words.findIndex((w, i) => i > 0 && i === words.length - 2 && /^(ذو|ذي|ذا|ذات|dhu|dhul|dhat)$/i.test(w));
+  // "الأكبر", "الشيخ", "the Elder": a closing title word
+  if (at < 0 && /^(الأكبر|الكبير|الأوسط|الأصغر|الصغير|الشيخ|الحاج|الحاجة|السيد|الإمام|القاضي)$/.test(words[words.length - 1])) at = words.length - 1;
+  if (at < 0 && words.length >= 3 && /^the$/i.test(words[words.length - 2]) && /^(elder|middle|younger|sheikh|great|first|second|third)$/i.test(words[words.length - 1])) at = words.length - 2;
+  // (an Arabic title is never broken off a compound name: "عبد الله" is a name)
+  if (at > 0 && /^(عبد|أبو|أبي|ابو|أم|ام|بن|بنت|ابن|آل|Abd|Abu|Umm|bin|ibn|bint|Al)$/.test(words[at - 1])) return { name, title: null };
+  return cut(at) ?? { name, title: null };
+}
+
 /** Lifts "(laqab)" and a closing honorific (رحمه الله …) out of a name. */
 export function splitLaqab(raw: string): NasabEntry {
   let name = raw.trim();

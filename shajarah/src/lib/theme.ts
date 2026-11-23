@@ -199,23 +199,73 @@ export function metalStops(c: string): [string, string, string] {
 /**
  * The main branches' colours: muted heritage tones of like weight, the
  * first four those every poster had (deep teal, antique gold, dusty plum,
- * slate blue), then four more, ordered so neighbours differ strongly; each
- * design has its own eight, its first four likewise its old ones. All are
- * dark enough to read as lines on ivory (≥ 3:1).
+ * slate blue), then four more, ordered so neighbours differ strongly, then
+ * a shade of each of the eight (the same colour family, lighter where the
+ * paper allows, else darker). Each design has its own sixteen, its first
+ * four likewise its old ones. All are dark enough to read as lines on
+ * their paper (≥ 3:1).
  */
-export const LINEAGE_COLORS = ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380", "#a3543d", "#697044", "#8e3a41", "#76533b"] as const;
-
-/** Main branches with distinct colours by default; the seventh and eighth colours only for a poster with that many. */
-export const LINEAGE_DEFAULT = 6;
+export const LINEAGE_COLORS = ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380", "#a3543d", "#697044", "#8e3a41", "#76533b",
+  "#508882", "#654a03", "#98738f", "#6781a1", "#793420", "#474e26", "#be6066", "#a27a5f"] as const;
 
 /**
- * The colour of main branch `i` of `count`: each its own up to six, the
- * seventh and eighth only on a poster with seven or eight, then repeating.
+ * Two neighbouring branches' colours are at least this far apart (CIELAB
+ * ΔE 1976): told apart at a glance. (About 20; 19.5 keeps every design's
+ * first eight in their order, Silver & Gold's grey and teal standing 19.98
+ * apart.)
  */
-export function lineageColor(i: number | null | undefined, fallback: string, colours: readonly string[] = LINEAGE_COLORS, count = LINEAGE_DEFAULT): string {
-  if (i == null) return fallback;
-  const n = Math.min(colours.length, Math.max(LINEAGE_DEFAULT, count));
-  return colours[i % n];
+export const NEIGHBOUR_DE = 19.5;
+
+/** CIELAB (D65) distance between two colours (ΔE 1976). */
+export function labDistance(a: string, b: string): number {
+  const lab = (hex: string) => {
+    const [r, g, bl] = rgb(hex).map((c) => {
+      const s = c / 255;
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    const xyz = [
+      (0.4124 * r + 0.3576 * g + 0.1805 * bl) / 0.95047,
+      0.2126 * r + 0.7152 * g + 0.0722 * bl,
+      (0.0193 * r + 0.1192 * g + 0.9505 * bl) / 1.08883,
+    ].map((t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116));
+    return [116 * xyz[1] - 16, 500 * (xyz[0] - xyz[1]), 200 * (xyz[1] - xyz[2])];
+  };
+  const [p, q] = [lab(a), lab(b)];
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
+
+/**
+ * The colour of each main branch, 0 … count − 1, from a design's colours.
+ * Branches are coloured in order (the canopy's from left to right, then
+ * the trunk's side families), each taking the least used colour (the
+ * earlier in the design's order on a tie) that stands at least
+ * NEIGHBOUR_DE from every neighbour already coloured: two branches side by
+ * side never share a colour, nor two of one family's shades. (Owner, 22 Nov
+ * 2026: neighbouring branch heads never the same, visibly apart, the same
+ * every time, for any number of branches.) `neighbours` are the pairs of
+ * branches that stand side by side on the poster (PosterLayout's
+ * lineageNeighbours); without them, each branch beside the next. Where no
+ * colour is far enough from them all (more neighbours than a design has
+ * colours for), the one furthest from its nearest neighbour.
+ */
+export function lineageColours(colours: readonly string[], count: number, neighbours?: readonly (readonly [number, number])[]): string[] {
+  if (!colours.length) return [];
+  const near = Array.from({ length: count }, () => new Set<number>());
+  const pairs = neighbours ?? Array.from({ length: Math.max(0, count - 1) }, (_, i) => [i, i + 1] as const);
+  for (const [a, b] of pairs) if (a !== b && a < count && b < count && a >= 0 && b >= 0) { near[a].add(b); near[b].add(a); }
+  const used = colours.map(() => 0);
+  const pick: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const taken = [...near[i]].filter((j) => j < i).map((j) => colours[pick[j]]);
+    const gapOf = (c: number) => Math.min(Infinity, ...taken.map((t) => labDistance(colours[c], t)));
+    const ok = colours.map((_, c) => c).filter((c) => gapOf(c) >= NEIGHBOUR_DE);
+    const c = ok.length
+      ? ok.reduce((best, x) => (used[x] < used[best] ? x : best))
+      : colours.map((_, x) => x).reduce((best, x) => (gapOf(x) > gapOf(best) ? x : best));
+    pick.push(c);
+    used[c]++;
+  }
+  return pick.map((c) => colours[c]);
 }
 
 
@@ -308,7 +358,8 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2e2418", inkSoft: "#5c4834", muted: "#5c4834", footerInk: "#4f3e2c", creditInk: "#5f4d38",
     canopyWash: "#ece2cb", canopyWashOpacity: 0.4,
     spouseFill: "#f3ece0", spouseRim: "#8a7350", spouseInk: "#4a3b2a", legendParent: "#e6dcc6",
-    lineage: ["#5a6a5c", "#8a6a2e", "#7a4a52", "#3f5a7e", "#a24e36", "#5a4232", "#6a6a3a", "#5a4a78"],
+    lineage: ["#5a6a5c", "#8a6a2e", "#7a4a52", "#3f5a7e", "#a24e36", "#5a4232", "#6a6a3a", "#5a4a78",
+      "#778979", "#644910", "#a77079", "#6682aa", "#c86b4f", "#846856", "#898854", "#8370a4"],
     frame: "rule", titleStyle: "divider", rimStyle: "fill", texture: "none",
   },
   // opulent: rich parchment, espresso, foil gold kept to frame, title and ornament
@@ -318,7 +369,8 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2d2119", inkSoft: "#49301f", muted: "#49301f", footerInk: "#49301f", creditInk: "#5a4330",
     canopyWash: "#e4cf9f", canopyWashOpacity: 0.22,
     spouseFill: "#f4e7cc", spouseRim: "#8d6626", spouseInk: "#49301f", legendParent: "#e5d4ad",
-    lineage: ["#86601d", "#4f4a2a", "#7a3e34", "#3f4f5c", "#4a3020", "#6a4060", "#6e6a2a", "#94512a"],
+    lineage: ["#86601d", "#4f4a2a", "#7a3e34", "#3f4f5c", "#4a3020", "#6a4060", "#6e6a2a", "#94512a",
+      "#5f4000", "#383411", "#a86457", "#657685", "#381e0d", "#956689", "#4b490c", "#b3693e"],
     frame: "foil", titleStyle: "cartouche", rimStyle: "metal", texture: "none",
   },
   // historic: aged parchment, ink brown, brass
@@ -328,7 +380,8 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2b1e12", inkSoft: "#5a3e27", muted: "#5a3e27", footerInk: "#4a3320", creditInk: "#54402b",
     canopyWash: "#dcc69c", canopyWashOpacity: 0.2,
     spouseFill: "#f2e5c9", spouseRim: "#7f6131", spouseInk: "#4a3320", legendParent: "#e0cfa8",
-    lineage: ["#6b3e26", "#4b5a3a", "#3e4e63", "#80691f", "#7a2e34", "#5e3a5a", "#9a4630", "#2e5a52"],
+    lineage: ["#6b3e26", "#4b5a3a", "#3e4e63", "#80691f", "#7a2e34", "#5e3a5a", "#9a4630", "#2e5a52",
+      "#986348", "#6c7d59", "#64758d", "#5a4800", "#a95458", "#885f83", "#702614", "#4e7d74"],
     frame: "manuscript", titleStyle: "panel", rimStyle: "engraved", texture: "grain",
   },
   // contemporary: porcelain, platinum, champagne, steel
@@ -338,7 +391,8 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#22282e", inkSoft: "#4a525c", muted: "#4a525c", footerInk: "#3a4149", creditInk: "#4f5761",
     canopyWash: "#e9ebe8", canopyWashOpacity: 0.5,
     spouseFill: "#f2f1ec", spouseRim: "#7b6a44", spouseInk: "#3a4149", legendParent: "#e4e6e8",
-    lineage: ["#3f5f86", "#836a33", "#4f6f55", "#7a4f6a", "#3c3c44", "#707070", "#2e5e5e", "#8a5a3a"],
+    lineage: ["#3f5f86", "#836a33", "#4f6f55", "#7a4f6a", "#3c3c44", "#707070", "#2e5e5e", "#8a5a3a",
+      "#6787b3", "#9f8348", "#6b8e71", "#a67693", "#26262e", "#898989", "#548786", "#b37c59"],
     frame: "metal", titleStyle: "steel", rimStyle: "metal", texture: "none",
   },
   // organic: deep teal, dusty rose, walnut, antique gold for the lineage
@@ -348,7 +402,8 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#2a2620", inkSoft: "#4b4035", muted: "#4b4035", footerInk: "#4b4035", creditInk: "#564a3c",
     canopyWash: "#dfe6d6", canopyWashOpacity: 0.45,
     spouseFill: "#f5e5e6", spouseRim: "#9a6656", spouseInk: "#5a3730", legendParent: "#e5ded0",
-    lineage: ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380", "#a3543d", "#697044", "#8e3a41", "#76533b"],
+    lineage: ["#2a5f5a", "#8c6b23", "#6d4c66", "#4a6380", "#a3543d", "#697044", "#8e3a41", "#76533b",
+      "#508882", "#654a03", "#98738f", "#6781a1", "#793420", "#474e26", "#be6066", "#a27a5f"],
     frame: "botanical", titleStyle: "sprig", rimStyle: "fill", texture: "none",
   },
   // regal: forest emerald, brass, deep green
@@ -358,7 +413,8 @@ export const PRESET_PALETTES: Record<ThemePreset, Omit<PosterPalette, "inkOnly">
     ink: "#1c2a22", inkSoft: "#3d4a40", muted: "#5c431f", footerInk: "#2c4639", creditInk: "#45554b",
     canopyWash: "#d7e6dc", canopyWashOpacity: 0.5,
     spouseFill: "#edf2ea", spouseRim: "#2c6a4e", spouseInk: "#123f30", legendParent: "#e1e4d6",
-    lineage: ["#236347", "#856522", "#2f5e73", "#6e4a5c", "#9a4e2a", "#4a3020", "#5a6a2e", "#5a3a6e"],
+    lineage: ["#236347", "#856522", "#2f5e73", "#6e4a5c", "#9a4e2a", "#4a3020", "#5a6a2e", "#5a3a6e",
+      "#498c6d", "#5f4403", "#56869e", "#997084", "#bf6b43", "#735442", "#788947", "#845f99"],
     frame: "regal", titleStyle: "star", rimStyle: "gold", texture: "none",
   },
   // minimal: black ink on soft white
@@ -406,6 +462,15 @@ export function satinStops(c: string): [string, string, string] {
   return [shade(c, 0.55), shade(c, 0.12), shade(c, -0.1)];
 }
 
+/**
+ * How far each drawn frame reaches in from the page's edge, in widths: its
+ * innermost rule, band or ornament (see poster/frames.tsx). The gold foil is
+ * an artwork with rosettes and is placed round instead (framePlacement).
+ */
+export const FRAME_INSET: Record<PosterPalette["frame"], number | undefined> = {
+  foil: undefined, rule: 0.034, hairline: 0.031, manuscript: 0.061, metal: 0.052, botanical: 0.044, regal: 0.054,
+};
+
 /** Layout options implied by a theme and poster size (shape, labels, legibility, header space). */
 export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
   return {
@@ -416,6 +481,9 @@ export function layoutOptionsFor(theme: PosterTheme, paper: PaperSize = "A2") {
     branchScale: isInkOnly(theme) ? 0.35 : 1,
     cornerMedallions: theme.verse || theme.hadith,
     framed: theme.frame,
+    // (how deep a drawn frame reaches in; the gold-foil artwork's rosettes
+    // are kept clear of instead)
+    frameInset: theme.frame ? FRAME_INSET[paletteOf(theme).frame] : undefined,
     soilStyle: theme.soilStyle,
     soilShorten: theme.soilShorten ?? false,
     femaleCapsule: theme.femaleCapsule,

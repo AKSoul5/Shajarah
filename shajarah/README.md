@@ -426,22 +426,62 @@ is held in the page as a `data:` URL.
 ## The tree's shape
 
 The poster is meant to read as a tree in every theme: a trunk, and a crown
-rising from it. Three things see to it:
+rising from it. Since 1.0.60 the crown is laid out as a fan of rings round
+the canopy base:
 
-- **The crown rises.** The canopy's sweep starts about 17° above horizontal
-  on each side, so its lowest names sit above where the trunk divides,
-  never level with it or hanging below as a flat-bottomed fan. (A
-  generation of more than 50 names needs the whole width: the lift eases
-  back by 100 names, so the names stay legible.)
-- **A large branch is centred** (above).
-- **Never at the cost of clarity or legibility:** when the rising crown
-  does not give a clean, legible poster, the old wide sweep is tried too,
-  and the better of the two is kept. (A family of more than 150 names is
-  not laid out twice, which would be slow: the choice is made on the
-  layout's first attempt, the wide sweep taken only when it is clean and
-  legible at once and the rising crown is not, or when only it keeps the
-  names legible.) The crown is also sized for the narrower sweep before
-  any name is placed.
+- **One ring per generation.** Every generation's names stand on one oval
+  round the canopy base, 1.6 times as tall as it is wide where the page has
+  the height, the same shape for every generation and the same on both
+  sides. A name never steps off its ring to clear a neighbour: a crowded
+  generation's ring moves further out (with every ring outside it), and
+  only where the page runs out are the names set smaller. A ring moves out
+  when one family's children do not fit between their father and the next
+  father along, not only when the whole ring is full.
+- **The fan opens with the family.** Small families' rings end level with
+  the canopy base, clear of the trunk; a family with many names in a
+  generation opens its outer rings lower down both sides, as far as their
+  ends stay clear of the trunk and its side families.
+- **Rings spaced by the names facing each other.** Towards the sides a name
+  lies across the gap between two rings with its full width, at the top
+  only its height; the gap at each angle is what the names there need, plus
+  a lane for the lines, which narrows as the names are set smaller.
+- **Children at the middle of their own slice**, in their order. Where a
+  father is pushed along his ring (by a brother's large badge), his
+  children move with him.
+- **The centred son rises straight up the middle**, his mother upright
+  above her husband, and his brothers are packed out from him on either
+  side: a crowded side never pushes him off the trunk's line.
+- **One spouse ring per generation.** A spouse with children stands where
+  the straight line from the partner to the middle of their children
+  crosses the spouse ring (the shortest way); a childless spouse straight
+  out from the partner. A box slides along its ring off a name, never in or
+  out.
+- **Daughters never head branches.** A daughter whose family is shown
+  through her has no badge or colour of her own; her family is laid out
+  like any other branch, on dotted lines.
+- **Titles on the second line.** A title typed at the end of a name
+  ("الملقب بالأمين", "ذو النورين", "الأكبر", "الشيخ", "رحمه الله"; "known as
+  …", "the Elder") is set on the quiet second line of every name plate and
+  badge, as a laqab entered in its own field is; on one line the plate was
+  two or three times as wide as the names round it. A long name in a round
+  badge is set on two lines.
+- **Side families on the trunk** are nested boughs: one fan per side, each
+  family in its own wedge, the highest one flattest and outermost;
+  childless sons are level twigs. Arabic is never tilted: leaves are level.
+- **Never at the cost of clarity or legibility:** the size search keeps the
+  largest clean size, and climbs from it (a clean size does not mean every
+  larger one is unclean on rings). Where nothing is clean at the legible
+  size, a few smaller sizes are tried: a clean poster comes first, and the
+  editor recommends a larger paper.
+
+Against 1.0.59, on the 448 posters of the layout QA: names larger on 335,
+smaller on 89, 16% larger on median, no poster with a new defect, the whole
+run 31% quicker. Three posters of the 138-person stress family with every
+family shown come out clean but under the legible size at A1 (3.02, 3.07
+and 3.08 mm against 3.20); they are recorded in the QA baseline and the
+editor recommends A0 for them. On a private 340-person family the A0
+poster's names went from 3.20 to 3.38 mm with no problem (1.0.59: one), and
+2A0 from 3.39 to 5.57 mm.
 
 The shape is measured (`measureShape` in `src/lib/layout/shape.ts`):
 
@@ -1077,14 +1117,18 @@ Every preset but the black-and-white one colours each main branch
 youngest names. (Colouring the names by generation instead is under
 **Colour nodes by**.)
 
-- **Up to eight branch colours, of like weight, per design:** each design
+- **Sixteen branch colours per design, never a neighbour's:** each design
   has its own eight, the first four the ones it always had (in Refined
-  Heritage: deep teal, antique gold, dusty plum and slate blue). A poster
-  uses six in turn, so neighbouring branches always differ and no two of
-  the first six branches share a colour; the seventh and eighth are used
-  only by a family with that many main branches. Every colour is checked
-  to stay distinct from the others and readable on the design's paper.
-  Modern Archive keeps plain black lines.
+  Heritage: deep teal, antique gold, dusty plum and slate blue), and a
+  shade of each, in the same colour family (lighter where the paper allows,
+  else darker). Every branch takes the least used colour that stands
+  clearly apart (CIELAB ΔE at least 19.5) from the branches beside it,
+  round the tree: the left side's families from the foot of the trunk up,
+  the canopy's branches left to right, the right side's families down. Up
+  to sixteen branches each have their own colour; a poster's first eight
+  branches keep the colours they had; the same family always gets the same
+  colours. Every colour is at least 3:1 on its design's paper. Modern
+  Archive keeps plain black lines.
 - **Limbs no heavier than they need be:** a line's width still follows how
   many people it carries, but the widest is at most 1.2% of the page, so
   the names, not the wood, carry the poster.
@@ -1752,10 +1796,19 @@ Without a sample value, `/demo` loads the large demo family.
 
 In order:
 
-1. **Server-side vector PDF** (headless Chromium `page.pdf()`), with
+1. **The three posters under the legible size (1.0.61):** the 138-person
+   test family with every family shown, at A1 in Heritage, Luxe and Refined
+   (English); and posters with the alternative name-box shapes at A2,
+   smaller than in 1.0.59; and the canopy's empty space at the top and
+   sides of the page.
+2. **The new fan's known failures (1.0.61),** listed with their reasons in
+   `tests/known-failures.ts`: side families' lines on a crowded trunk,
+   two wives' lines on one test family, the 90-person stress family, an
+   inner ring's end name below the canopy base beside the trunk.
+3. **Server-side vector PDF** (headless Chromium `page.pdf()`), with
    CMYK/bleed options, once print shops ask for it. Until then the SVG opens
    in Inkscape.
-2. **Accounts and per-family sharing**, building on the version check: live
+4. **Accounts and per-family sharing**, building on the version check: live
    updates between editors instead of "reload".
 
 Also wanted: Hijri dates, editable title/credits/sources panels like the

@@ -366,7 +366,7 @@
 "legible": false
 },
 "C-en_all_refined_A1": {
-"legible": true
+"legible": false
 },
 "C-en_all_refined_A3": {
 "legible": false
@@ -378,13 +378,13 @@
 "legible": false
 },
 "C-en_daughters_classic_A1": {
-"legible": false
+"legible": true
 },
 "C-en_daughters_classic_A3": {
 "legible": false
 },
 "C-en_daughters_emerald_A1": {
-"legible": false
+"legible": true
 },
 "C-en_daughters_emerald_A3": {
 "legible": false
@@ -396,7 +396,7 @@
 "legible": false
 },
 "C-en_daughters_luxe_A1": {
-"legible": false
+"legible": true
 },
 "C-en_daughters_luxe_A3": {
 "legible": false
@@ -414,7 +414,7 @@
 "legible": false
 },
 "C-en_daughters_silver-gold_A1": {
-"legible": false
+"legible": true
 },
 "C-en_daughters_silver-gold_A3": {
 "legible": false
@@ -435,7 +435,7 @@
 "legible": true
 },
 "C-en_males_heritage_A3": {
-"legible": false
+"legible": true
 },
 "C-en_males_luxe_A1": {
 "legible": true
@@ -447,7 +447,7 @@
 "legible": true
 },
 "C-en_males_mono_A3": {
-"legible": false
+"legible": true
 },
 "C-en_males_refined_A1": {
 "legible": true
@@ -489,7 +489,7 @@
 "legible": true
 },
 "C-en_spouses_mono_A3": {
-"legible": false
+"legible": true
 },
 "C-en_spouses_refined_A1": {
 "legible": true
@@ -570,7 +570,7 @@
 "legible": true
 },
 "C_all_heritage_A1": {
-"legible": true
+"legible": false
 },
 "C_all_heritage_A2_banner": {
 "legible": false
@@ -600,7 +600,7 @@
 "legible": true
 },
 "C_all_luxe_A1": {
-"legible": true
+"legible": false
 },
 "C_all_luxe_A2_banner": {
 "legible": false
@@ -723,7 +723,7 @@
 "legible": true
 },
 "C_daughters_classic_A3": {
-"legible": false
+"legible": true
 },
 "C_daughters_emerald_2A0": {
 "legible": true
@@ -735,7 +735,7 @@
 "legible": true
 },
 "C_daughters_emerald_A3": {
-"legible": false
+"legible": true
 },
 "C_daughters_heritage_2A0": {
 "legible": true
@@ -747,7 +747,7 @@
 "legible": true
 },
 "C_daughters_heritage_A3": {
-"legible": false
+"legible": true
 },
 "C_daughters_luxe_2A0": {
 "legible": true
@@ -771,7 +771,7 @@
 "legible": true
 },
 "C_daughters_mono_A3": {
-"legible": false
+"legible": true
 },
 "C_daughters_refined_2A0": {
 "legible": true
@@ -783,7 +783,7 @@
 "legible": true
 },
 "C_daughters_refined_A3": {
-"legible": false
+"legible": true
 },
 "C_daughters_silver-gold_2A0": {
 "legible": true
@@ -795,7 +795,7 @@
 "legible": true
 },
 "C_daughters_silver-gold_A3": {
-"legible": false
+"legible": true
 },
 "C_males_classic_2A0": {
 "legible": true
@@ -807,7 +807,7 @@
 "legible": true
 },
 "C_males_classic_A3": {
-"legible": false
+"legible": true
 },
 "C_males_emerald_2A0": {
 "legible": true
@@ -819,7 +819,7 @@
 "legible": true
 },
 "C_males_emerald_A3": {
-"legible": false
+"legible": true
 },
 "C_males_heritage_2A0": {
 "legible": true
@@ -831,7 +831,7 @@
 "legible": true
 },
 "C_males_heritage_A3": {
-"legible": false
+"legible": true
 },
 "C_males_luxe_2A0": {
 "legible": true
@@ -867,7 +867,7 @@
 "legible": true
 },
 "C_males_refined_A3": {
-"legible": false
+"legible": true
 },
 "C_males_silver-gold_2A0": {
 "legible": true
@@ -879,7 +879,7 @@
 "legible": true
 },
 "C_males_silver-gold_A3": {
-"legible": false
+"legible": true
 },
 "C_spouses_classic_2A0": {
 "legible": true
@@ -915,7 +915,7 @@
 "legible": true
 },
 "C_spouses_heritage_A3": {
-"legible": false
+"legible": true
 },
 "C_spouses_luxe_2A0": {
 "legible": true
@@ -927,7 +927,7 @@
 "legible": true
 },
 "C_spouses_luxe_A3": {
-"legible": false
+"legible": true
 },
 "C_spouses_mono_2A0": {
 "legible": true

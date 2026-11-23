@@ -44,7 +44,7 @@
  */
 import { hierarchy, type HierarchyNode } from "d3-hierarchy";
 import { childrenIndex, hiddenFromPoster, lineagePath, lineIds, lineRootOf, withAncestors } from "../genealogy";
-import { givenAndFamilyName, nameLines } from "../nasab";
+import { givenAndFamilyName, nameLines, splitTitle } from "../nasab";
 import type { MemberDTO, TreeDTO } from "../types";
 import {
   add, circlePath, cubicPoint as cubicPointAt, cubicTangent, len, norm, ribbonPath, scale, sub,
@@ -123,6 +123,10 @@ export interface LayoutOptions {
   soilKeep?: boolean;
   /** Internal: also tries a few sizes above the legible one where that is not clean (see laddered). */
   sizeLadder?: boolean;
+  /** Internal: the highest a side family's fan may reach, radians above horizontal (negative: below). */
+  droopSides?: number;
+  /** Internal: false lays the canopy out as before 1.0.60, without its rings round the canopy base (a reference for comparisons; never set by the app). */
+  circleRings?: boolean;
   /** Internal: room between the fans of side families whose badges are close (see posterSteps). */
   sideGap?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
@@ -163,6 +167,13 @@ export interface LayoutOptions {
    * panels clear of its corner flourishes and mid-side rosettes.
    */
   framed?: boolean;
+  /**
+   * How deep a drawn frame reaches in from the page's edge, in widths (its
+   * rules, band and corner ornaments). Unset: the gold-foil artwork, whose
+   * rosettes at the centre of its top and foot the header and footer keep
+   * clear of.
+   */
+  frameInset?: number;
   /** Daughters are drawn as capsules even where sons are leaves. */
   femaleCapsule?: boolean;
   /** Printed width of the poster (mm); legibility is judged at this size. Default A2 (420). */
@@ -189,6 +200,8 @@ export interface PosterNode {
   label: string;
   /** A quieter second line (on round holders it may be two, split by "\n"). */
   subLabel: string | null;
+  /** A round medallion's long name, set on two lines (see stackName). */
+  nameLines?: string[];
   /** True for members without (visible) children. */
   terminal: boolean;
   /** Her children belong to another family (a daughter's, on dotted lines). */
@@ -391,6 +404,8 @@ export interface PosterLayout {
   sweepLift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
   centerLine?: string[];
+  /** Main branches (PosterNode.lineage) that stand side by side on the poster, for their colours (see lineageColours). */
+  lineageNeighbours?: [number, number][];
 }
 
 interface TNode {
@@ -439,6 +454,12 @@ export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): Po
  */
 export type PosterSteps = Generator<LayoutOptions, PosterLayout, PosterLayout>;
 export function* posterSteps(opts: LayoutOptions = {}): PosterSteps {
+  // (inside a drawn frame the tree takes the room once kept for the foil's
+  // rosettes: see framePlacement)
+  return yield* gappedSteps(opts);
+}
+
+function* gappedSteps(opts: LayoutOptions): PosterSteps {
   const layout = yield* coreSteps(opts);
   // Neighbouring side families apart: where the poster is left with
   // problems and the trunk has side families, it is laid out again with a
@@ -476,12 +497,21 @@ function* coreSteps(opts: LayoutOptions): PosterSteps {
   return layout;
 }
 
-/** The foundation's text more than LOWER_RATIO times the canopy's typical name. */
-const LOWER_RATIO = 2;
+/**
+ * The foundation's text, or the trunk's names, more than LOWER_RATIO times
+ * the canopy's typical name. (1.5 and the trunk counted since the owner's
+ * family at A0, 22 Nov 2026: its foundation at 1.98 times the canopy's
+ * names and its trunk at 1.8 times took half the page, the short trunk
+ * never tried, though it set the canopy's names larger, 3.38 mm against
+ * 3.26.)
+ */
+const LOWER_RATIO = 1.5;
 function oversizedLower(l: PosterLayout): boolean {
-  if (!l.soil || !l.nodes.length) return false;
+  if (!l.nodes.length) return false;
   const sizes = l.nodes.map((n) => n.fontSize).sort((a, b) => a - b);
-  return l.soil.fontSize > LOWER_RATIO * sizes[sizes.length >> 1];
+  const typical = sizes[sizes.length >> 1];
+  return (!!l.soil && l.soil.fontSize > LOWER_RATIO * typical)
+    || (l.trunkLabels ?? []).some((t) => t.fontSize > LOWER_RATIO * typical);
 }
 
 function* withBoxRoom(opts: LayoutOptions): PosterSteps {
@@ -611,6 +641,11 @@ export function uprightNeedsPlain(l: PosterLayout): boolean {
 export function pickUpright(upright: PosterLayout, plain: PosterLayout): PosterLayout {
   const ok = (l: PosterLayout) => (isCleanPoster(l) ? 2 : 0) + (l.legibility.ok ? 1 : 0);
   const a = upright.legibility.smallestTextMm, b = plain.legibility.smallestTextMm;
+  // (with rings round the canopy base, the mother stands upright whenever
+  // that is as clean and as legible: the line straight up the middle of the
+  // tree is the owner's rule, 1.0.54, not a matter of a few hundredths of a
+  // millimetre of type; owner, 22 Nov 2026)
+  if (upright.recipe?.opts.circleRings !== false && ok(upright) >= ok(plain)) return upright;
   if (ok(plain) > ok(upright) || (ok(plain) === ok(upright) && (b > a * 1.005 || (b >= a * 0.995 && linesAlongside(plain).length < linesAlongside(upright).length)))) return plain;
   return upright;
 }
@@ -764,7 +799,19 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       // what a larger paper is for)
       const legibleScale = clamp((full.legibility.minTextMm / Math.max(1e-6, full.legibility.smallestTextMm)) * 1.02, MIN_SCALE, 1);
       // and a size below it, to tell whether only illegible names would do
-      const below = Math.min(0.35, legibleScale * 0.8);
+      // (and where that is not clean either, a few smaller: clean comes
+      // first, the editor then recommending a larger paper. With rings
+      // round the canopy base, a family's deep generations at the fan's
+      // ends were left with lines under names down to 0.35 of their size,
+      // and the poster at the legible size kept with 89 ambiguities: QA
+      // family C-en at A3, clean at 0.3)
+      let below = Math.min(0.35, legibleScale * 0.8);
+      if (!(legibleScale < 0.999 && isClean(at(legibleScale))) && !isClean(at(below))) {
+        for (const k of [0.85, 0.7, 0.55]) {
+          const sc = Math.round(Math.max(MIN_SCALE, below * k) * 1000) / 1000;
+          if (isClean(at(sc))) { below = sc; break; }
+        }
+      }
       if (legibleScale < 0.999 && isClean(at(legibleScale))) {
         chosen = bisect(legibleScale, 1);
         // (left at the legible size itself, the halving's steps being coarse:
@@ -874,6 +921,24 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
             tried.set(lo, best);
             chosen = lo;
           }
+          break;
+        }
+      }
+    }
+    // With rings round the canopy base (circleRings) a clean size does not
+    // mean every larger one is unclean: a name lands on another ring's line
+    // at one size and clear of it at the next. The size found clean is
+    // climbed from: a few larger sizes, the largest clean one kept. (QA
+    // family B at A1: 7.21 mm found, 9.44 mm clean.)
+    if (opts.circleRings !== false && isClean(at(chosen)) && chosen < 0.999) {
+      const key = (sc: number) => Math.round(sc * 1000) / 1000;
+      for (const k of [1.7, 1.5, 1.3, 1.18, 1.08]) {
+        const sc = key(Math.min(1, chosen * k));
+        if (sc <= chosen) continue;
+        const l = tried.get(sc) ?? attempt(sc);
+        if (isClean(l) && (l.legibility.ok || !at(chosen).legibility.ok)) {
+          tried.set(sc, l);
+          chosen = sc;
           break;
         }
       }
@@ -1240,6 +1305,26 @@ const CENTER_SHARE = 0.3;
  * a steeper sweep starts to cost name size.)
  */
 const SWEEP_LIFT = 0.3;
+/** Widest generation (names) up to which a fan of circle rings keeps the rising crown's lift; see FAN_OPEN_FULL. */
+const FAN_OPEN_FROM = 12;
+/** Widest generation (names) from which a fan of circle rings opens to FAN_OPEN_MAX. */
+const FAN_OPEN_FULL = 40;
+/** How far a fan of circle rings opens, radians above horizontal (negative: below; −0.25 ≈ 14° below). */
+const FAN_OPEN_MAX = -0.25;
+/** The highest a side family's fan reaches, radians above horizontal (−0.2 ≈ 11° below: it droops from its badge). */
+const DROOP_SIDES = -0.2;
+/** How far out the trunk's side families' first names stand, as a share of the room beside the trunk (see sideGeoOf). */
+const SIDE_INNER = 0.45;
+/** How far either side of the trunk's axis (a share of the page's width) a canopy ring's ends must stay before it opens below level. */
+const TRUNK_CLEAR = 0.2;
+/** How far each canopy child's place is drawn towards its father's direction (0: its own sector's middle, 1: the father's ray). (Off: the owner kept each child at the middle of its own slice, 22 Nov 2026.) */
+const CHILD_PULL = 0;
+/** How far round the spouse ring (radians) a spouse may stand from the partner, towards the middle of their children (no limit: held nearer, its boxes got in the way of the partner's other children's lines, and a private 340-person family's names fell from 3.58 to 2.5 mm at A0). */
+const SPOUSE_LEAN = Math.PI;
+/** How much taller than wide each generation's ring is (owner's decision, 21 Nov 2026: ovals; circles made names smaller on 236 of 448 QA posters). */
+const RING_ASPECT = 1.6;
+/** The trunk's ancestors' type with rings round the canopy base, as a multiple of the legible least (see trunkFontFor). */
+const TRUNK_TEXT = Infinity;
 /** The full lift up to this many names in the canopy's most crowded generation; none (the old sweep) from LIFT_NONE_FROM. */
 const LIFT_FULL_UNTIL = 50;
 const LIFT_NONE_FROM = 100;
@@ -1300,6 +1385,11 @@ function layoutAttemptBody(
   tree: TreeDTO, opts: LayoutOptions, fontScale: number, final = true, strictFamilies = false, dense = false,
   budget: { checks: number; fit?: number; crossings?: boolean; fan?: number; ends?: boolean } = { checks: CHECKS },
 ): PosterLayout {
+  // Every generation's ring a circle round the canopy base, the side
+  // families drooping from their badges (owner's decisions, 21 Nov 2026);
+  // false brings back the rings that follow the canopy's outline.
+  const circleRings = opts.circleRings !== false;
+  const droopSides = opts.droopSides ?? (circleRings ? DROOP_SIDES : undefined);
   const W = opts.width ?? 2400;
   const H = opts.height ?? Math.round(W * Math.SQRT2);
   const seed = opts.seed ?? tree.settings?.seed ?? 7;
@@ -1379,8 +1469,10 @@ function layoutAttemptBody(
   // footer, and never below the legible minimum for the paper size.
   const framed = !!opts.framed;
   const margin = W * (framed ? 0.1 : 0.05);
-  const place = framePlacement(W, H, framed);
-  const contentTop = H * (opts.headerBand ?? 0.095);
+  const place = framePlacement(W, H, framed, opts.frameInset);
+  // (inside a drawn frame the header starts higher, and the tree with it)
+  const headerLift = framed && opts.frameInset !== undefined ? H * 0.112 - place.header.basmala : 0;
+  let contentTop = H * (opts.headerBand ?? 0.095) - headerLift;
   // the footer (key, the counts' cards, the credit) takes ~5 lines of
   // W·0.012 text above footerY
   const contentBottom = place.footerY - W * 0.062;
@@ -1440,6 +1532,19 @@ function layoutAttemptBody(
     rootT = candidates[0]?.t ?? build(visible[0]);
   }
   const root = hierarchy<TNode>(rootT, (d) => d.children).count() as HNode;
+  // How many people a limb carries on solid lines, which sets its width: a
+  // daughter whose family is shown through her counts as one (her children,
+  // of their father's family, hang from her on dotted lines; counted in, her
+  // limb was the heaviest of her brothers' and sisters' and ended in dots).
+  const solidMemo = new Map<HNode, number>();
+  const solidCount = (n: HNode): number => {
+    let v = solidMemo.get(n);
+    if (v === undefined) {
+      v = !n.children?.length || (n.data.member && through.has(n.data.member.id)) ? 1 : n.children.reduce((a, c) => a + solidCount(c as HNode), 0);
+      solidMemo.set(n, v);
+    }
+    return v;
+  };
 
   // Families through a daughter: her children (drawn from her, not from
   // their father) and all their descendants are relatives outside the
@@ -1470,10 +1575,15 @@ function layoutAttemptBody(
 
   // Label text for a member, honouring the label mode and years option.
   const labelOf = (m: MemberDTO) => {
-    let label = m.name;
+    // A title typed at the end of the name ("الملقب بالأمين", "ذو النورين",
+    // "الأكبر") goes on the quiet second line with a laqab: on one line it
+    // made the plate two or three times as wide as the names round it
+    // (owner, 23 Nov 2026). The name as entered is kept.
+    const { name, title } = splitTitle(m.name);
+    let label = name;
     if (labelMode === "withFather") {
       const f = m.fatherId ? byMemberId.get(m.fatherId) : undefined;
-      if (f) label = ARABIC.test(m.name) ? `${m.name} ${m.gender === "FEMALE" ? "بنت" : "بن"} ${f.name}` : `${m.name} ${f.name}`;
+      if (f) label = ARABIC.test(name) ? `${name} ${m.gender === "FEMALE" ? "بنت" : "بن"} ${splitTitle(f.name).name}` : `${name} ${splitTitle(f.name).name}`;
     }
     let subLabel: string | null = null;
     if (showYears && (m.birthYear || m.deathYear)) {
@@ -1481,8 +1591,10 @@ function layoutAttemptBody(
       subLabel = m.deathYear ? `${fmt(m.birthYear)}–${fmt(m.deathYear)}` : fmt(m.birthYear);
     }
     // A laqab or honorific (الشيخ، رحمه الله …) is a quiet second line.
-    const laqab = m.laqab?.trim();
-    if (laqab) subLabel = subLabel ? `${laqab} · ${subLabel}` : laqab;
+    // (joined with a comma in Arabic: a middle dot reads as the digit zero)
+    const join = ARABIC.test(m.name) ? "، " : " · ";
+    const laqab = [...new Set([title, m.laqab?.trim()].filter((x): x is string => !!x))].join(join);
+    if (laqab) subLabel = subLabel ? `${laqab}${join}${subLabel}` : laqab;
     return { label, subLabel };
   };
 
@@ -1542,7 +1654,9 @@ function layoutAttemptBody(
 
   // Label sizing, shared by the space estimate and the real nodes.
   // Branch heads (sons with descendants on the first ring) are medallions.
-  const isMedallion = (n: HNode, depth: number, region: Region) => depth === 1 && region === "crown" && !!n.children?.length;
+  // A daughter whose family is shown through her never heads a branch: her
+  // children carry their father's family name, not this one.
+  const isMedallion = (n: HNode, depth: number, region: Region) => depth === 1 && region === "crown" && !!n.children?.length && !through.has(n.data.member!.id);
   const isLeaf = (n: HNode) =>
     !n.children && nodeShape === "leaf" && !(opts.femaleCapsule && n.data.member!.gender === "FEMALE");
   const floorFor = (f: number) => Math.min(f, minFont);
@@ -1553,7 +1667,7 @@ function layoutAttemptBody(
     const med = isMedallion(n, d, "crown");
     let fs = fontFor(d, med, f);
     const label = labelOf(n.data.member!).label;
-    if (med) return Math.max(fs * 2.7, textWidth(label, fs) + fs * 0.9) ** 2;
+    if (med) return medallionSize(label, fs, 0) ** 2;
     if (isLeaf(n)) {
       fs = Math.max(floorFor(f), fs * 0.9);
       const L = textWidth(label, fs) + fs * 1.9;
@@ -1628,7 +1742,14 @@ function layoutAttemptBody(
   // LIFT_NONE_FROM; names stay legible and clean before the shape is tidy)
   const widestRing = Math.max(0, ...[...crownNodes.reduce((m, n) => m.set(n.depth, (m.get(n.depth) ?? 0) + 1), new Map<number, number>()).values()]);
   const crowding = clamp((widestRing - LIFT_FULL_UNTIL) / (LIFT_NONE_FROM - LIFT_FULL_UNTIL), 0, 1);
-  let lift = opts.sweepLift ?? SWEEP_LIFT + (WIDE_SWEEP - SWEEP_LIFT) * crowding;
+  // With rings that are circles (circleRings, the default) the fan opens
+  // further, equally on both sides: from the rising crown's lift for a
+  // generation of up to FAN_OPEN_FROM names to FAN_OPEN_MAX below horizontal
+  // for one of FAN_OPEN_FULL or more (on a private 340-person family, whose
+  // widest generation has 46 names, 14° below: names 3.39 to 4.48 mm at 2A0,
+  // clean).
+  const fanOpening = clamp((widestRing - FAN_OPEN_FROM) / (FAN_OPEN_FULL - FAN_OPEN_FROM), 0, 1);
+  let lift = opts.sweepLift ?? (circleRings ? SWEEP_LIFT + (FAN_OPEN_MAX - SWEEP_LIFT) * fanOpening : SWEEP_LIFT + (WIDE_SWEEP - SWEEP_LIFT) * crowding);
   let ARC = Math.PI - 2 * lift; // the canopy's angular range (thetaStart - thetaEnd)
   const RING_FILL = 0.85; // families leave a little room between them
   // Where each ring must be at least (as a fraction of the way from r0 to
@@ -1708,8 +1829,12 @@ function layoutAttemptBody(
   };
   // (see LayoutOptions.compactLower)
   const lowerF = (f: number) => (opts.compactLower && fontScale < 1 ? Math.max(floorFor(f), f * fontScale) : f);
+  // (with rings round the canopy base, the trunk's ancestors keep one
+  // legible size, TRUNK_TEXT times the least, not the canopy's: the trunk
+  // is context, and grown with larger canopy names it took the height the
+  // canopy needed; owner, 22 Nov 2026)
   const trunkFontFor = (f: number) =>
-    Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity));
+    Math.max(floorFor(f), Math.min(lowerF(f) * 0.95, budget.fit ? canopyTypicalFor(f) * budget.fit : Infinity, circleRings ? minFont * TRUNK_TEXT : Infinity));
   const stepFor = (f: number) => trunkFontFor(f) * 1.75;
   const trunkSection = (count: number, f: number) => {
     // a bare trunk (no ancestors above the canopy base) still stands tall
@@ -1966,13 +2091,42 @@ function layoutAttemptBody(
   const top0 = contentTop + Math.max(0, slack) / 2;
   crown = { cx: W / 2, cy: top0 + ry, rx, ry, exponent: 2.4 };
   origin = { x: W / 2, y: crown.cy + 0.8 * ry };
+  // (rings that are circles are as tall as they are wide: on tall paper the
+  // canopy rises to the header and the trunk grows into the height left)
+  let raised = 0;
+  if (circleRings) {
+    const across = (W / 2 - margin) * RING_ASPECT;
+    const room = origin.y - contentTop;
+    if (room > across) {
+      raised = room - across;
+      origin = { x: W / 2, y: origin.y - raised };
+      crown = { ...crown, cy: crown.cy - raised };
+    }
+  }
   const baseMedallionR = baseRFor(f);
   // the oval drawn inside the base's space
   const baseOval = { rx: baseMedallionR * BASE_OVAL.w, ry: baseMedallionR * (baseText.subLabel ? 0.85 : BASE_OVAL.h) };
   const trunkFont = trunkFontFor(f);
+  // (the height the canopy rose by goes to the stretch of trunk the side
+  // families hang from, each gap there up to three times its usual
+  // spacing, so each family has its own band; the ancestors below the
+  // lowest of them keep their usual spacing, and any height left over goes
+  // back above the canopy)
   const trunkStep = stepFor(f);
+  const gaps = shownTrunk.slice(1).map(() => trunkStep);
+  if (raised > 0 && gaps.length) {
+    const anchors = new Set(offshoots.map((o) => o.anchor));
+    const lowest = Math.max(0, shownTrunk.findIndex((c) => anchors.has(c)));
+    // (owner's decision, 21 Nov 2026: the trunk keeps its usual even
+    // spacing; the height goes back above the canopy)
+    const left = raised;
+    if (left > 0) { origin = { ...origin, y: origin.y + left }; crown = { ...crown, cy: crown.cy + left }; }
+  } else if (raised > 0) {
+    stemExtra += raised;
+  }
   const labelTop = origin.y + baseMedallionR + trunkFont * 1.4;
-  const labelBottom = labelTop + Math.max(0, shownTrunk.length - 1) * trunkStep;
+  const labelBottom = labelTop + gaps.reduce((a, g) => a + g, 0);
+  const trunkYs = shownTrunk.map((_, i) => labelBottom - gaps.slice(0, i).reduce((a, g) => a + g, 0));
   groundY = shownTrunk.length ? labelBottom + trunkFont * 1.5 : origin.y + baseMedallionR + trunkSection(0, f) + stemExtra;
   const badgeW = (n: HNode) => Math.max(textWidth(n.data.member!.name, trunkFont) + trunkFont * 1.7, trunkFont * 3.4);
   const widest = Math.max(0, ...shownTrunk.map(badgeW));
@@ -2027,7 +2181,15 @@ function layoutAttemptBody(
     const den = fanSide ** -FAN_P - (sn / fanB) ** FAN_P;
     return den > 1e-12 && c > 1e-6 ? c / den ** (1 / FAN_P) : fanSide;
   })();
-  const reach = lift <= 0 ? outline : (theta: number) => {
+  // Every generation's ring a circle round the canopy base (circleRings):
+  // the same distance from the base at both ends of the fan and at its
+  // top, as large as the room above the base and either side allows.
+  const circleR = Math.min(origin.y - contentTop, W / 2 - margin);
+  // (each ring an oval round the canopy base, RING_ASPECT times taller than
+  // wide where the page has the height; the same shape at every generation)
+  const ovalA = circleR;
+  const ovalB = Math.min(origin.y - contentTop, circleR * RING_ASPECT);
+  const reach = circleRings ? (theta: number) => (ovalA * ovalB) / Math.hypot(ovalB * Math.cos(theta), ovalA * Math.sin(theta)) : lift <= 0 ? outline : (theta: number) => {
     const c = Math.abs(Math.cos(theta)), sn = Math.abs(Math.sin(theta));
     return ((c / fanA) ** FAN_P + (sn / fanB) ** FAN_P) ** (-1 / FAN_P);
   };
@@ -2061,6 +2223,28 @@ function layoutAttemptBody(
     return thetas[lo] + (thetas[hi] - thetas[lo]) * t;
   };
   const maxDepth = Math.max(1, base.height);
+  // Rings that are circles open like a hand fan: the inner folds shorter,
+  // the outer longer. The children's ring keeps the rising crown's lift
+  // (SWEEP_LIFT), each ring further out opens a little lower, the outermost
+  // to the sweep's own lift; every ring the same angle on both sides, the
+  // families in the same order round each.
+  // (a ring opens below level only as far as its ends stay clear of the
+  // trunk and the boughs of its side families, TRUNK_CLEAR of the page's
+  // width either side of its axis: the small inner rings end level, the
+  // larger outer ones open lower, the same on both sides. Opened alike, the
+  // first ring's youngest children stood beside the top of the trunk.)
+  const ringLift = (d: number) => {
+    if (!circleRings) return lift;
+    if (lift >= 0) return lift;
+    const R = r0 + (d / maxDepth) * Math.max(1, reach(0) * 0.95 - r0);
+    const clearX = W * TRUNK_CLEAR;
+    return R <= clearX ? 0 : Math.max(lift, -Math.acos(clearX / R));
+  };
+  const thetaOn = (u: number, d: number) => {
+    const th = uToTheta(u);
+    if (!circleRings) return th;
+    return Math.PI / 2 + (th - Math.PI / 2) * ((Math.PI / 2 - ringLift(d)) / Math.max(1e-6, Math.PI / 2 - lift));
+  };
   const r0 = baseMedallionR + f * 1.6;
   // Where each generation's ring lies, as a fraction t of the way from r0
   // to the canopy's rim: evenly paced, but never closer than a name's
@@ -2068,7 +2252,84 @@ function layoutAttemptBody(
   // canopy for that; a retry with smaller names keeps the canopy's size).
   let meanCrownReach = 0;
   for (let i = 0; i <= 32; i++) meanCrownReach += (reach(thetaEnd + ((thetaStart - thetaEnd) * i) / 32) * 0.95) / 33;
-  const ringT: number[] = (() => {
+  /**
+   * How far (as a fraction of the way out) ring d must stand beyond ring
+   * d − 1 so that no name of one reaches into the other where they face
+   * each other: per 2° of the fan, the radial half-extents of the names
+   * there (a name's width × |cos θ| + its height × |sin θ|, a leaf's
+   * length), plus a lane for the lines between them.
+   */
+  const facingRoom = (span: number) => {
+    const BINS = 90;
+    const half: number[][] = [];
+    const spouseHalf: number[][] = [];
+    const binOf = (th: number) => Math.max(0, Math.min(BINS - 1, Math.floor((th / Math.PI) * BINS)));
+    for (const n of crownNodes) {
+      const d = n.depth - base.depth;
+      const th = thetaOn(n.u ?? 0.5, d);
+      const med = isMedallion(n, d, "crown");
+      const fs = fontFor(d, med, fl);
+      const label = labelOf(n.data.member!).label;
+      const c = Math.abs(Math.cos(th)), sn = Math.abs(Math.sin(th));
+      let radial: number, across: number;
+      if (med) {
+        radial = across = Math.sqrt(estArea(n, fl));
+      } else if (isLeaf(n)) {
+        radial = textWidth(label, fs * 0.9) + fs * 1.9;
+        across = radial * 0.36;
+      } else {
+        const w = textWidth(label, fs) + fs * 1.2, h = fs * 1.6;
+        radial = w * c + h * sn;
+        across = w * sn + h * c;
+      }
+      const R = Math.max(1, r0 + (d / maxDepth) * span);
+      const reachRow = (half[d] ??= new Array(BINS).fill(0));
+      const a0 = binOf(th - (across / 2 + corridorFor(fl, f)) / R), a1 = binOf(th + (across / 2 + corridorFor(fl, f)) / R);
+      for (let k = a0; k <= a1; k++) reachRow[k] = Math.max(reachRow[k], radial / 2);
+      // (and the spouse ring between this generation and the next: a
+      // partner's spouses' boxes, side by side across the partner's way)
+      const m = n.data.member!;
+      const spouseIds = new Set(tree.marriages.filter((x) => x.spouseAId === m.id || x.spouseBId === m.id).map((x) => (x.spouseAId === m.id ? x.spouseBId : x.spouseAId)));
+      if (circleRings && spouseIds.size && (through.has(m.id) || opts.motherNames)) {
+        const sfs = Math.max(floorFor(fl), fs * 0.85);
+        const bw = Math.max(...[...spouseIds].map((id) => textWidth(givenAndFamilyName(byMemberId.get(id)?.name ?? ""), sfs))) + sfs * 2;
+        const bh = sfs * 2.65;
+        const bRadial = bw * c + bh * sn, bAcross = (bw * sn + bh * c) * spouseIds.size;
+        const row = (spouseHalf[d] ??= new Array(BINS).fill(0));
+        const b0 = binOf(th - bAcross / 2 / R), b1 = binOf(th + bAcross / 2 / R);
+        for (let k = b0; k <= b1; k++) row[k] = Math.max(row[k], bRadial);
+      }
+    }
+    // (the lane for the lines between two rings follows the names' size, as
+    // the lines do: set at the full size, the lanes alone of a deep family
+    // took more than the canopy's depth, every gap was then cut by the
+    // same share, and smaller names never bought the lines their room. QA
+    // family C with every family shown, at A1: a long badge at the fan's
+    // end 13 px from the next ring's names, 70 needed)
+    const lane = fl * 1.2;
+    return (d: number) => {
+      let need = 0;
+      for (let k = 0; k < BINS; k++) {
+        const inner = d === 1 ? 0 : half[d - 1]?.[k] ?? 0, outer = half[d]?.[k] ?? 0;
+        if (!outer && !inner) continue;
+        const th = ((k + 0.5) / BINS) * Math.PI;
+        const local = Math.max(1, reach(th) * 0.95 - r0);
+        // (a spouse ring between them: its boxes and a lane each side)
+        const sp = d > 1 ? spouseHalf[d - 1]?.[k] ?? 0 : 0;
+        need = Math.max(need, (inner + outer + lane + (sp ? sp + lane : 0)) / local);
+      }
+      return need;
+    };
+  };
+  // (worked out twice with rings round the canopy base: once before the
+  // families are given their slices of the fan, for the room each needs,
+  // and again after, with every name at its own angle. Worked out only
+  // before, every name counted as standing at the top of the fan, where it
+  // crosses the gap with its height: at the fan's ends, where it crosses
+  // with its full width, the rings stood too close and names reached into
+  // the next generation, lines running under them. QA family C-en at A3:
+  // 12 such down to 0.35 of the names' size.)
+  const ringsAt = (sliced: boolean): number[] => {
     // evenly paced, but a crowded generation further out, where its ring
     // is long enough for its names (crownDims sized the canopy for it)
     const span = Math.max(1, meanCrownReach - r0);
@@ -2076,10 +2337,29 @@ function layoutAttemptBody(
     const room = (d: number) => (holderRoom.has(d) ? (f * 3.2) / span : 0);
     const need = ringChain(ringDemand(fl, f), r0, meanCrownReach, f);
     const t = [0];
-    for (let d = 1; d <= maxDepth; d++) t.push(Math.max(d / maxDepth, dense ? need[d] ?? 0 : 0, (d === 1 ? 0 : t[d - 1] + gap) + room(d)));
+    // Rings round the canopy base (circleRings) are spaced by the names
+    // that face each other across the gap, at each angle: towards the sides
+    // a name lies across the gap with its full width, at the top only its
+    // height. (Spaced by heights alone, a long name at the end of the first
+    // ring stood in the way of the next generation's lines: QA family C at
+    // 4A0, its names set at half the size to clear them.)
+    const facing = circleRings && sliced ? facingRoom(span) : null;
+    for (let d = 1; d <= maxDepth; d++) {
+      const prev = d === 1 ? 0 : t[d - 1];
+      t.push(Math.max(d / maxDepth, dense ? need[d] ?? 0 : 0, (d === 1 ? 0 : prev + gap) + room(d), facing ? prev + facing(d) + room(d) : 0));
+    }
     const top = t[maxDepth];
     return top > 1 ? t.map((v) => v / top) : t;
-  })();
+  };
+  let ringT: number[] = ringsAt(false);
+  // With rings round the canopy base (circleRings), every canopy name stays
+  // on its generation's ring (owner's decision, 21 Nov 2026): no step out
+  // along its ray to clear a neighbour, no push past a mother's spouse's box,
+  // no move outward in the untangling. Only moves along the ring remain; a
+  // crowded ring is laid out again with more room (the size search), never
+  // one name set out of its generation.
+  const onRing = circleRings;
+  const ringRadius = (d: number, th: number) => r0 + (ringT[d] ?? 1) * Math.max(0, reach(th) * 0.95 - r0);
   // The angle a sub-branch needs on its most crowded ring: on each ring, the
   // sum of its names' extents across the ray, over the ring's radius. Inner
   // rings are short, so a father of many childless children (with daughters
@@ -2292,6 +2572,7 @@ function layoutAttemptBody(
       n.u0 = warp(n.u0); n.u1 = warp(n.u1!); n.u = middle ? 0.5 : warp(n.u!);
     }
   }
+  if (circleRings) ringT = ringsAt(true);
 
   const nodes: LiveNode[] = [];
   const byId = new Map<string, LiveNode>();
@@ -2314,10 +2595,12 @@ function layoutAttemptBody(
     const subH = subLabel ? fs * 0.8 * subLines.length : 0;
     let shape: PosterShape;
     let w: number, h: number, angle = 0, leafLength = 0, leafWidth = 0;
+    let nameLines: string[] | undefined;
     if (medallion) {
       shape = "medallion";
-      const tw = Math.max(textWidth(label, fs), subW);
-      w = h = Math.max(fs * 2.7, tw + fs * 0.9) + subH * 0.5;
+      w = h = medallionSize(label, fs, subW) + subH * 0.5;
+      const lines = stackName(label, fs);
+      if (lines.length > 1) nameLines = lines;
     } else if (isLeaf(n)) {
       // The leaf points away from its parent but stays close to horizontal
       // (at most 30° up, 12° down), so the name on it always reads easily.
@@ -2325,7 +2608,9 @@ function layoutAttemptBody(
       fs = Math.max(floorFor(fl), fs * 0.9);
       const out = norm(add(scale(norm(sub(p, from)), 0.8), scale(UP, 0.2)));
       const dir = Math.abs(out.x) < 0.05 ? (p.x >= origin.x ? 1 : -1) : Math.sign(out.x);
-      const tilt = clamp((Math.atan2(-out.y, Math.abs(out.x)) * 180) / Math.PI, -12, 30);
+      // (level: Arabic is never tilted, owner's rule; the leaf points out on
+      // its own side of the tree, its name level on it)
+      const tilt = 0 * clamp((Math.atan2(-out.y, Math.abs(out.x)) * 180) / Math.PI, -12, 30);
       angle = dir > 0 ? -tilt : 180 + tilt;
       const e = { x: Math.cos((angle * Math.PI) / 180), y: Math.sin((angle * Math.PI) / 180) };
       const tw = Math.max(textWidth(label, fs), subLabel ? textWidth(subLabel, fs * 0.7) : 0);
@@ -2361,9 +2646,9 @@ function layoutAttemptBody(
     }
     const node: LiveNode = {
       id: m.id, member: m, x: p.x, y: p.y, tx: p.x, ty: p.y, depth,
-      generation: genOf(m), w, h, fontSize: fs, shape, label, subLabel, terminal,
+      generation: genOf(m), w, h, fontSize: fs, shape, label, subLabel, terminal, ...(nameLines ? { nameLines } : {}),
       childrenOutside: !terminal && !dotted.has(m.id) && n.children!.every((c) => dotted.has(c.data.member!.id)),
-      angle, leafLength, leafWidth, leafCount: n.value ?? 1,
+      angle, leafLength, leafWidth, leafCount: solidCount(n),
       parentId: n.parent?.data.member?.id ?? null,
       mass: medallion ? 4 : 1, region, side,
     };
@@ -2385,7 +2670,7 @@ function layoutAttemptBody(
     // ("re-grow" no longer moves names: their place is fixed by the genealogy)
     void halfSpan;
     const u = n.u ?? 0.5;
-    const theta = uToTheta(u);
+    const theta = thetaOn(u, d);
     // Strictly by generation (rings): siblings share a ring and all their
     // descendants lie further out in their own sector, so no line ever has
     // to pass a sibling's place on its way out.
@@ -2394,7 +2679,7 @@ function layoutAttemptBody(
     const p = add(origin, scale(dirOf(theta), r0 + t * Math.max(0, R - r0)));
     const parent = byId.get(n.parent?.data.member?.id ?? "");
     const node = makeNode(n, p, d, parent ? { x: parent.tx, y: parent.ty } : origin, "crown", 0);
-    const a0 = uToTheta(n.u0 ?? 0), a1 = uToTheta(n.u1 ?? 1);
+    const a0 = thetaOn(n.u0 ?? 0, d), a1 = thetaOn(n.u1 ?? 1, d);
     node.sector = [Math.min(a0, a1), Math.max(a0, a1)];
     node.ray = theta;
   }
@@ -2440,12 +2725,63 @@ function layoutAttemptBody(
     for (const d of [...rings.keys()].sort((a, b) => a - b)) {
       const ring = rings.get(d)!;
       ring.sort((a, b) => b.ray! - a.ray!); // anticlockwise from the left
+      // (each ring its own range: see ringLift)
+      const lo = Math.PI / 2 - (Math.PI / 2 - ringLift(d)), hi = Math.PI - ringLift(d);
       const radiusAt = (th: number) => r0 + ringT[d] * Math.max(0, reach(th) * 0.95 - r0);
       // angular half-width of a label at angle th (its extent across the ray)
       const half = (n: LiveNode, th: number) =>
         // (+ a corridor so neighbouring lines stay clearly apart)
         (Math.abs((n.w / 2) * Math.sin(th)) + Math.abs((n.h / 2) * Math.cos(th)) + corridorFor(fl, f)) / Math.max(1, radiusAt(th));
-      const target = ring.map((n) => n.ray!);
+      // A ring too short for its names moves further out, with every ring
+      // outside it (owner's decision, 22 Nov 2026: a crowded generation
+      // gets a longer arc, the names their size; no name steps off its
+      // ring). Only where the page runs out are the names set smaller.
+      if (onRing) {
+        // (with the centred son on this ring, each side of him on its own:
+        // he stays straight up the middle, so a crowded side cannot borrow
+        // the other side's room)
+        const pin = ring.findIndex((n) => centerIds.has(n.id));
+        for (let it = 0; it < 6; it++) {
+          const halves = ring.map((n) => half(n, n.ray!));
+          const crowd = pin < 0
+            ? (2 * halves.reduce((a, x) => a + x, 0)) / ((hi - lo) * 0.97)
+            : Math.max(halves.slice(0, pin + 1).reduce((a, x) => a + x, 0) * 2 - halves[pin], halves.slice(pin).reduce((a, x) => a + x, 0) * 2 - halves[pin]) / ((hi - lo) * 0.97);
+          if (crowd <= 1) break;
+          const t0 = ringT[d];
+          const grown = Math.min(t0 * crowd + 0.01, t0 + 0.5);
+          // (only into the room left inside the canopy: past it, the outer
+          // rings ran off the page and the whole poster was set smaller)
+          let tCap = Infinity;
+          for (let k = 0; k <= 24; k++) {
+            const a = lo + ((hi - lo) * k) / 24;
+            const span = reach(a) * 0.95 - r0;
+            if (span > 1) tCap = Math.min(tCap, (rMaxOnPage({ w: f * 4, h: f * 1.6 }, a) - r0) / span);
+          }
+          const delta = Math.min(grown - t0, tCap - ringT[ringT.length - 1]);
+          if (delta <= 1e-6) break;
+          for (let e = d; e < ringT.length; e++) ringT[e] += delta;
+        }
+      }
+      // (the shortest way, owner's rule, 21 Nov 2026: each child's place on
+      // its ring is drawn towards its father's own direction, siblings
+      // gathered round him in their order, as far as their own families'
+      // room allows)
+      const toFather = CHILD_PULL;
+      // (and a family moves with its father: where packing set him off his
+      // own place along his ring, his children's places move as far, the
+      // same way. Left at theirs, a father pushed along by his brother's
+      // badge stood away from his children, their lines running back under
+      // the badge: QA family C with every family shown, at A1. Where no
+      // father moved, the children stay at the middle of their own slices,
+      // owner's choice, 22 Nov 2026.)
+      const target = ring.map((n) => {
+        const father = n.parentId ? byId.get(n.parentId) : undefined;
+        if (!onRing || !father || father.region !== "crown" || father.ray === undefined) return n.ray!;
+        const moved = father.ray - (familyOrder.get(father.id) ?? father.ray);
+        const own = n.ray! + moved;
+        return own + (father.ray - own) * toFather;
+      });
+      if (onRing) ring.forEach((n, i) => { n.ray = target[i]; });
       // 1-D packing along the ring: neighbours pushed apart, kept in order,
       // with a gentle pull back to their targets. (Any overlap left is then
       // resolved by stepping out along the ray, which keeps each line close
@@ -2509,10 +2845,34 @@ function layoutAttemptBody(
           for (let i = Math.max(m, 0) + 1; i < th.length; i++) th[i] = Math.max(lo - ext, Math.min(th[i], th[i - 1] - need(i)));
         }
         const step = (i: number) => Math.min(need(i), (hi - lo) / th.length) * (budget.fan ?? RING_STEP);
-        for (let i = 1; i < th.length; i++) if (th[i] > th[i - 1] - step(i)) th[i] = th[i - 1] - step(i);
-        for (let i = th.length - 1; i > 0; i--) {
-          if (th[i] < bounds[i][0]) th[i] = bounds[i][0];
-          if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+        // (on rings round the canopy base the centred son holds the middle,
+        // owner's rule since 1.0.54: his brothers are packed out from him
+        // on either side, never pushing him off the trunk's axis; a side
+        // too crowded for its ring is left for the clarity check to judge,
+        // and the poster is set smaller where the ring cannot grow)
+        const pin = onRing ? ring.findIndex((n) => centerIds.has(n.id)) : -1;
+        if (pin >= 0) {
+          th[pin] = target[pin];
+          for (let i = pin + 1; i < th.length; i++) {
+            if (th[i] > th[i - 1] - step(i)) th[i] = th[i - 1] - step(i);
+          }
+          for (let i = th.length - 1; i > pin + 1; i--) {
+            if (th[i] < bounds[i][0]) th[i] = bounds[i][0];
+            if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+          }
+          for (let i = pin; i > 0; i--) {
+            if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+          }
+          for (let i = 0; i < pin - 1; i++) {
+            if (th[i] > bounds[i][1]) th[i] = bounds[i][1];
+            if (th[i + 1] > th[i] - step(i + 1)) th[i + 1] = th[i] - step(i + 1);
+          }
+        } else {
+          for (let i = 1; i < th.length; i++) if (th[i] > th[i - 1] - step(i)) th[i] = th[i - 1] - step(i);
+          for (let i = th.length - 1; i > 0; i--) {
+            if (th[i] < bounds[i][0]) th[i] = bounds[i][0];
+            if (th[i - 1] < th[i] + step(i)) th[i - 1] = th[i] + step(i);
+          }
         }
       }
       ringLoad = Math.max(ringLoad, ring.reduce((a, n, i) => a + 2 * half(n, th[i]), 0) / (hi - lo));
@@ -2523,7 +2883,7 @@ function layoutAttemptBody(
         // (with room for boxes: clearly further out than a mother whose
         // husband's box goes between them, by the box's extent along the
         // way out, a two-line box being wide, and the room it keeps clear)
-        const parent = opts.boxRoom && n.parentId ? byId.get(n.parentId) : undefined;
+        const parent = opts.boxRoom && !onRing && n.parentId ? byId.get(n.parentId) : undefined;
         if (parent && parent.region === "crown" && holderParents.has(parent.id)) {
           const d = dirOf(th[i]);
           r = Math.max(r, len(sub(parent, origin)) + (parent.h + n.h) / 2 + Math.abs(d.x) * f * 7 + Math.abs(d.y) * f * 2.7 + f * 1.8);
@@ -2542,7 +2902,7 @@ function layoutAttemptBody(
     const m = n.data.member!;
     return {
       member: m, label: m.name, x: origin.x, fontSize: trunkFont,
-      y: labelBottom - i * trunkStep,
+      y: trunkYs[i],
       w: widest, h: trunkFont * 1.6,
     };
   });
@@ -2619,7 +2979,9 @@ function layoutAttemptBody(
   // ground, and within its own slice of its side's range (sideShare).
   const sideFan = (node: HNode, A: Vec, R: number) => {
     const pad = f * 1.5;
-    const hi = Math.min(1.25, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R));
+    // (drooping: a side family hangs from its badge like a lower bough, its
+    // names never above the line it leaves the trunk on)
+    const hi = droopSides !== undefined ? Math.min(droopSides, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R)) : Math.min(1.25, Math.atan2(A.y - (origin.y + baseMedallionR + pad), R));
     // (down no further than the names may go: above the ground by
     // 3% of the page; a fan reaching lower had its names clamped up into a
     // knot)
@@ -2627,6 +2989,56 @@ function layoutAttemptBody(
     const lo0 = Math.max(hi - 1.55, Math.min(downMost, hi - 0.6));
     const [s0, s1] = sideShare.get(node) ?? [0, 1];
     return { hi: hi - s0 * (hi - lo0), lo: hi - s1 * (hi - lo0) };
+  };
+  // Nested boughs (owner's decision, 21 Nov 2026): the families on one side
+  // of the trunk hang from one centre, the top of that side's families, as
+  // a second, drooping fan. Each family has its own wedge of it, the one
+  // from the highest badge the flattest and outermost; inside it, one arc
+  // per generation. Each bough runs from its own badge to its wedge through
+  // the open middle of the fan, where no name stands, and the badges go
+  // down the trunk in the order the wedges go round: no bough can cross
+  // another, no family enter another's wedge. (From each family's own
+  // badge, fans from badges a row or two apart overlapped and had to be
+  // untangled afterwards.)
+  const sharedSides = circleRings;
+  const sideGeo = new Map<number, { O: Vec; rIn: number; step: number; hi: number; lo: number }>();
+  const sideGeoOf = (side: number) => {
+    const got = sideGeo.get(side);
+    if (got) return got;
+    const mine = visibleOffshoots.filter((o, i) => ((i % 2 === 0) === rtl ? 1 : -1) === side && o.node.children);
+    const ys = mine.map((o) => labelY.get(o.anchor.data.member!.id)!);
+    const O: Vec = { x: origin.x + side * trunkWidth * 0.5, y: Math.min(...ys) };
+    let rIn = Math.max(f * 4, Math.max(...ys) - O.y + f * 3);
+    let depth = 1, widestName = 0;
+    const atDepth = new Map<number, number>();
+    for (const o of mine) {
+      for (const n of o.node.descendants() as HNode[]) {
+        const d = n.depth - o.node.depth + 1;
+        depth = Math.max(depth, d);
+        atDepth.set(d, (atDepth.get(d) ?? 0) + 1);
+        widestName = Math.max(widestName, textWidth(labelOf(n.data.member!).label, fl));
+      }
+    }
+    const room = Math.max(f * 6, side > 0 ? W - margin - O.x : O.x - margin);
+    // (the first names stand well out from the trunk, the boughs open in the
+    // free middle of the fan; the fan fills the room out to the margin)
+    rIn = Math.max(rIn, room * SIDE_INNER);
+    const hi = Math.min(droopSides ?? 0, Math.atan2(O.y - (origin.y + baseMedallionR + f * 1.5), room));
+    let step = widestName + f * 2.2;
+    let lo = hi - 1.3;
+    for (let k = 0; k < 2; k++) {
+      const rOut = rIn + depth * step;
+      const downMost = -Math.atan2(Math.max(0, groundY - Math.max(f * 1.5, W * 0.03 + f) - O.y), rOut);
+      lo = Math.max(hi - 1.55, Math.min(downMost, hi - 0.6));
+      const span = Math.max(0.3, hi - lo);
+      // (every ring long enough for its names side by side)
+      for (const [d, c] of atDepth) step = Math.max(step, ((c * fl * 2.6) / (span * 0.9) - rIn) / Math.max(0.5, d - 0.5));
+      step = Math.max(step, (room * 0.92 - rIn) / depth);
+      step = Math.min(step, (room * 0.95 - rIn) / depth);
+    }
+    const geo = { O, rIn, step: Math.max(f * 3, step), hi, lo };
+    sideGeo.set(side, geo);
+    return geo;
   };
   const stubDraw = new Map<string, { o: (typeof visibleOffshoots)[number]; side: number; th: number; reachS: number; end: Vec }>();
   const spurCurve = (p: { from: Vec; to: Vec }): Cubic => ({ p0: p.from, c1: add(p.from, scale(sub(p.to, p.from), 1 / 3)), c2: add(p.from, scale(sub(p.to, p.from), 2 / 3)), p1: p.to });
@@ -2645,7 +3057,11 @@ function layoutAttemptBody(
       const reachX = trunkWidth * (1.45 + Math.floor(stack / 3) * 0.9) - (start.x - origin.x) * side + trunkWidth * 0.42;
       // (out along the middle of its own slice of the side's fan)
       const slice = sideFan(o.node, start, reachX);
-      const th = (slice.hi + slice.lo) / 2;
+      // (with nested side families, a childless son is a short twig out
+      // from his badge, drooping as the boughs set off: the middle of a low
+      // badge's share of the drooping fan pointed straight down, and his
+      // twig hung down the trunk)
+      const th = sharedSides && droopSides !== undefined ? droopSides : (slice.hi + slice.lo) / 2;
       if (plan) { plan.set(o.node, th); return; }
       // A childless son is an ordinary son's name, a little smaller than his
       // brothers' with families (0.9): no medallion, which is kept for the
@@ -2761,7 +3177,13 @@ function layoutAttemptBody(
       for (const [d, c] of ringCount) need = Math.max(need, (c * fl * 2.6) / (span * (0.3 + 0.7 * (d / depthMax))));
       reachR = clamp(Math.max(reachR, need), f * 4, Math.min(W * 0.42, room * 0.92));
     }
-    const { hi, lo } = fanFor(reachR);
+    let { hi, lo } = fanFor(reachR);
+    const geo = sharedSides ? sideGeoOf(side) : null;
+    if (geo) {
+      const [s0, s1] = sideShare.get(o.node) ?? [0, 1];
+      hi = geo.hi - s0 * (geo.hi - geo.lo);
+      lo = geo.hi - s1 * (geo.hi - geo.lo);
+    }
     if (plan) { plan.set(o.node, (hi + lo) / 2); return; }
     const a0 = side > 0 ? hi : Math.PI - hi; // the highest, out
     const a1 = side > 0 ? lo : Math.PI - lo; // the lowest, out
@@ -2776,12 +3198,12 @@ function layoutAttemptBody(
     for (const n of sub0) {
       const d = n.depth - o.node.depth + 1;
       const theta = a0 + (a1 - a0) * (n.u ?? 0.5);
-      const r = reachR * (0.3 + 0.7 * (d / depthMax));
-      let p = add(A, scale(dirOf(theta), r));
+      const r = geo ? geo.rIn + (d - 0.5) * geo.step : reachR * (0.3 + 0.7 * (d / depthMax));
+      let p = add(geo ? geo.O : A, scale(dirOf(theta), r));
       p = { x: clamp(p.x, margin, W - margin), y: Math.min(p.y, groundY - W * 0.03) };
       const parent = byId.get(n.parent?.data.member?.id ?? "");
       const sn = makeNode(n, p, d + 1, parent ? { x: parent.tx, y: parent.ty } : A, "side", side);
-      sideCentre.set(sn.id, A);
+      sideCentre.set(sn.id, geo ? geo.O : A);
     }
   };
   // Sons of one ancestor on one side sit on his badge in the order their
@@ -2809,19 +3231,30 @@ function layoutAttemptBody(
   visibleOffshoots.forEach((o, i) => layOffshoot(o, i));
 
   // ── Lineages ─────────────────────────────────────────────────────────
+  const lineageNeighbours: [number, number][] = [];
   // A major lineage is a son of the crown base who has descendants (in
   // order around the canopy, left to right), or a side branch growing from
   // the trunk; everyone descended from it carries its index.
   {
     const limbs = nodes
-      .filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal)
+      .filter((n) => n.region === "crown" && n.depth === 1 && !n.terminal && !through.has(n.member.id))
       .sort((a, b) => (b.ray ?? 0) - (a.ray ?? 0));
     const index = new Map<string, number>();
     limbs.forEach((n, i) => index.set(n.id, i));
     let next = limbs.length;
+    const sideHeads: LiveNode[] = [];
     for (const n of nodes) {
-      if (n.region === "side" && !(n.parentId && byId.get(n.parentId)?.region === "side")) index.set(n.id, next++);
+      if (n.region === "side" && !(n.parentId && byId.get(n.parentId)?.region === "side")) { index.set(n.id, next++); sideHeads.push(n); }
     }
+    // Which branches stand side by side, for their colours (see
+    // lineageColours): round the tree, the left side's families from the
+    // foot of the trunk up, the canopy's branches left to right, the right
+    // side's families from the top down; and on each side of the trunk the
+    // highest family beside the canopy's end branch.
+    const left = sideHeads.filter((n) => n.x < origin.x).sort((a, b) => b.y - a.y);
+    const right = sideHeads.filter((n) => n.x >= origin.x).sort((a, b) => a.y - b.y);
+    const round = [...left, ...limbs, ...right].map((n) => index.get(n.id)!);
+    for (let k = 1; k < round.length; k++) lineageNeighbours.push([round[k - 1], round[k]]);
     const lineageOf = (n: LiveNode): number | null => {
       let cur: LiveNode | undefined = n;
       for (let guard = 0; cur && guard < 200; guard++) {
@@ -2845,7 +3278,7 @@ function layoutAttemptBody(
   // ── Corner medallions (verse / hadith) ──────────────────────────────
   const medallions = opts.cornerMedallions
     ? framed
-      ? [{ x: W * 0.205, y: H * 0.205, r: W * 0.07 }, { x: W * 0.795, y: H * 0.205, r: W * 0.07 }]
+      ? [{ x: W * 0.205, y: H * 0.205 - headerLift, r: W * 0.07 }, { x: W * 0.795, y: H * 0.205 - headerLift, r: W * 0.07 }]
       : [{ x: W * 0.18, y: H * 0.112, r: W * 0.094 }, { x: W * 0.82, y: H * 0.112, r: W * 0.094 }]
     : [];
   // The crown base medallion is a fixed obstacle too.
@@ -2901,6 +3334,8 @@ function layoutAttemptBody(
       r = Math.max(r, ((n.tx - origin.x) * dir.x + (n.ty - origin.y) * dir.y) * 0.99);
       // on the page, by moving along the ray (never off it)
       r = Math.min(r, rMaxOnPage(n, n.ray));
+      // (on its generation's ring, whatever pushed it)
+      if (onRing) r = Math.min(ringRadius(n.depth, n.ray), rMaxOnPage(n, n.ray));
       n.x = origin.x + dir.x * r;
       n.y = origin.y + dir.y * r;
       return;
@@ -2959,7 +3394,7 @@ function layoutAttemptBody(
   // other parent is not recorded grow from the partner directly.
   // (lone: a spouse with no children on the poster, on a short line from
   // the partner; anchorOf is then the partner)
-  type Holder = SpouseHolder & { anchorOf: LiveNode; kids: LiveNode[]; dir: Vec; clear: boolean; pin?: Vec; lone?: boolean };
+  type Holder = SpouseHolder & { anchorOf: LiveNode; kids: LiveNode[]; dir: Vec; clear: boolean; lined?: boolean; pin?: Vec; lone?: boolean; ringed?: boolean };
   const holders: Holder[] = [];
   const holderOf = new Map<string, Holder>();
   {
@@ -3167,7 +3602,122 @@ function layoutAttemptBody(
       const key = `${h.lone ? "lone:" : ""}${h.partnerId}`;
       byPartner.set(key, [...(byPartner.get(key) ?? []), h]);
     }
+    // One spouse ring per generation (owner's decision, 20 Nov 2026): every
+    // spouse of a canopy generation, a man's wives and a daughter's
+    // husbands, with children or none, stands on one ring halfway between
+    // that generation's ring and the next. A spouse with children stands at
+    // the middle of their angle, one with none straight out from the
+    // partner; spouses on one ring keep their order round it and are spaced
+    // along it, never moved in or out. (Each placed where it found room,
+    // a daughter's four husbands stood at four depths and a wife with no
+    // children sat on her husband's brother's limb.)
+    const ringPlaced = new Set<Holder>();
+    if (onRing) {
+      const partnerOf = (h: Holder) => byId.get(h.partnerId);
+      const onCanopy = holders.filter((h) => {
+        const p = partnerOf(h);
+        return !!p && p.region === "crown" && p.ray !== undefined && !uprightHolder(h) && !h.pin;
+      });
+      const angleOf = (v: { x: number; y: number }) => Math.atan2(origin.y - v.y, v.x - origin.x);
+      const spouseRadius = (d: number, th: number) => {
+        const inner = ringRadius(d, th);
+        const outer = d + 1 <= maxDepth ? ringRadius(d + 1, th) : inner + f * 6;
+        return (inner + outer) / 2;
+      };
+      const byRing = new Map<number, { h: Holder; th: number; d: number }[]>();
+      for (const h of onCanopy) {
+        const p = partnerOf(h)!;
+        // (owner's rule, 21 Nov 2026: the shortest way. A spouse with
+        // children stands where the straight line from the partner to the
+        // middle of those children crosses the spouse ring; one with none,
+        // straight out from the partner. Set at the mean of the children's
+        // angles from the canopy base, a daughter's husband stood far round
+        // the ring from both her and her child, beside another spouse.)
+        let th = p.ray!;
+        if (h.kids.length && !h.lone) {
+          const C = h.kids.reduce((a, k) => add(a, scale({ x: k.x, y: k.y }, 1 / h.kids.length)), { x: 0, y: 0 } as Vec);
+          const P = { x: p.x, y: p.y };
+          const off = (t: number) => {
+            const q = add(P, scale(sub(C, P), t));
+            return len(sub(q, origin)) - spouseRadius(p.depth, angleOf(q));
+          };
+          if (off(0) < 0 && off(1) > 0) {
+            let lo = 0, hi = 1;
+            for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (off(mid) < 0) lo = mid; else hi = mid; }
+            th = angleOf(add(P, scale(sub(C, P), (lo + hi) / 2)));
+          } else {
+            th = angleOf(C);
+          }
+        }
+        byRing.set(p.depth, [...(byRing.get(p.depth) ?? []), { h, th, d: p.depth }]);
+      }
+      for (const [d, list] of byRing) {
+        // in order round the ring (by angle; a partner's childless spouses
+        // beside each other in the order they were recorded)
+        list.sort((a, b) => b.th - a.th);
+        // (just outside the partners' names, with a lane between: halfway
+        // to the next ring, a wide box at the side of the fan stood in that
+        // ring's names)
+        const partnerHalf = Math.max(...list.map((e) => {
+          const p = partnerOf(e.h)!, c = Math.abs(Math.cos(e.th)), sn = Math.abs(Math.sin(e.th));
+          return (p.w * c + p.h * sn) / 2;
+        }));
+        const boxHalf = Math.max(...list.map((e) => (e.h.w * Math.abs(Math.cos(e.th)) + e.h.h * Math.abs(Math.sin(e.th))) / 2));
+        const R = (th: number) => Math.min(spouseRadius(d, th) * 2 - ringRadius(d, th), ringRadius(d, th) + partnerHalf + f * 0.9 + boxHalf);
+        const halfAng = (e: { h: Holder; th: number }) => (Math.abs(e.h.w / 2 * Math.sin(e.th)) + Math.abs(e.h.h / 2 * Math.cos(e.th)) + f * 0.4) / Math.max(1, R(e.th));
+        const th = list.map((e) => e.th);
+        // (pushed apart along the ring, both ways, keeping their order)
+        for (let it = 0; it < 40; it++) {
+          let moved = false;
+          for (let i = 1; i < th.length; i++) {
+            const need = halfAng(list[i - 1]) + halfAng(list[i]);
+            const gap = th[i - 1] - th[i];
+            if (gap < need) {
+              const push = (need - gap) / 2;
+              th[i - 1] += push;
+              th[i] -= push;
+              moved = true;
+            }
+          }
+          if (!moved) break;
+        }
+        // (where a name stands on that spot, the box slides along its own
+        // ring to the nearest free one, either way, never in or out; boxes
+        // set on names made whole posters smaller)
+        const freeAt = (e: { h: Holder }, a: number, others: { x: number; y: number; w: number; h: number }[]) => {
+          const q = add(origin, scale(dirOf(a), R(a)));
+          const pad = f * 0.3;
+          return ![...nodes, ...others].some((n) => Math.abs(n.x - q.x) < (n.w + e.h.w) / 2 + pad && Math.abs(n.y - q.y) < (n.h + e.h.h) / 2 + pad);
+        };
+        const done: { x: number; y: number; w: number; h: number }[] = [...placed.map((q) => q.h)];
+        list.forEach((e, i) => {
+          if (!freeAt(e, th[i], done)) {
+            const step = (f * 0.5) / Math.max(1, R(th[i]));
+            for (let k = 1; k <= 60; k++) {
+              const a1 = th[i] + k * step, a2 = th[i] - k * step;
+              if (freeAt(e, a1, done)) { th[i] = a1; break; }
+              if (freeAt(e, a2, done)) { th[i] = a2; break; }
+            }
+          }
+          const q0 = add(origin, scale(dirOf(th[i]), R(th[i])));
+          done.push({ x: q0.x, y: q0.y, w: e.h.w, h: e.h.h });
+        });
+        list.forEach((e, i) => {
+          const p = add(origin, scale(dirOf(th[i]), R(th[i])));
+          e.h.x = p.x;
+          e.h.y = p.y;
+          e.h.dir = norm(sub(p, fromOf(e.h)));
+          const hit = nodes.some((n) => Math.abs(n.x - p.x) < (n.w + e.h.w) / 2 && Math.abs(n.y - p.y) < (n.h + e.h.h) / 2);
+          e.h.clear = !hit;
+          e.h.lined = !hit;
+          placed.push({ h: e.h, from: fromOf(e.h) });
+          ringPlaced.add(e.h);
+          e.h.ringed = true;
+        });
+      }
+    }
     for (const group of byPartner.values()) {
+      if (group.every((h) => ringPlaced.has(h))) continue;
       const lone = !!group[0].lone;
       const P = fromOf(group[0]);
       const P0 = P;
@@ -3352,7 +3902,7 @@ function layoutAttemptBody(
         continue;
       }
       // all at one distance; failing that, each where it finds room
-      let got: { h: Holder; from: Vec; J: Vec }[] | null = null;
+      let got: { h: Holder; from: Vec; J: Vec; lined?: boolean }[] | null = null;
       // (a knot, where children of an unrecorded father part, nearer their
       // mother: close to their own row, their dotted lines ran nearly level
       // under the names, a band of dots)
@@ -3361,15 +3911,19 @@ function layoutAttemptBody(
       if (!got) {
         got = [];
         // (where no spot keeps every line clear, one clear of every name:
-        // the clarity check reports the line)
+        // the clarity check reports the line, and the holder counts as
+        // without room, so her children are given more: see the untangling)
         for (const h of group) {
-          const J = spot(h, order, [...placed, ...got], true, false) ?? spot(h, order, [...placed, ...got], false, false);
-          if (J) got.push({ h, from: P, J });
+          const lined = spot(h, order, [...placed, ...got], true, false);
+          const J = lined ?? spot(h, order, [...placed, ...got], false, false);
+          if (J) got.push({ h, from: P, J, lined: !!lined });
         }
       }
       for (const h of group) {
-        const J = got?.find((g) => g.h === h)?.J;
+        const g = got?.find((q) => q.h === h);
+        const J = g?.J;
         h.clear = !!J;
+        h.lined = !!J && g?.lined !== false;
         // (no room anywhere: towards her children, never on the partner's
         // name, and not on another spouse's holder)
         const others = [...placed, ...(got ?? [])].filter((q) => q.h !== h).map(at);
@@ -4061,6 +4615,8 @@ function layoutAttemptBody(
     };
     const outward = (n: LiveNode, by: number) => {
       if (n.ray === undefined) { sideMove(n, by, 0); return; }
+      // (a canopy name never leaves its generation's ring: see onRing)
+      if (onRing) return;
       const d = dirOf(n.ray);
       const parent = n.parentId ? byId.get(n.parentId) : undefined;
       const rp = parent && parent.region === "crown" ? (parent.x - origin.x) * d.x + (parent.y - origin.y) * d.y + (parent.h + n.h) * 0.3 : 0;
@@ -4074,7 +4630,7 @@ function layoutAttemptBody(
       const r = (n.x - origin.x) * d0.x + (n.y - origin.y) * d0.y;
       const th = clamp(n.ray + (k * (n.h + f * 0.3)) / Math.max(r, 1), thetaEnd, thetaStart);
       const d = dirOf(th);
-      const rr = Math.min(r, rMaxOnPage(n, th));
+      const rr = Math.min(onRing ? ringRadius(n.depth, th) : r, rMaxOnPage(n, th));
       n.ray = th;
       n.x = origin.x + d.x * rr;
       n.y = origin.y + d.y * rr;
@@ -4087,8 +4643,12 @@ function layoutAttemptBody(
     // tree)
     const fromTrunk = (p: { x: number; y: number }) => len(sub(p, origin));
     const behind = (h: Holder) => !h.lone && !h.knot && h.kids.some((k) => fromTrunk(k) - k.h / 2 < fromTrunk(h) + h.h / 2);
-    for (let round = 0; round < 3 && holders.some((h) => !h.clear || behind(h)); round++) {
-      for (const h of holders.filter((x) => !x.clear || behind(x))) {
+    // (and a holder placed clear of names only, its lines under another
+    // holder or name: a daughter's four husbands between her and her
+    // children's row once stood one above another)
+    const cramped = (h: Holder) => !h.clear || h.lined === false || behind(h);
+    for (let round = 0; round < 3 && holders.some(cramped); round++) {
+      for (const h of holders.filter(cramped)) {
         for (const k of h.kids) {
           const saved = { x: k.x, y: k.y };
           outward(k, h.h * 1.6 + h.fontSize);
@@ -4127,6 +4687,8 @@ function layoutAttemptBody(
       for (const hid of new Set(holderIds)) {
         const h = holders.find((x) => x.id === hid);
         if (!h || fixed) continue;
+        // (a spouse on the spouse ring stays on it)
+        if (h.ringed) continue;
         const group = holders.filter((x) => x.partnerId === h.partnerId);
         const saved = group.map((x) => x.pin);
         const P = fromOf(h);
@@ -4464,7 +5026,7 @@ function layoutAttemptBody(
     baseNode = {
       id: m.id, member: m, x: origin.x, y: origin.y, depth: 0, generation: m.generation,
       w: baseOval.rx * 2, h: baseOval.ry * 2, fontSize: fs, shape: "medallion",
-      label: m.name, subLabel, terminal: !base.children,
+      label, subLabel, terminal: !base.children,
       angle: 0, leafLength: 0, leafWidth: 0, leafCount: base.value ?? 1,
       parentId: base.parent?.data.member?.id ?? null,
     };
@@ -4559,6 +5121,7 @@ function layoutAttemptBody(
     fontScale,
     sweepLift: lift,
     centerLine: [...centerPath].sort((a, b) => a.depth - b.depth).map((n) => n.data.member!.id),
+    lineageNeighbours,
     legibility,
     overlaps,
     clarity: { ok: true, expected: 0, drawn: 0, clearCrossings: 0, issues: [] },
@@ -4580,14 +5143,26 @@ function layoutAttemptBody(
 // ── helpers ─────────────────────────────────────────────────────────────
 
 /**
- * Where the header and the footer line go. Inside a frame artwork they keep
- * clear of the top and bottom centre rosettes.
+ * Where the header and the footer line go. Inside the gold-foil artwork they
+ * keep clear of its top and bottom centre rosettes. A drawn frame (rules, a
+ * band, corner ornaments; nothing at the middle of its edges) only needs a
+ * clear band of paper inside it: the basmala's top and the credit sit
+ * W·0.032 inside the frame, as an unframed poster's sit from the page's
+ * edge (at A0 the empty bands above the basmala and below the credit were
+ * 78 and 73 mm in the Classic design, now about 30).
  */
-function framePlacement(W: number, H: number, framed: boolean): PosterLayout["frame"] {
+function framePlacement(W: number, H: number, framed: boolean, inset?: number): PosterLayout["frame"] {
   if (!framed) {
     return { framed, header: { basmala: H * 0.041, title: H * 0.078, maxTitleWidth: W * 0.6 }, footerY: H - W * 0.04 };
   }
-  return { framed, header: { basmala: H * 0.112, title: H * 0.145, maxTitleWidth: W * 0.42 }, footerY: H * 0.905 };
+  if (inset === undefined) {
+    return { framed, header: { basmala: H * 0.112, title: H * 0.145, maxTitleWidth: W * 0.42 }, footerY: H * 0.905 };
+  }
+  // (the basmala glyph rises W·0.022 above its baseline; the credit's
+  // half-height is W·0.004)
+  const basmala = Math.min(H * 0.112, W * (inset + 0.032 + 0.022));
+  const up = H * 0.112 - basmala;
+  return { framed, header: { basmala, title: H * 0.145 - up, maxTitleWidth: W * 0.42 }, footerY: Math.max(H * 0.905, H - W * (inset + 0.032 + 0.004)) };
 }
 
 /** Stable grouping of siblings by mother, mothers in order of first appearance. */
@@ -4849,4 +5424,39 @@ export function relax<T extends Body>(nodes: T[], constrain: (n: T) => void, ite
   // the separation would never settle.
   for (let it = 0; it < 200 && separate() > 0; it++);
   if (bound) for (const n of nodes) bound(n);
+}
+
+/** Words a name is never broken after: they belong to the word that follows (عبد الله, أبو بكر, بن سعد). */
+const NO_BREAK_AFTER = new Set(["عبد", "أبو", "أبي", "ابو", "أم", "ام", "بن", "بنت", "ابن", "ذو", "ذي", "آل", "ال", "Abd", "Abu", "Umm", "bin", "ibn", "bint", "Al", "al"]);
+
+/**
+ * A round medallion's name, on one line or two. A long name on one line
+ * set the circle's size, and a branch head with a title ("الملقب بالأمين")
+ * was drawn two or three times the size of the names round it, in the way
+ * of its neighbours' lines (owner, 19 Nov 2026: "no reason for rounded names
+ * to be so big, especially stacking names or titles"). A name wider than
+ * the circle's least size is set on two lines, broken between words where
+ * the longer line is shortest, never after عبد, أبو or بن.
+ */
+export function stackName(label: string, fs: number): string[] {
+  if (textWidth(label, fs) <= fs * 1.8) return [label];
+  const words = label.split(" ");
+  if (words.length < 2) return [label];
+  let best: string[] = [label], bestW = textWidth(label, fs);
+  for (let k = 1; k < words.length; k++) {
+    if (NO_BREAK_AFTER.has(words[k - 1].replace(/\u00A0.*$/, ""))) continue;
+    const a = words.slice(0, k).join(" "), b = words.slice(k).join(" ");
+    const w = Math.max(textWidth(a, fs), textWidth(b, fs));
+    if (w < bestW) { best = [a, b]; bestW = w; }
+  }
+  return best;
+}
+
+/** A round medallion's diameter: its name (on one line or two, see stackName) and a little room round it, never under 2.7 times its type. */
+function medallionSize(label: string, fs: number, subW: number): number {
+  const lines = stackName(label, fs);
+  if (lines.length === 1) return Math.max(fs * 2.7, Math.max(textWidth(label, fs), subW) + fs * 0.9);
+  const tw = Math.max(subW, ...lines.map((l) => textWidth(l, fs)));
+  // (the circle round a block of two lines: its diagonal, and a margin)
+  return Math.max(fs * 2.7, Math.hypot(tw, fs * 2.15) + fs * 0.6);
 }

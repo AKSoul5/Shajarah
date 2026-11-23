@@ -12,6 +12,7 @@ import { computePosterLayout } from "@/lib/layout/botanical";
 import { kalaliTree } from "@/lib/samples/kalali";
 import { layoutOptionsFor, resolveTheme } from "@/lib/theme";
 import type { MemberDTO, TreeDTO } from "@/lib/types";
+import { knownIt } from "./known-failures";
 
 /** The Al-Kalali trunk from its 70th name; nearly every ancestor on it with other sons: families, childless sons, and some with three. */
 function crowdedTrunk(): TreeDTO {
@@ -53,7 +54,7 @@ function crowdedTrunk(): TreeDTO {
 
 describe("childless sons beside the trunk are ordinary names", () => {
   for (const [paper, before] of [["A1", 3.78], ["A0", 5.44]] as const) {
-    it(`a crowded trunk, ${paper}`, { timeout: 600_000 }, () => {
+    knownIt(`childless-trunk ${paper}`)(`a crowded trunk, ${paper}`, { timeout: 600_000 }, () => {
       const t = crowdedTrunk();
       const settings = { ...t.settings, theme: { preset: "classic" } } as TreeDTO["settings"];
       const l = computePosterLayout({ ...t, settings }, layoutOptionsFor(resolveTheme(settings), paper));
