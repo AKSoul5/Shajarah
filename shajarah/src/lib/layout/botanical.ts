@@ -153,6 +153,8 @@ export interface LayoutOptions {
   sideSpacing?: number;
   /** Internal: room between the fans of side families whose badges are close (see posterSteps). */
   sideGap?: boolean;
+  /** Experiment: false leaves a family's children at their own places when packing moved their father. */
+  familyFollows?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
   uprightOff?: boolean;
   /**
@@ -821,7 +823,19 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       // what a larger paper is for)
       const legibleScale = clamp((full.legibility.minTextMm / Math.max(1e-6, full.legibility.smallestTextMm)) * 1.02, MIN_SCALE, 1);
       // and a size below it, to tell whether only illegible names would do
-      const below = Math.min(0.35, legibleScale * 0.8);
+      // (and where that is not clean either, a few smaller: clean comes
+      // first, the editor then recommending a larger paper. With rings
+      // round the canopy base, a family's deep generations at the fan's
+      // ends were left with lines under names down to 0.35 of their size,
+      // and the poster at the legible size kept with 89 ambiguities: QA
+      // family C-en at A3, clean at 0.3)
+      let below = Math.min(0.35, legibleScale * 0.8);
+      if (!(legibleScale < 0.999 && isClean(at(legibleScale))) && !isClean(at(below))) {
+        for (const k of [0.85, 0.7, 0.55]) {
+          const sc = Math.round(Math.max(MIN_SCALE, below * k) * 1000) / 1000;
+          if (isClean(at(sc))) { below = sc; break; }
+        }
+      }
       if (legibleScale < 0.999 && isClean(at(legibleScale))) {
         chosen = bisect(legibleScale, 1);
         // (left at the legible size itself, the halving's steps being coarse:
@@ -978,6 +992,7 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       }
     }
     if (searchedBelow) layout.searchedBelow = true;
+    if (process.env.ZZDBG) console.log("ZZS dense", dense, "chosen", chosen, [...tried.entries()].sort((x, y) => x[0] - y[0]).map(([k, l]) => `${k}:${isClean(l) ? "C" : "x" + (l.overlaps * 10 + l.clarity.issues.length)}${l.legibility.ok ? "L" : ""}`).join(" "));
     return { layout, chosen, strict, attempt, tried, dense };
   };
   type Found = { layout: PosterLayout; chosen: number; strict: boolean; attempt: (s: number, f?: boolean, st?: boolean, u?: number, fit?: number, cr?: boolean, fan?: { step: number; ends?: boolean }) => PosterLayout; untangle?: number; fit?: number };
@@ -2320,7 +2335,13 @@ function layoutAttemptBody(
         for (let k = b0; k <= b1; k++) row[k] = Math.max(row[k], bRadial);
       }
     }
-    const lane = f * 1.2;
+    // (the lane for the lines between two rings follows the names' size, as
+    // the lines do: set at the full size, the lanes alone of a deep family
+    // took more than the canopy's depth, every gap was then cut by the
+    // same share, and smaller names never bought the lines their room. QA
+    // family C with every family shown, at A1: a long badge at the fan's
+    // end 13 px from the next ring's names, 70 needed)
+    const lane = fl * 1.2;
     return (d: number) => {
       let need = 0;
       for (let k = 0; k < BINS; k++) {
@@ -2335,7 +2356,15 @@ function layoutAttemptBody(
       return need;
     };
   };
-  const ringT: number[] = (() => {
+  // (worked out twice with rings round the canopy base: once before the
+  // families are given their slices of the fan, for the room each needs,
+  // and again after, with every name at its own angle. Worked out only
+  // before, every name counted as standing at the top of the fan, where it
+  // crosses the gap with its height: at the fan's ends, where it crosses
+  // with its full width, the rings stood too close and names reached into
+  // the next generation, lines running under them. QA family C-en at A3:
+  // 12 such down to 0.35 of the names' size.)
+  const ringsAt = (sliced: boolean): number[] => {
     // evenly paced, but a crowded generation further out, where its ring
     // is long enough for its names (crownDims sized the canopy for it)
     const span = Math.max(1, meanCrownReach - r0);
@@ -2349,14 +2378,15 @@ function layoutAttemptBody(
     // height. (Spaced by heights alone, a long name at the end of the first
     // ring stood in the way of the next generation's lines: QA family C at
     // 4A0, its names set at half the size to clear them.)
-    const facing = circleRings ? facingRoom(span) : null;
+    const facing = circleRings && sliced ? facingRoom(span) : null;
     for (let d = 1; d <= maxDepth; d++) {
       const prev = d === 1 ? 0 : t[d - 1];
       t.push(Math.max(d / maxDepth, dense ? need[d] ?? 0 : 0, (d === 1 ? 0 : prev + gap) + room(d), facing ? prev + facing(d) + room(d) : 0));
     }
     const top = t[maxDepth];
     return top > 1 ? t.map((v) => v / top) : t;
-  })();
+  };
+  let ringT: number[] = ringsAt(false);
   // With rings round the canopy base (circleRings), every canopy name stays
   // on its generation's ring (owner's decision, 21 Nov 2026): no step out
   // along its ray to clear a neighbour, no push past a mother's spouse's box,
@@ -2577,6 +2607,7 @@ function layoutAttemptBody(
       n.u0 = warp(n.u0); n.u1 = warp(n.u1!); n.u = middle ? 0.5 : warp(n.u!);
     }
   }
+  if (circleRings) ringT = ringsAt(true);
 
   const nodes: LiveNode[] = [];
   const byId = new Map<string, LiveNode>();
@@ -2771,12 +2802,21 @@ function layoutAttemptBody(
       // gathered round him in their order, as far as their own families'
       // room allows)
       const toFather = opts.childPull ?? CHILD_PULL;
+      // (and a family moves with its father: where packing set him off his
+      // own place along his ring, his children's places move as far, the
+      // same way. Left at theirs, a father pushed along by his brother's
+      // badge stood away from his children, their lines running back under
+      // the badge: QA family C with every family shown, at A1. Where no
+      // father moved, the children stay at the middle of their own slices,
+      // owner's choice, 22 Nov 2026.)
       const target = ring.map((n) => {
         const father = n.parentId ? byId.get(n.parentId) : undefined;
-        if (!onRing || !toFather || !father || father.region !== "crown" || father.ray === undefined) return n.ray!;
-        return n.ray! + (father.ray - n.ray!) * toFather;
+        if (!onRing || !father || father.region !== "crown" || father.ray === undefined) return n.ray!;
+        const moved = opts.familyFollows === false ? 0 : father.ray - (familyOrder.get(father.id) ?? father.ray);
+        const own = n.ray! + moved;
+        return own + (father.ray - own) * toFather;
       });
-      if (onRing && toFather) ring.forEach((n, i) => { n.ray = target[i]; });
+      if (onRing) ring.forEach((n, i) => { n.ray = target[i]; });
       // 1-D packing along the ring: neighbours pushed apart, kept in order,
       // with a gentle pull back to their targets. (Any overlap left is then
       // resolved by stepping out along the ray, which keeps each line close
