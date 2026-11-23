@@ -123,38 +123,12 @@ export interface LayoutOptions {
   soilKeep?: boolean;
   /** Internal: also tries a few sizes above the legible one where that is not clean (see laddered). */
   sizeLadder?: boolean;
-  /** Internal: the tree keeps the height it had before a drawn frame gave its room back (see posterSteps). */
-  frameRoomOff?: boolean;
-  /** Internal (experiment): how far out a trunk side family's first names stand, as a share of the room beside the trunk. */
-  sideInner?: number;
-  /** Internal (experiment): false lays each trunk side family from its own badge, not nested in one fan per side. */
-  sideNest?: boolean;
-  /** Internal (experiment): each ring the oval through the old outline's top and sides. */
-  ringFit?: boolean;
-  /** Internal (experiment): true spreads the trunk's ancestors where the side families hang (default: even spacing). */
-  trunkSpread?: boolean;
-  /** Internal (experiment): how much taller than wide each generation's ring is (1: circles). */
-  ringAspect?: number;
-  /** Internal (experiment): rings open like a hand fan, inner folds shorter. */
-  handFan?: boolean;
-  /** Internal (experiment): the highest a side family's fan may reach, radians above horizontal (negative: below). */
+  /** Internal: the highest a side family's fan may reach, radians above horizontal (negative: below). */
   droopSides?: number;
-  /** Internal (experiment): every generation's ring a circle round the canopy base. */
+  /** Internal: false lays the canopy out as before 1.0.60, without its rings round the canopy base (a reference for comparisons; never set by the app). */
   circleRings?: boolean;
-  /** Internal (experiment): how far above level the inner rings end (radians; see ringLift). */
-  innerLift?: number;
-  /** Internal (experiment): false leaves a crowded ring where it is (see onRing). */
-  ringGrow?: boolean;
-  /** Internal (experiment): false places spouses each where it finds room, not on one ring per generation. */
-  spouseRing?: boolean;
-  /** Internal (experiment): see CHILD_PULL. */
-  childPull?: number;
-  /** Internal (experiment): how much room a name takes along the fan's sides, against 4.2 at its top (default 1.7). */
-  sideSpacing?: number;
   /** Internal: room between the fans of side families whose badges are close (see posterSteps). */
   sideGap?: boolean;
-  /** Experiment: false leaves a family's children at their own places when packing moved their father. */
-  familyFollows?: boolean;
   /** Internal: true lays the centred son's mother out as any other wife, not straight above her husband (see keepGuarded). */
   uprightOff?: boolean;
   /**
@@ -1499,14 +1473,7 @@ function layoutAttemptBody(
   let contentTop = H * (opts.headerBand ?? 0.095) - headerLift;
   // the footer (key, the counts' cards, the credit) takes ~5 lines of
   // W·0.012 text above footerY
-  let contentBottom = place.footerY - W * 0.062;
-  if (opts.frameRoomOff && headerLift > 0) {
-    // (the tree in the height it had beside the foil's rosettes, centred in
-    // the room the drawn frame gives: see posterSteps)
-    const was = contentBottom - contentTop - headerLift - (place.footerY - H * 0.905);
-    contentTop += (contentBottom - contentTop - was) / 2;
-    contentBottom = contentTop + was;
-  }
+  const contentBottom = place.footerY - W * 0.062;
   const unitMm = (opts.paperWidthMm ?? 420) / W;
   const minTextMm = opts.minTextMm ?? 3.2;
   const minFont = minTextMm / unitMm;
@@ -2125,8 +2092,8 @@ function layoutAttemptBody(
   // (rings that are circles are as tall as they are wide: on tall paper the
   // canopy rises to the header and the trunk grows into the height left)
   let raised = 0;
-  if (circleRings && !opts.ringFit) {
-    const across = (W / 2 - margin) * (opts.ringAspect ?? RING_ASPECT);
+  if (circleRings) {
+    const across = (W / 2 - margin) * RING_ASPECT;
     const room = origin.y - contentTop;
     if (room > across) {
       raised = room - across;
@@ -2148,15 +2115,9 @@ function layoutAttemptBody(
   if (raised > 0 && gaps.length) {
     const anchors = new Set(offshoots.map((o) => o.anchor));
     const lowest = Math.max(0, shownTrunk.findIndex((c) => anchors.has(c)));
-    const spread = gaps.length - lowest;
-    let add = 0;
     // (owner's decision, 21 Nov 2026: the trunk keeps its usual even
-    // spacing; opts.trunkSpread spreads the stretch the families hang from)
-    if (spread > 0 && opts.trunkSpread === true) {
-      add = Math.min(raised, trunkStep * 2 * spread);
-      for (let k = lowest; k < gaps.length; k++) gaps[k] += add / spread;
-    }
-    const left = raised - add;
+    // spacing; the height goes back above the canopy)
+    const left = raised;
     if (left > 0) { origin = { ...origin, y: origin.y + left }; crown = { ...crown, cy: crown.cy + left }; }
   } else if (raised > 0) {
     stemExtra += raised;
@@ -2222,13 +2183,10 @@ function layoutAttemptBody(
   // the same distance from the base at both ends of the fan and at its
   // top, as large as the room above the base and either side allows.
   const circleR = Math.min(origin.y - contentTop, W / 2 - margin);
-  // (ringAspect > 1: each ring an oval round the canopy base, taller than
-  // wide by that much where the page has the height; the same shape at
-  // every generation)
-  // (ringFit: the oval through the old outline's top and sides, the room
-  // the names' size was chosen for)
-  const ovalA = opts.ringFit ? Math.min(fanA, W / 2 - margin) : circleR;
-  const ovalB = opts.ringFit ? fanB : Math.min(origin.y - contentTop, circleR * (opts.ringAspect ?? RING_ASPECT));
+  // (each ring an oval round the canopy base, RING_ASPECT times taller than
+  // wide where the page has the height; the same shape at every generation)
+  const ovalA = circleR;
+  const ovalB = Math.min(origin.y - contentTop, circleR * RING_ASPECT);
   const reach = circleRings ? (theta: number) => (ovalA * ovalB) / Math.hypot(ovalB * Math.cos(theta), ovalA * Math.sin(theta)) : lift <= 0 ? outline : (theta: number) => {
     const c = Math.abs(Math.cos(theta)), sn = Math.abs(Math.sin(theta));
     return ((c / fanA) ** FAN_P + (sn / fanB) ** FAN_P) ** (-1 / FAN_P);
@@ -2245,7 +2203,7 @@ function layoutAttemptBody(
   for (let i = 0; i <= SAMPLES; i++) {
     const th = thetaStart + (thetaEnd - thetaStart) * (i / SAMPLES);
     const R = reach(th);
-    const cap = R / (4.2 * Math.abs(Math.sin(th)) + (opts.sideSpacing ?? 1.7) * Math.abs(Math.cos(th)));
+    const cap = R / (4.2 * Math.abs(Math.sin(th)) + 1.7 * Math.abs(Math.cos(th)));
     thetas.push(th);
     if (prevPt) cum.push(cum[cum.length - 1] + (cap + prevCap) / 2);
     prevPt = add(origin, scale(dirOf(th), R));
@@ -2275,11 +2233,10 @@ function layoutAttemptBody(
   // first ring's youngest children stood beside the top of the trunk.)
   const ringLift = (d: number) => {
     if (!circleRings) return lift;
-    if (opts.handFan && maxDepth > 1) return lift + (Math.max(lift, SWEEP_LIFT) - lift) * Math.max(0, Math.min(1, (maxDepth - d) / (maxDepth - 1)));
     if (lift >= 0) return lift;
     const R = r0 + (d / maxDepth) * Math.max(1, reach(0) * 0.95 - r0);
     const clearX = W * TRUNK_CLEAR;
-    return R <= clearX ? (opts.innerLift ?? 0) : Math.max(lift, -Math.acos(clearX / R));
+    return R <= clearX ? 0 : Math.max(lift, -Math.acos(clearX / R));
   };
   const thetaOn = (u: number, d: number) => {
     const th = uToTheta(u);
@@ -2777,7 +2734,7 @@ function layoutAttemptBody(
       // outside it (owner's decision, 22 Nov 2026: a crowded generation
       // gets a longer arc, the names their size; no name steps off its
       // ring). Only where the page runs out are the names set smaller.
-      if (onRing && opts.ringGrow !== false) {
+      if (onRing) {
         // (with the centred son on this ring, each side of him on its own:
         // he stays straight up the middle, so a crowded side cannot borrow
         // the other side's room)
@@ -2807,7 +2764,7 @@ function layoutAttemptBody(
       // its ring is drawn towards its father's own direction, siblings
       // gathered round him in their order, as far as their own families'
       // room allows)
-      const toFather = opts.childPull ?? CHILD_PULL;
+      const toFather = CHILD_PULL;
       // (and a family moves with its father: where packing set him off his
       // own place along his ring, his children's places move as far, the
       // same way. Left at theirs, a father pushed along by his brother's
@@ -2818,7 +2775,7 @@ function layoutAttemptBody(
       const target = ring.map((n) => {
         const father = n.parentId ? byId.get(n.parentId) : undefined;
         if (!onRing || !father || father.region !== "crown" || father.ray === undefined) return n.ray!;
-        const moved = opts.familyFollows === false ? 0 : father.ray - (familyOrder.get(father.id) ?? father.ray);
+        const moved = father.ray - (familyOrder.get(father.id) ?? father.ray);
         const own = n.ray! + moved;
         return own + (father.ray - own) * toFather;
       });
@@ -3041,7 +2998,7 @@ function layoutAttemptBody(
   // another, no family enter another's wedge. (From each family's own
   // badge, fans from badges a row or two apart overlapped and had to be
   // untangled afterwards.)
-  const sharedSides = circleRings && opts.sideNest !== false;
+  const sharedSides = circleRings;
   const sideGeo = new Map<number, { O: Vec; rIn: number; step: number; hi: number; lo: number }>();
   const sideGeoOf = (side: number) => {
     const got = sideGeo.get(side);
@@ -3063,7 +3020,7 @@ function layoutAttemptBody(
     const room = Math.max(f * 6, side > 0 ? W - margin - O.x : O.x - margin);
     // (the first names stand well out from the trunk, the boughs open in the
     // free middle of the fan; the fan fills the room out to the margin)
-    rIn = Math.max(rIn, room * (opts.sideInner ?? SIDE_INNER));
+    rIn = Math.max(rIn, room * SIDE_INNER);
     const hi = Math.min(droopSides ?? 0, Math.atan2(O.y - (origin.y + baseMedallionR + f * 1.5), room));
     let step = widestName + f * 2.2;
     let lo = hi - 1.3;
@@ -3642,7 +3599,7 @@ function layoutAttemptBody(
     // a daughter's four husbands stood at four depths and a wife with no
     // children sat on her husband's brother's limb.)
     const ringPlaced = new Set<Holder>();
-    if (onRing && opts.spouseRing !== false) {
+    if (onRing) {
       const partnerOf = (h: Holder) => byId.get(h.partnerId);
       const onCanopy = holders.filter((h) => {
         const p = partnerOf(h);
