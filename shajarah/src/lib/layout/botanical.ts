@@ -44,7 +44,7 @@
  */
 import { hierarchy, type HierarchyNode } from "d3-hierarchy";
 import { childrenIndex, hiddenFromPoster, lineagePath, lineIds, lineRootOf, withAncestors } from "../genealogy";
-import { givenAndFamilyName, nameLines } from "../nasab";
+import { givenAndFamilyName, nameLines, splitTitle } from "../nasab";
 import type { MemberDTO, TreeDTO } from "../types";
 import {
   add, circlePath, cubicPoint as cubicPointAt, cubicTangent, len, norm, ribbonPath, scale, sub,
@@ -1606,10 +1606,15 @@ function layoutAttemptBody(
 
   // Label text for a member, honouring the label mode and years option.
   const labelOf = (m: MemberDTO) => {
-    let label = m.name;
+    // A title typed at the end of the name ("الملقب بالأمين", "ذو النورين",
+    // "الأكبر") goes on the quiet second line with a laqab: on one line it
+    // made the plate two or three times as wide as the names round it
+    // (owner, 23 Nov 2026). The name as entered is kept.
+    const { name, title } = splitTitle(m.name);
+    let label = name;
     if (labelMode === "withFather") {
       const f = m.fatherId ? byMemberId.get(m.fatherId) : undefined;
-      if (f) label = ARABIC.test(m.name) ? `${m.name} ${m.gender === "FEMALE" ? "بنت" : "بن"} ${f.name}` : `${m.name} ${f.name}`;
+      if (f) label = ARABIC.test(name) ? `${name} ${m.gender === "FEMALE" ? "بنت" : "بن"} ${splitTitle(f.name).name}` : `${name} ${splitTitle(f.name).name}`;
     }
     let subLabel: string | null = null;
     if (showYears && (m.birthYear || m.deathYear)) {
@@ -1617,8 +1622,10 @@ function layoutAttemptBody(
       subLabel = m.deathYear ? `${fmt(m.birthYear)}–${fmt(m.deathYear)}` : fmt(m.birthYear);
     }
     // A laqab or honorific (الشيخ، رحمه الله …) is a quiet second line.
-    const laqab = m.laqab?.trim();
-    if (laqab) subLabel = subLabel ? `${laqab} · ${subLabel}` : laqab;
+    // (joined with a comma in Arabic: a middle dot reads as the digit zero)
+    const join = ARABIC.test(m.name) ? "، " : " · ";
+    const laqab = [...new Set([title, m.laqab?.trim()].filter((x): x is string => !!x))].join(join);
+    if (laqab) subLabel = subLabel ? `${laqab}${join}${subLabel}` : laqab;
     return { label, subLabel };
   };
 
@@ -5049,7 +5056,7 @@ function layoutAttemptBody(
     baseNode = {
       id: m.id, member: m, x: origin.x, y: origin.y, depth: 0, generation: m.generation,
       w: baseOval.rx * 2, h: baseOval.ry * 2, fontSize: fs, shape: "medallion",
-      label: m.name, subLabel, terminal: !base.children,
+      label, subLabel, terminal: !base.children,
       angle: 0, leafLength: 0, leafWidth: 0, leafCount: base.value ?? 1,
       parentId: base.parent?.data.member?.id ?? null,
     };
