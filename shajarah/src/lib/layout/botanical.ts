@@ -992,7 +992,6 @@ function layoutOnce(tree: TreeDTO, opts: LayoutOptions): PosterLayout {
       }
     }
     if (searchedBelow) layout.searchedBelow = true;
-    if (process.env.ZZDBG) console.log("ZZS dense", dense, "chosen", chosen, [...tried.entries()].sort((x, y) => x[0] - y[0]).map(([k, l]) => `${k}:${isClean(l) ? "C" : "x" + (l.overlaps * 10 + l.clarity.issues.length)}${l.legibility.ok ? "L" : ""}`).join(" "));
     return { layout, chosen, strict, attempt, tried, dense };
   };
   type Found = { layout: PosterLayout; chosen: number; strict: boolean; attempt: (s: number, f?: boolean, st?: boolean, u?: number, fit?: number, cr?: boolean, fan?: { step: number; ends?: boolean }) => PosterLayout; untangle?: number; fit?: number };
