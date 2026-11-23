@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contrast, lineageColor, paletteOf, resolveTheme, THEME_PRESETS } from "@/lib/theme";
+import { contrast, labDistance, lineageColours, paletteOf, resolveTheme, THEME_PRESETS } from "@/lib/theme";
 import type { ThemePreset } from "@/lib/types";
 
 // Each design's branch colours before there were eight (1.0.46 and earlier):
@@ -13,50 +13,29 @@ const BEFORE: Partial<Record<ThemePreset, string[]>> = {
   emerald: ["#236347", "#856522", "#2f5e73", "#6e4a5c"],
 };
 
-/** CIELAB (D65) distance between two colours (ΔE 1976). */
-function labDistance(a: string, b: string): number {
-  const lab = (hex: string) => {
-    const [r, g, bl] = [1, 3, 5].map((i) => {
-      const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    const xyz = [
-      (0.4124 * r + 0.3576 * g + 0.1805 * bl) / 0.95047,
-      0.2126 * r + 0.7152 * g + 0.0722 * bl,
-      (0.0193 * r + 0.1192 * g + 0.9505 * bl) / 1.08883,
-    ].map((t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116));
-    return [116 * xyz[1] - 16, 500 * (xyz[0] - xyz[1]), 200 * (xyz[1] - xyz[2])];
-  };
-  const [p, q] = [lab(a), lab(b)];
-  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-}
-
 describe("branch colours", () => {
   for (const [preset, before] of Object.entries(BEFORE)) {
     const pal = paletteOf(resolveTheme({ theme: { preset } } as never));
-    it(`${preset}: eight colours, the first four as before, every one a line on its paper`, () => {
-      expect(pal.lineage).toHaveLength(8);
+    // (sixteen since 1.0.61: the eight and a shade of each, owner's request
+    // of 22 Nov 2026; the first four of a poster still as before)
+    it(`${preset}: sixteen colours, the first four as before, every one a line on its paper`, () => {
+      expect(pal.lineage).toHaveLength(16);
       expect(pal.lineage.slice(0, 4)).toEqual(before);
-      expect(new Set(pal.lineage).size).toBe(8);
+      expect(new Set(pal.lineage).size).toBe(16);
       for (const c of pal.lineage) expect(contrast(c, pal.paper), c).toBeGreaterThanOrEqual(3);
     });
-    it(`${preset}: all eight told apart (CIELAB distance at least 15)`, () => {
+    it(`${preset}: the first eight told apart (CIELAB distance at least 15), each shade near its own colour`, () => {
       for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) {
         expect(labDistance(pal.lineage[i], pal.lineage[j]), `${pal.lineage[i]} / ${pal.lineage[j]}`).toBeGreaterThanOrEqual(15);
       }
+      // (a shade of the same family: closer to its own colour than to any other of the eight)
+      for (let i = 0; i < 8; i++) {
+        const own = labDistance(pal.lineage[8 + i], pal.lineage[i]);
+        for (let j = 0; j < 8; j++) if (j !== i) expect(own, `shade ${pal.lineage[8 + i]}`).toBeLessThan(labDistance(pal.lineage[8 + i], pal.lineage[j]) + 1e-9);
+      }
     });
-    it(`${preset}: six distinct by default, the seventh and eighth only with that many branches`, () => {
-      const at = (i: number, count: number) => lineageColor(i, "bark", pal.lineage, count);
-      // a poster of four branches: as before
-      expect([0, 1, 2, 3].map((i) => at(i, 4))).toEqual(before);
-      // six branches, six colours
-      expect(new Set([0, 1, 2, 3, 4, 5].map((i) => at(i, 6))).size).toBe(6);
-      // seven: the seventh colour, nothing repeated; eight: all eight
-      expect(new Set([0, 1, 2, 3, 4, 5, 6].map((i) => at(i, 7))).size).toBe(7);
-      expect(new Set([0, 1, 2, 3, 4, 5, 6, 7].map((i) => at(i, 8))).size).toBe(8);
-      // more than eight: round again from the first
-      expect(at(8, 10)).toBe(pal.lineage[0]);
-      expect(lineageColor(null, "bark", pal.lineage, 5)).toBe("bark");
+    it(`${preset}: a poster of up to eight branches in a row keeps its colours as before, in order`, () => {
+      for (let count = 1; count <= 8; count++) expect(lineageColours(pal.lineage, count)).toEqual(pal.lineage.slice(0, count));
     });
   }
 

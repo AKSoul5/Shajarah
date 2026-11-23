@@ -404,6 +404,8 @@ export interface PosterLayout {
   sweepLift?: number;
   /** The centred line, from the canopy base's son up (the branch chosen or the largest one, and its leaders); empty when none. */
   centerLine?: string[];
+  /** Main branches (PosterNode.lineage) that stand side by side on the poster, for their colours (see lineageColours). */
+  lineageNeighbours?: [number, number][];
 }
 
 interface TNode {
@@ -3229,6 +3231,7 @@ function layoutAttemptBody(
   visibleOffshoots.forEach((o, i) => layOffshoot(o, i));
 
   // ── Lineages ─────────────────────────────────────────────────────────
+  const lineageNeighbours: [number, number][] = [];
   // A major lineage is a son of the crown base who has descendants (in
   // order around the canopy, left to right), or a side branch growing from
   // the trunk; everyone descended from it carries its index.
@@ -3239,9 +3242,19 @@ function layoutAttemptBody(
     const index = new Map<string, number>();
     limbs.forEach((n, i) => index.set(n.id, i));
     let next = limbs.length;
+    const sideHeads: LiveNode[] = [];
     for (const n of nodes) {
-      if (n.region === "side" && !(n.parentId && byId.get(n.parentId)?.region === "side")) index.set(n.id, next++);
+      if (n.region === "side" && !(n.parentId && byId.get(n.parentId)?.region === "side")) { index.set(n.id, next++); sideHeads.push(n); }
     }
+    // Which branches stand side by side, for their colours (see
+    // lineageColours): round the tree, the left side's families from the
+    // foot of the trunk up, the canopy's branches left to right, the right
+    // side's families from the top down; and on each side of the trunk the
+    // highest family beside the canopy's end branch.
+    const left = sideHeads.filter((n) => n.x < origin.x).sort((a, b) => b.y - a.y);
+    const right = sideHeads.filter((n) => n.x >= origin.x).sort((a, b) => a.y - b.y);
+    const round = [...left, ...limbs, ...right].map((n) => index.get(n.id)!);
+    for (let k = 1; k < round.length; k++) lineageNeighbours.push([round[k - 1], round[k]]);
     const lineageOf = (n: LiveNode): number | null => {
       let cur: LiveNode | undefined = n;
       for (let guard = 0; cur && guard < 200; guard++) {
@@ -5108,6 +5121,7 @@ function layoutAttemptBody(
     fontScale,
     sweepLift: lift,
     centerLine: [...centerPath].sort((a, b) => a.depth - b.depth).map((n) => n.data.member!.id),
+    lineageNeighbours,
     legibility,
     overlaps,
     clarity: { ok: true, expected: 0, drawn: 0, clearCrossings: 0, issues: [] },

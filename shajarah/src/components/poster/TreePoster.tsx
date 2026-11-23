@@ -6,7 +6,7 @@ import { soilStyle, type SoilContext, type SoilInk, type SoilStyleId } from "@/l
 import { textWidth } from "@/lib/layout/botanical";
 import { LEAF_TONES, generationColor, generationLabel } from "@/lib/layout/palette";
 import { hashString } from "@/lib/layout/random";
-import { lineageColor, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
+import { lineageColours, paletteOf, rimOn, satinStops, shade, textOn, type PosterPalette } from "@/lib/theme";
 import { HADITH, VERSE, scallopPath, textInCircle } from "./ornaments";
 import { DesignFrame, TitleGround, TitleRule, soilOrnament } from "./frames";
 import type { PosterTheme } from "@/lib/types";
@@ -89,16 +89,17 @@ function makePalette(theme: PosterTheme, layout: PosterLayout, uid = "sh"): Pale
   const satin = (gender: string) => (gender === "FEMALE" ? `url(#${uid}-satin-f)` : `url(#${uid}-satin-m)`);
   const coloured = theme.branchColors && !mono;
   const bark = mono ? "#1a1a1a" : theme.branch;
-  // how many main branches the poster has (the seventh and eighth colours
-  // only for one with that many; see lineageColor)
-  // (a preview's stub layout has no names: the default count)
+  // each main branch's colour, never a neighbour's (see lineageColours)
+  // (a preview's stub layout has no names: no branches)
   const count = 1 + (layout.nodes ?? []).reduce((m, n) => Math.max(m, n.lineage ?? -1), -1);
+  const colours = coloured ? lineageColours(tokens.lineage, count, layout.lineageNeighbours) : [];
+  const colourOf = (i: number | null | undefined) => (i != null && i >= 0 && i < colours.length ? colours[i] : bark);
   return {
     ...tokens,
     uid,
     mono,
-    branch: (i) => (coloured ? lineageColor(i, bark, tokens.lineage, count) : bark),
-    rim: (i) => (coloured && i != null ? lineageColor(i, bark, tokens.lineage, count) : null),
+    branch: (i) => (coloured ? colourOf(i) : bark),
+    rim: (i) => (coloured && i != null ? colourOf(i) : null),
     line: tokens.rule,
     fill: (n) => {
       if (mono) return { fill: "#ffffff", border: "#111111", text: "#111111" };
