@@ -1607,6 +1607,20 @@ never lost.
 - **The member list** shows 400 people at a time and says so when there
   are more ("Showing 400 of 1,247: search to find anyone else"); a search
   that finds no one says so, with a way to clear it.
+- **The member list starts at the family.** Everyone above the canopy base
+  (the one chosen, or the one the poster starts at) is folded into one row
+  at the top, "Ancestral line · 70 people", and the family from the canopy
+  base down is listed under it. (With 78 generations back to آدم, the list
+  opened at آدم and the family began some 70 rows down.) The row opens and
+  folds, remembered for each family on this computer; a search finds
+  everyone and opens the ancestral line when it finds someone in it. The
+  coloured dot beside each name is gone: its colour cycled through ten by
+  generation and meant nothing (G1 and G17 were both orange).
+- **A person's generation in words, from the canopy base:** "Canopy base",
+  "Son of the canopy base", "3rd generation from فضل", "5 generations above
+  فضل", "Same generation as فضل". The generation counted from the root of
+  the lineage stays beside it, small (G73), for genealogists; it once read
+  "Generation 73" from آدم and nothing else.
 - **Gender** can be left **Unknown** (as a GEDCOM file may give it).
 - **A tiled PDF** shows how far it has got ("Sheet 7 of 25…").
 - **Easier on the eyes:** no faint grey text (every label is at least

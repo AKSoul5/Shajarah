@@ -14,7 +14,7 @@ import { PersonMenu, type PersonMenuItem } from "./PersonMenu";
 import { MemberPicker } from "./MemberPicker";
 import { relationship } from "@/lib/relationship";
 import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branches";
-import { generationColor } from "@/lib/layout/palette";
+import { generationLabel, inAncestralLine } from "@/lib/generationLabel";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
 import type { Gender, MemberDTO, PosterTheme, TreeDTO } from "@/lib/types";
 import type { CreateMemberInput } from "@/lib/validation";
@@ -577,6 +577,22 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     return partnerGen;
   }, [tree.members, tree.marriages, tree.rootMemberId]);
   const listGeneration = useCallback((m: MemberDTO) => marriedIn.get(m.id) ?? m.generation, [marriedIn]);
+  // The list starts at the family: everyone above the canopy base (the
+  // ancestral line, 60 people in a 78-generation lineage) is folded into one
+  // row, its choice remembered per family on this computer.
+  const canopyBase = useMemo(
+    () => tree.members.find((m) => m.id === (tree.crownBaseId ?? layout?.base?.id)) ?? null,
+    [tree.members, tree.crownBaseId, layout?.base?.id],
+  );
+  const foldKey = `shajarah:ancestral-line:${tree.id}`;
+  const [ancestralOpen, setAncestralOpenState] = useState(false);
+  useEffect(() => {
+    try { setAncestralOpenState(localStorage.getItem(foldKey) === "open"); } catch { /* storage unavailable */ }
+  }, [foldKey]);
+  const setAncestralOpen = (open: boolean) => {
+    setAncestralOpenState(open);
+    try { localStorage.setItem(foldKey, open ? "open" : "closed"); } catch { /* storage unavailable */ }
+  };
 
   const filtered = useMemo(() => {
     // (hamza forms, ى / ي, ة / ه, diacritics, spaces and case ignored: احمد finds أحمد)
@@ -785,27 +801,56 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     <button type="button" className="underline hover:text-bark-900" onClick={() => setQuery("")}>Clear the search</button>
                   </li>
                 )}
-                {filtered.slice(0, LIST_LIMIT).map((m) => (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      onClick={() => selectAndShow(m.id)}
-                      className="flex w-full items-center gap-2 border-b border-parchment-100 px-3 py-1.5 text-start hover:bg-parchment-50"
-                    >
-                      <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: generationColor(m.generation).fill }} />
-                      <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
-                      <span className="whitespace-nowrap text-xs text-bark-400" title={marriedIn.has(m.id) ? "Married into the family" : undefined}>
-                        {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-                {filtered.length > LIST_LIMIT && (
-                  // (a long list stays quick: the rest are a search away)
-                  <li className="p-3 text-center text-xs text-bark-500">
-                    Showing {LIST_LIMIT} of {filtered.length.toLocaleString()}. Search above to find anyone else.
-                  </li>
-                )}
+                {(() => {
+                  const row = (m: MemberDTO) => (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectAndShow(m.id)}
+                        className="flex w-full items-center gap-2 border-b border-parchment-100 px-3 py-1.5 text-start hover:bg-parchment-50"
+                      >
+                        <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
+                        <span className="whitespace-nowrap text-xs text-bark-400" title={marriedIn.has(m.id) ? "Married into the family" : generationLabel(m, canopyBase, listGeneration).words}>
+                          {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                  const searching = !!query.trim();
+                  const ancestors = filtered.filter((m) => inAncestralLine(m, canopyBase, listGeneration));
+                  const family = ancestors.length ? filtered.filter((m) => !inAncestralLine(m, canopyBase, listGeneration)) : filtered;
+                  // (a search opens the ancestral line when it finds someone in it)
+                  const open = ancestralOpen || (searching && ancestors.length > 0);
+                  return (
+                    <>
+                      {ancestors.length > 0 && canopyBase && (
+                        <li className="border-b border-parchment-200 bg-parchment-50">
+                          <button type="button" aria-expanded={open} onClick={() => setAncestralOpen(!open)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-bark-700 hover:bg-parchment-100">
+                            <span className="flex-1">
+                              Ancestral line · {ancestors.length.toLocaleString()} {searching ? (ancestors.length === 1 ? "match" : "matches") : ancestors.length === 1 ? "person" : "people"}
+                              <span className="block text-xs text-bark-400">above <bdi className="font-naskh">{canopyBase.name}</bdi>, where the canopy starts</span>
+                            </span>
+                            <span aria-hidden className="text-bark-500">{open ? "▾" : "▸"}</span>
+                          </button>
+                        </li>
+                      )}
+                      {open && ancestors.slice(0, LIST_LIMIT).map(row)}
+                      {ancestors.length > 0 && canopyBase && family.length > 0 && (
+                        <li className="border-b border-parchment-200 bg-parchment-50 px-3 py-1.5 text-xs text-bark-500">
+                          The family from <bdi className="font-naskh text-sm text-bark-700">{canopyBase.name}</bdi> · {family.length.toLocaleString()} {family.length === 1 ? "person" : "people"}
+                        </li>
+                      )}
+                      {family.slice(0, LIST_LIMIT).map(row)}
+                      {family.length > LIST_LIMIT && (
+                        // (a long list stays quick: the rest are a search away)
+                        <li className="p-3 text-center text-xs text-bark-500">
+                          Showing {LIST_LIMIT} of {family.length.toLocaleString()}. Search above to find anyone else.
+                        </li>
+                      )}
+                    </>
+                  );
+                })()}
               </ul>
             </>
           )}
@@ -921,9 +966,17 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <div className="flex items-center gap-2">
                 <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>← All</button>
                 <h2 className="truncate font-naskh text-xl font-bold" dir="auto">{selected.name}</h2>
-                <span className="ms-auto rounded-full px-2 py-0.5 text-xs" style={{ background: generationColor(selected.generation).fill, color: generationColor(selected.generation).text }}>
-                  Generation {selected.generation + 1}
-                </span>
+                {(() => {
+                  // (where they stand in the family, from the canopy base; the
+                  // number counted from the root, small, for genealogists)
+                  const g = generationLabel(selected, canopyBase, listGeneration);
+                  return (
+                    <span className="ms-auto shrink-0 text-end text-xs text-bark-600">
+                      {g.words}
+                      <span className="ms-1.5 text-[10px] text-bark-400" title="Generation counted from the root of the lineage">{g.absolute}</span>
+                    </span>
+                  );
+                })()}
               </div>
               <RelationsPanel
                 tree={tree}
