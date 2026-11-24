@@ -16,7 +16,7 @@ const COMMANDS = [
 ];
 
 /** What the page last reported (nothing yet: no family open). */
-const EMPTY_STATE = Object.freeze({ page: "none", canUndo: false, canRedo: false, undoLabel: null, redoLabel: null, sidebar: true });
+const EMPTY_STATE = Object.freeze({ page: "none", canUndo: false, canRedo: false, undoLabel: null, redoLabel: null, sidebar: true, posterReady: false });
 
 /** The page's report, kept to known fields and types. */
 function cleanState(raw) {
@@ -29,6 +29,7 @@ function cleanState(raw) {
     undoLabel: label(s.undoLabel),
     redoLabel: label(s.redoLabel),
     sidebar: s.sidebar !== false,
+    posterReady: s.posterReady === true,
   };
 }
 
@@ -39,6 +40,7 @@ function cleanState(raw) {
 function buildMenuTemplate(state, { send, act, appName = "Shajarah", isMac = false, links = {} }) {
   const editor = state.page === "editor";
   const page = state.page !== "none";
+  const ready = editor && state.posterReady === true;
   const cmd = (command) => () => send(command);
   const file = {
     label: "&File",
@@ -58,12 +60,19 @@ function buildMenuTemplate(state, { send, act, appName = "Shajarah", isMac = fal
         ],
       },
       {
+        // (only the finished poster is exported: while it is a draft or being
+        // laid out, the items are disabled and the first line says why; a
+        // menu item has no tooltip on Windows)
         label: "&Export Poster", enabled: editor,
         submenu: [
-          { id: "export-svg", label: "&SVG (vector)", enabled: editor, click: cmd("export-svg") },
-          { id: "export-pdf", label: "Print &PDF", enabled: editor, click: cmd("export-pdf") },
-          { id: "export-png", label: "P&NG Image", enabled: editor, click: cmd("export-png") },
-          { id: "export-tiled-pdf", label: "&Tiled PDF", enabled: editor, click: cmd("export-tiled-pdf") },
+          ...(editor && !ready ? [
+            { id: "export-wait", label: "Available when the poster is finished", enabled: false, toolTip: "Available when the poster is finished" },
+            { type: "separator" },
+          ] : []),
+          { id: "export-svg", label: "&SVG (vector)", enabled: ready, click: cmd("export-svg") },
+          { id: "export-pdf", label: "Print &PDF", enabled: ready, click: cmd("export-pdf") },
+          { id: "export-png", label: "P&NG Image", enabled: ready, click: cmd("export-png") },
+          { id: "export-tiled-pdf", label: "&Tiled PDF", enabled: ready, click: cmd("export-tiled-pdf") },
         ],
       },
       { type: "separator" },

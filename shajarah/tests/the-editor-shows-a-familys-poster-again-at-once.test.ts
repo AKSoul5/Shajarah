@@ -38,17 +38,18 @@ describe("the editor shows a family's poster again at once", () => {
     const tree = { ...QA_FIXTURES.B(), settings } as TreeDTO;
     const options = { showFemales: true, ...layoutOptionsFor(resolveTheme(settings), "A2") };
     const store = memoryStore();
-    const shown: { id: number; final: boolean; layout: PosterLayout }[] = [];
+    const shown: { id: number; final: boolean; layout: PosterLayout; draft?: boolean }[] = [];
     let finished: () => void = () => {};
-    const runner = new TwoLayouts(() => new FakeWorker(), (id, l, _e, final = true) => {
-      shown.push({ id, final, layout: l! });
+    const runner = new TwoLayouts(() => new FakeWorker(), (id, l, _e, final = true, draft = false) => {
+      shown.push({ id, final, layout: l!, draft });
       if (id === 1 && final) finished();
     }, store);
     await new Promise<void>((res) => { finished = res; runner.request({ id: 1, tree, options }); });
-    // the first time: no recipe yet, only the search's poster
-    expect(shown.map((s) => s.id)).toEqual([1]);
+    // the first time: no recipe yet, a draft (never final) and the search's poster
+    expect(shown.map((s) => [s.id, s.final, s.draft])).toEqual([[1, false, true], [1, true, false]]);
     const exported = computePosterLayout(tree, options);
-    expect(same(shown[0].layout, exported)).toBe(true);
+    expect(same(shown[1].layout, exported)).toBe(true);
+    shown.splice(0, shown.length, shown[1]);
     // a second session (the store keeps the recipe): the poster at once
     const again = new TwoLayouts(() => new FakeWorker(), (id, l, _e, final = true) => {
       shown.push({ id, final, layout: l! });

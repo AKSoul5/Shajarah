@@ -156,7 +156,8 @@ citations, and the uploaded photos and documents themselves. **Open a
 project file** on the home page (or in the Files panel) opens one as a new
 family, with new ids, so the same file can be opened any number of times
 (the family's poster recipes come with it, under the new ids, so its
-posters come back at once).
+posters come back at once, and so do the marriages hidden from its poster:
+they once came back on it, their records still naming the old ids).
 Use it to keep copies of a project, move it to another computer, or send
 it to someone to look at. In the demo, an opened file replaces the demo
 family as one undoable step.
@@ -1536,6 +1537,22 @@ never lost.
   menus answer at once. The last poster stays on screen, marked
   *Updating the poster…*, until the new one is ready. A change made while
   a poster is being laid out starts the next layout at once.
+- **The wait never looks frozen.** A large family's first poster takes
+  minutes (a private 340-person family at 2A0: 3–4). Where the family has no
+  recipe for the poster yet (below), a quick draft of it is laid out first,
+  in the layout's own worker, at the size the family's last poster on this
+  paper came out at, and is on screen within about a second (0.3–0.85 s for
+  families of 340–485). A slim strip across the canvas says *Draft —
+  finishing the layout…*; the draft's problems are not circled, and it is
+  never exported. Under it, the search's progress: *Laying out: step 4 · 1:23
+  elapsed*, and, where the family's last search on this paper took a known
+  time, *about 2 min left* (no percentage: how many steps a search takes is
+  not known in advance). The finished poster takes the draft's place with
+  no jump (the same page, the same zoom), and *Poster ready* is said for a
+  moment (and announced to a screen reader). Until then **Export for
+  print** is disabled, as are the desktop menu bar's exports, both saying
+  *Available when the poster is finished* (the menu bar's once exported
+  whatever was on screen).
 - **A family's poster comes back at once.** Every poster records how it was
   made (its recipe: the one attempt of the layout's search it came from),
   and each family keeps the recipes of its latest posters (one per paper
@@ -1564,8 +1581,10 @@ never lost.
   came from; the whole search goes on behind it and replaces it only when
   it does better. Export waits while a poster is still being worked out
   (*Finishing the poster…*). (A quick draft of the whole poster was tried
-  first: one attempt without the search came out with a hundred problems
-  and overlapping names, and would have jumped when the poster came in.)
+  for this first: one attempt without the search came out with a hundred
+  problems and overlapping names, and would have jumped when the poster
+  came in. It is now shown only where there is no recipe, marked as a
+  draft, never judged or exported, and on the same page as the poster.)
 - **Menus** (View, Style, Export for print, the undo history) close on a
   click outside them or on Escape, and only one is open at a time.
 - **The header** keeps to one row on a laptop (1024 px and up): undo and
@@ -1589,6 +1608,20 @@ never lost.
 - **The member list** shows 400 people at a time and says so when there
   are more ("Showing 400 of 1,247: search to find anyone else"); a search
   that finds no one says so, with a way to clear it.
+- **The member list starts at the family.** Everyone above the canopy base
+  (the one chosen, or the one the poster starts at) is folded into one row
+  at the top, "Ancestral line · 70 people", and the family from the canopy
+  base down is listed under it. (With 78 generations back to آدم, the list
+  opened at آدم and the family began some 70 rows down.) The row opens and
+  folds, remembered for each family on this computer; a search finds
+  everyone and opens the ancestral line when it finds someone in it. The
+  coloured dot beside each name is gone: its colour cycled through ten by
+  generation and meant nothing (G1 and G17 were both orange).
+- **A person's generation in words, from the canopy base:** "Canopy base",
+  "Son of the canopy base", "3rd generation from فضل", "5 generations above
+  فضل", "Same generation as فضل". The generation counted from the root of
+  the lineage stays beside it, small (G73), for genealogists; it once read
+  "Generation 73" from آدم and nothing else.
 - **Gender** can be left **Unknown** (as a GEDCOM file may give it).
 - **A tiled PDF** shows how far it has got ("Sheet 7 of 25…").
 - **Easier on the eyes:** no faint grey text (every label is at least

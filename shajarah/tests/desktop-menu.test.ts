@@ -90,8 +90,19 @@ describe("the desktop menu bar", () => {
   it("in the editor: every item, and the member list ticked as the page has it", () => {
     expect(menu({ page: "editor", sidebar: true }).item("toggle-sidebar").checked).toBe(true);
     expect(menu({ page: "editor", sidebar: false }).item("toggle-sidebar").checked).toBe(false);
-    const { all } = menu({ page: "editor" });
+    const { all } = menu({ page: "editor", posterReady: true });
     expect(all.filter((i) => i.click && i.enabled === false)).toEqual([]);
+  });
+
+  it("export waits for the finished poster: disabled, saying why, while it is a draft or being laid out", () => {
+    const waiting = menu({ page: "editor", posterReady: false });
+    for (const id of ["export-svg", "export-pdf", "export-png", "export-tiled-pdf"]) expect(waiting.item(id).enabled, id).toBe(false);
+    expect(waiting.item("export-wait")).toMatchObject({ label: "Available when the poster is finished", enabled: false });
+    // (an older page that does not report it: not ready)
+    expect(menu({ page: "editor" }).item("export-pdf").enabled).toBe(false);
+    const ready = menu({ page: "editor", posterReady: true });
+    expect(ready.item("export-pdf").enabled).toBe(true);
+    expect(ready.all.some((i) => i.id === "export-wait")).toBe(false);
   });
 
   it("Undo and Redo: the page's own keys (shown, not taken), named after the step they undo", () => {
@@ -122,7 +133,7 @@ describe("the desktop menu bar", () => {
 
   it("the page's report is kept to known fields", () => {
     expect(cleanState({ page: "editor", canUndo: 1, undoLabel: "x".repeat(200), sidebar: false, extra: "?" }))
-      .toEqual({ page: "editor", canUndo: false, canRedo: false, undoLabel: null, redoLabel: null, sidebar: false });
+      .toEqual({ page: "editor", canUndo: false, canRedo: false, undoLabel: null, redoLabel: null, sidebar: false, posterReady: false });
     expect(cleanState("nonsense")).toEqual(EMPTY_STATE);
     expect(cleanState({ page: "admin" }).page).toBe("none");
   });

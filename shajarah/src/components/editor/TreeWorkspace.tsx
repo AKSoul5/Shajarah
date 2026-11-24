@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { usePosterLayout } from "./usePosterLayout";
 import { useLayoutInput } from "./useLayoutInput";
+import { LayoutStatus } from "./LayoutStatus";
 import { mergeRecipes, type StoredRecipe } from "@/lib/layout/recipes";
 import type { FamilyRecipes } from "@/lib/layout/twoLayouts";
 import { smallestClearPaperOffPage, useReadablePaper } from "./useReadablePaper";
@@ -13,7 +14,7 @@ import { PersonMenu, type PersonMenuItem } from "./PersonMenu";
 import { MemberPicker } from "./MemberPicker";
 import { relationship } from "@/lib/relationship";
 import { branchHeads, rankBranches, type BranchOption } from "@/lib/layout/branches";
-import { generationColor } from "@/lib/layout/palette";
+import { generationLabel, inAncestralLine } from "@/lib/generationLabel";
 import { hiddenFromPoster, lineagePath, moveAmongSiblings, nasab, siblingsInOrder, withAncestors } from "@/lib/genealogy";
 import type { Gender, MemberDTO, PosterTheme, TreeDTO } from "@/lib/types";
 import type { CreateMemberInput } from "@/lib/validation";
@@ -35,7 +36,7 @@ import { ConflictError, apiRepository, localRepository, type FamilyRepository } 
 import { readProjectFile, withNewIds } from "@/lib/project";
 import { openProjectFile, saveProjectFile } from "../projectFiles";
 import { editingText, fileOf, inDesktop, useDesktopCommands, useDesktopState, type DesktopCommand } from "@/lib/desktop";
-import { exportPoster, type ExportKind } from "../poster/ExportMenu";
+import { NOT_READY, exportIfReady, exportPoster, type ExportKind } from "../poster/ExportMenu";
 import { mergePeople, spouseNamed } from "@/lib/merge";
 import { explainNotDrawn, type NotDrawn, type NotDrawnKind } from "@/lib/notDrawn";
 import { normalizeName } from "@/lib/nasab";
@@ -106,7 +107,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const projectTree = (): TreeDTO => ({
     ...treeRef.current, settings: { ...treeRef.current.settings, layoutRecipes: mergeRecipes(recipes.current, treeRef.current.settings?.layoutRecipes) },
   });
-  const { layout, pending: layoutPending } = usePosterLayout(deferredTree, {
+  const { layout, pending: layoutPending, draft: layoutDraft, progress: layoutProgress } = usePosterLayout(deferredTree, {
     showFemales, seed,
     ...layoutOptionsFor(theme, posterSize),
   }, familyRecipes);
@@ -190,6 +191,10 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   // poster can fill the window
   const [sidebarOpen, setSidebarOpenState] = useState(true);
   const [fullScreen, setFullScreen] = useState(false);
+  // The poster's notices (too dense, ambiguous) start below its corner
+  // controls ("Find a name"; in full screen, Exit and Export above it),
+  // which once sat over the notice's first line.
+  const noticeTop = fullScreen ? "top-28" : "top-16";
   // (the poster's zoom asked for by the desktop menu or its keys; see PosterViewport)
   const [zoomCommand, setZoomCommand] = useState<{ kind: "in" | "out" | "fit"; seq: number } | null>(null);
   useEffect(() => {
@@ -576,6 +581,22 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     return partnerGen;
   }, [tree.members, tree.marriages, tree.rootMemberId]);
   const listGeneration = useCallback((m: MemberDTO) => marriedIn.get(m.id) ?? m.generation, [marriedIn]);
+  // The list starts at the family: everyone above the canopy base (the
+  // ancestral line, 60 people in a 78-generation lineage) is folded into one
+  // row, its choice remembered per family on this computer.
+  const canopyBase = useMemo(
+    () => tree.members.find((m) => m.id === (tree.crownBaseId ?? layout?.base?.id)) ?? null,
+    [tree.members, tree.crownBaseId, layout?.base?.id],
+  );
+  const foldKey = `shajarah:ancestral-line:${tree.id}`;
+  const [ancestralOpen, setAncestralOpenState] = useState(false);
+  useEffect(() => {
+    try { setAncestralOpenState(localStorage.getItem(foldKey) === "open"); } catch { /* storage unavailable */ }
+  }, [foldKey]);
+  const setAncestralOpen = (open: boolean) => {
+    setAncestralOpenState(open);
+    try { localStorage.setItem(foldKey, open ? "open" : "closed"); } catch { /* storage unavailable */ }
+  };
 
   const filtered = useMemo(() => {
     // (hamza forms, ى / ي, ة / ه, diacritics, spaces and case ignored: احمد finds أحمد)
@@ -597,9 +618,12 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     else void travel(dir);
   };
   const exportFromMenu = (kind: ExportKind) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    exportPoster(kind, svg, exportName(tree.name), posterSize).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    // (a draft or an unfinished poster is never exported: the menu's items
+    // are disabled meanwhile, and a command that arrives anyway is refused)
+    const ready = !!layout && !layoutPending;
+    void exportIfReady(ready, svgRef.current, (svg) => exportPoster(kind, svg, exportName(tree.name), posterSize))
+      .then((done) => { if (!done) setError(`Export: ${NOT_READY.toLowerCase()}.`); })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   };
   const importFromMenu = ({ file }: DesktopCommand) => {
     if (!file) return;
@@ -636,6 +660,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     undoLabel: history.undo.at(-1)?.label ?? null,
     redoLabel: history.redo.at(-1)?.label ?? null,
     sidebar: sidebarOpen,
+    // (the menu bar's exports, like the button's, wait for the finished poster)
+    posterReady: !!layout && !layoutPending,
   });
 
   return (
@@ -779,27 +805,56 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                     <button type="button" className="underline hover:text-bark-900" onClick={() => setQuery("")}>Clear the search</button>
                   </li>
                 )}
-                {filtered.slice(0, LIST_LIMIT).map((m) => (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      onClick={() => selectAndShow(m.id)}
-                      className="flex w-full items-center gap-2 border-b border-parchment-100 px-3 py-1.5 text-start hover:bg-parchment-50"
-                    >
-                      <span className="h-3 w-3 shrink-0 rounded-full border border-black/20" style={{ background: generationColor(m.generation).fill }} />
-                      <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
-                      <span className="whitespace-nowrap text-xs text-bark-400" title={marriedIn.has(m.id) ? "Married into the family" : undefined}>
-                        {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-                {filtered.length > LIST_LIMIT && (
-                  // (a long list stays quick: the rest are a search away)
-                  <li className="p-3 text-center text-xs text-bark-500">
-                    Showing {LIST_LIMIT} of {filtered.length.toLocaleString()}. Search above to find anyone else.
-                  </li>
-                )}
+                {(() => {
+                  const row = (m: MemberDTO) => (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectAndShow(m.id)}
+                        className="flex w-full items-center gap-2 border-b border-parchment-100 px-3 py-1.5 text-start hover:bg-parchment-50"
+                      >
+                        <span className="flex-1 truncate font-naskh text-[15px]" dir="auto">{nasab(tree.members, m.id, 2)}</span>
+                        <span className="whitespace-nowrap text-xs text-bark-400" title={marriedIn.has(m.id) ? "Married into the family" : generationLabel(m, canopyBase, listGeneration).words}>
+                          {marriedIn.has(m.id) ? `G${listGeneration(m) + 1} · ${m.gender === "FEMALE" ? "wife" : "husband"}` : `G${m.generation + 1}`}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                  const searching = !!query.trim();
+                  const ancestors = filtered.filter((m) => inAncestralLine(m, canopyBase, listGeneration));
+                  const family = ancestors.length ? filtered.filter((m) => !inAncestralLine(m, canopyBase, listGeneration)) : filtered;
+                  // (a search opens the ancestral line when it finds someone in it)
+                  const open = ancestralOpen || (searching && ancestors.length > 0);
+                  return (
+                    <>
+                      {ancestors.length > 0 && canopyBase && (
+                        <li className="border-b border-parchment-200 bg-parchment-50">
+                          <button type="button" aria-expanded={open} onClick={() => setAncestralOpen(!open)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-bark-700 hover:bg-parchment-100">
+                            <span className="flex-1">
+                              Ancestral line · {ancestors.length.toLocaleString()} {searching ? (ancestors.length === 1 ? "match" : "matches") : ancestors.length === 1 ? "person" : "people"}
+                              <span className="block text-xs text-bark-400">above <bdi className="font-naskh">{canopyBase.name}</bdi>, where the canopy starts</span>
+                            </span>
+                            <span aria-hidden className="text-bark-500">{open ? "▾" : "▸"}</span>
+                          </button>
+                        </li>
+                      )}
+                      {open && ancestors.slice(0, LIST_LIMIT).map(row)}
+                      {ancestors.length > 0 && canopyBase && family.length > 0 && (
+                        <li className="border-b border-parchment-200 bg-parchment-50 px-3 py-1.5 text-xs text-bark-500">
+                          The family from <bdi className="font-naskh text-sm text-bark-700">{canopyBase.name}</bdi> · {family.length.toLocaleString()} {family.length === 1 ? "person" : "people"}
+                        </li>
+                      )}
+                      {family.slice(0, LIST_LIMIT).map(row)}
+                      {family.length > LIST_LIMIT && (
+                        // (a long list stays quick: the rest are a search away)
+                        <li className="p-3 text-center text-xs text-bark-500">
+                          Showing {LIST_LIMIT} of {family.length.toLocaleString()}. Search above to find anyone else.
+                        </li>
+                      )}
+                    </>
+                  );
+                })()}
               </ul>
             </>
           )}
@@ -915,9 +970,17 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
               <div className="flex items-center gap-2">
                 <button type="button" className="btn-ghost px-2" onClick={() => setPanel({ kind: "list" })}>← All</button>
                 <h2 className="truncate font-naskh text-xl font-bold" dir="auto">{selected.name}</h2>
-                <span className="ms-auto rounded-full px-2 py-0.5 text-xs" style={{ background: generationColor(selected.generation).fill, color: generationColor(selected.generation).text }}>
-                  Generation {selected.generation + 1}
-                </span>
+                {(() => {
+                  // (where they stand in the family, from the canopy base; the
+                  // number counted from the root, small, for genealogists)
+                  const g = generationLabel(selected, canopyBase, listGeneration);
+                  return (
+                    <span className="ms-auto shrink-0 text-end text-xs text-bark-600">
+                      {g.words}
+                      <span className="ms-1.5 text-[10px] text-bark-400" title="Generation counted from the root of the lineage">{g.absolute}</span>
+                    </span>
+                  );
+                })()}
               </div>
               <RelationsPanel
                 tree={tree}
@@ -1138,9 +1201,11 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         </aside>
 
         <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          {/* the layout under way: a slim strip across the canvas's top */}
+          {view === "poster" && <LayoutStatus shown={!!layout} pending={layoutPending} draft={layoutDraft} progress={layoutProgress} />}
           {/* the poster's own controls, stacked in its top corner: full
-              screen's exit, finding a name, and the layout under way */}
-          <div className="pointer-events-none absolute end-4 top-4 z-30 flex flex-col items-end gap-2 [&>*]:pointer-events-auto">
+              screen's exit and finding a name (below the strip while it shows) */}
+          <div className={`pointer-events-none absolute end-4 z-30 flex flex-col items-end gap-2 [&>*]:pointer-events-auto ${view === "poster" && layoutPending ? "top-10" : "top-4"}`}>
           {fullScreen && (
             <div className="flex items-center gap-2 rounded-full border border-parchment-300 bg-white/95 px-2 py-1 shadow">
               <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
@@ -1174,11 +1239,6 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 <Icon name="search" className="h-3.5 w-3.5" /> Find a name
               </button>
             )
-          )}
-          {view === "poster" && layout && layoutPending && (
-            <div className="rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-500 shadow" role="status">
-              Updating the poster…
-            </div>
           )}
           </div>
           {personMenu && layout && (() => {
@@ -1239,7 +1299,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             </div>
           ) : (
             <>
-            {layout.tooDense && !showDense && (
+            {layout.tooDense && !showDense && !layoutDraft && (
               <TooDensePanel
                 issues={layout.clarity.issues.length}
                 branch={!!layout.focus}
@@ -1260,7 +1320,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 theme={theme}
                 selectedId={selectedId}
                 lineageIds={lineageIds}
-                showIssues
+                showIssues={!layoutDraft}
                 onSelect={select}
                 onMenu={(id, x, y) => setPersonMenu({ id, x, y })}
                 markedIds={markedIds}
@@ -1301,8 +1361,9 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 </button>
               </div>
             )}
-            {!layout.clarity.ok && !(layout.tooDense && !showDense) && (
+            {!layout.clarity.ok && !(layout.tooDense && !showDense) && !layoutDraft && (
               <ClarityNotice
+                below={noticeTop}
                 issues={layout.clarity.issues.length}
                 tooDense={layout.tooDense}
                 paper={posterSize}
@@ -1314,6 +1375,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             {/* (not while the next layout is on its way: it may be another paper's) */}
             {layout.clarity.ok && !layout.legibility.ok && !layoutPending && (
               <LegibilityNotice
+                below={noticeTop}
                 smallestMm={layout.legibility.smallestTextMm}
                 minMm={layout.legibility.minTextMm}
                 paper={posterSize}
@@ -1390,8 +1452,10 @@ function useFrameArtwork(): string | null | undefined {
  * offers the size that fits, or tiled printing when even A0 is too small.
  */
 function LegibilityNotice({
-  smallestMm, minMm, paper, suggestion, fallbacks, onChoose, onShortenSoil,
+  smallestMm, minMm, paper, suggestion, fallbacks, onChoose, onShortenSoil, below,
 }: {
+  /** Where it starts: below the poster's corner controls (see noticeTop). */
+  below: string;
   smallestMm: number;
   minMm: number;
   paper: PaperSize;
@@ -1404,7 +1468,7 @@ function LegibilityNotice({
 }) {
   const [otherWays, setOtherWays] = useState(false);
   return (
-    <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
+    <div className={`absolute end-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow ${below}`}>
       <p className="font-semibold">Too dense for {paper}</p>
       <p className="mt-1">
         The smallest names would print at {smallestMm.toFixed(1)} mm (minimum {minMm.toFixed(1)} mm).
@@ -1445,9 +1509,11 @@ function LegibilityNotice({
  * spots are circled on the poster; a larger poster usually resolves them.
  */
 function ClarityNotice({
-  issues, tooDense, paper, fallbacks, findSize, onChoose,
+  issues, tooDense, paper, fallbacks, findSize, onChoose, below,
 }: {
   issues: number;
+  /** Where it starts: below the poster's corner controls (see noticeTop). */
+  below: string;
   /** Shown anyway although too dense: the lines are not circled (there are too many). */
   tooDense: boolean;
   paper: PaperSize;
@@ -1458,7 +1524,7 @@ function ClarityNotice({
   const [state, setState] = useState<"idle" | "searching" | PaperSize | "none">("idle");
   useEffect(() => setState("idle"), [issues, paper]);
   return (
-    <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 shadow">
+    <div className={`absolute end-4 z-10 max-w-sm rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 shadow ${below}`}>
       <p className="font-semibold">{tooDense ? `Too dense for ${paper}: shown for reference only` : `Some connections are ambiguous on ${paper}`}</p>
       <p className="mt-1">
         {tooDense

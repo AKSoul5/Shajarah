@@ -32,6 +32,8 @@ export interface DesktopState {
   undoLabel?: string | null;
   redoLabel?: string | null;
   sidebar?: boolean;
+  /** The poster on screen is final (not a draft, not being laid out): the menu bar's exports are offered only then. */
+  posterReady?: boolean;
 }
 
 interface Bridge {

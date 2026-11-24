@@ -37,6 +37,23 @@ export interface StoredRecipe {
    * and the search is not run.
    */
   inputs?: string;
+  /** How long the search for this poster took (ms), for the editor's time estimate the next time it runs. */
+  ms?: number;
+}
+
+/**
+ * How long the family's last search on this paper took (ms), if it is
+ * known: for "about N min left" while the search runs again.
+ */
+export function lastSearchMs(list: readonly StoredRecipe[] | null | undefined, options: LayoutOptions, key = recipeKey(options)): number | undefined {
+  const same = list?.find((r) => r.key === key && r.ms);
+  if (same) return same.ms;
+  return list?.find((r) => r.ms && r.options?.paperWidthMm === options.paperWidthMm)?.ms;
+}
+
+/** The names' size the family's last poster on this paper came out at, for a draft (see draftLayout). */
+export function lastScale(list: readonly StoredRecipe[] | null | undefined, options: LayoutOptions): number | undefined {
+  return list?.find((r) => r.options?.paperWidthMm === options.paperWidthMm)?.recipe.fontScale;
 }
 
 /** The family's tree-level fields the layout reads. */
