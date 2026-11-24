@@ -20,16 +20,25 @@
 // fingerprint misses a change).
 
 import {
-  LAYOUT_ENGINE_VERSION, computePosterLayout, pickUpright, posterSteps, replayLayout, uprightNeedsPlain,
+  LAYOUT_ENGINE_VERSION, computePosterLayout, draftLayout, pickUpright, posterSteps, replayLayout, uprightNeedsPlain,
   type LayoutOptions, type LayoutRecipe, type PosterLayout, type PosterSteps,
 } from "./botanical";
 import type { TreeDTO } from "@/lib/types";
-import { findRecipe, fingerprint, layoutInputs, recipeKey, type StoredRecipe } from "./recipes";
+import { findRecipe, fingerprint, lastScale, lastSearchMs, layoutInputs, recipeKey, type StoredRecipe } from "./recipes";
 
 export type LayoutJob = { id: number; tree: TreeDTO; options: LayoutOptions };
 export type StepRequest =
   | { id: number; kind: "step"; tree: TreeDTO; options: LayoutOptions }
-  | { id: number; kind: "replay"; tree: TreeDTO; recipe: LayoutRecipe };
+  | { id: number; kind: "replay"; tree: TreeDTO; recipe: LayoutRecipe }
+  | { id: number; kind: "draft"; tree: TreeDTO; options: LayoutOptions; scale?: number };
+
+/**
+ * How far the search has got, for the editor to show while it runs: the
+ * step it is on (posterSteps), when it started, and how long the family's
+ * last search on this paper took, where known. No percentage: how many
+ * steps a search takes is not known in advance.
+ */
+export type SearchProgress = { step: number; startedAt: number; lastMs?: number };
 
 /** Where recipes are kept between sessions (the editor: the browser's storage, a fallback to the family's own). */
 export interface RecipeStore {
@@ -38,7 +47,7 @@ export interface RecipeStore {
 }
 
 /** A poster's recipe, how good the poster was, and what it was made from (see recipes.ts, layoutInputs). */
-export type KnownRecipe = { recipe: LayoutRecipe; rank: number; inputs?: string };
+export type KnownRecipe = { recipe: LayoutRecipe; rank: number; inputs?: string; ms?: number };
 
 /**
  * The recipes kept with the family itself (its settings' layoutRecipes,
@@ -108,6 +117,13 @@ type Running = LayoutJob & {
   first?: IteratorResult<LayoutOptions, PosterLayout>;
   /** The replayed recipe is from the same family, settings and engine: its poster is final, and the search only runs if it is worse. */
   trusted?: KnownRecipe;
+  /** The draft's message, while one is being made (see next). */
+  draftSeq?: number;
+  /** When the search started (ms), and the step it is on. */
+  startedAt?: number;
+  stepNo: number;
+  /** How long the family's last search on this paper took, if known. */
+  lastMs?: number;
 };
 
 /**
@@ -132,12 +148,18 @@ export class TwoLayouts {
 
   constructor(
     private readonly make: () => WorkerLike,
-    /** `final`: the poster may be exported (a replayed one as good as before, or the search's own). */
-    private readonly done: (id: number, layout: PosterLayout | null, error?: string, final?: boolean) => void,
+    /**
+     * `final`: the poster may be exported (a replayed one as good as before,
+     * or the search's own). `draft`: a quick draft, shown only until the
+     * poster comes (never final).
+     */
+    private readonly done: (id: number, layout: PosterLayout | null, error?: string, final?: boolean, draft?: boolean) => void,
     private readonly store?: RecipeStore,
     private readonly family?: FamilyRecipes,
     /** The layout engine's version (see LAYOUT_ENGINE_VERSION; a test passes another). */
     private readonly engine = LAYOUT_ENGINE_VERSION,
+    /** Told of each step of the search as it starts, and `null` once the poster is final. */
+    private readonly progress?: (id: number, p: SearchProgress | null) => void,
   ) {}
 
   /** The newest request starts at once: a search still going for an older one is given up. */
@@ -172,6 +194,22 @@ export class TwoLayouts {
    */
   private known(run: { key: string; options: LayoutOptions }) {
     return this.recipes.get(run.key) ?? this.fromFamily(run.options) ?? this.store?.get(run.key);
+  }
+
+  private familyLastMs(options: LayoutOptions) {
+    try {
+      return lastSearchMs(this.family?.get(), options);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private familyScale(options: LayoutOptions) {
+    try {
+      return lastScale(this.family?.get(), options);
+    } catch {
+      return undefined;
+    }
   }
 
   private fromFamily(options: LayoutOptions) {
@@ -238,8 +276,18 @@ export class TwoLayouts {
     const first = steps.next();
     const ukey = `${job.tree.id}:${!!job.options.motherNames}`;
     const speculate = this.upright.get(ukey) ?? mayStandUpright(job.tree, job.options);
-    const run: Running = { ...job, steps, step: { options: {}, bSent: false }, seq: 0, speculate, sawUpright: false, key, inputs };
+    const run: Running = { ...job, steps, step: { options: {}, bSent: false }, seq: 0, speculate, sawUpright: false, key, inputs, stepNo: 0 };
     this.running = run;
+    run.lastMs = known?.ms ?? this.familyLastMs(job.options);
+    // No recipe for this poster yet: a quick draft of it first, in the
+    // third worker, shown within about a second while the search runs (at
+    // the size the family's last poster on this paper came out at). It is
+    // asked for before the search's first step.
+    const wd = !known && !first.done && this.worker("r");
+    if (wd) {
+      run.draftSeq = ++this.seq;
+      wd.postMessage({ id: run.draftSeq, kind: "draft", tree: job.tree, options: job.options, scale: this.familyScale(job.options) });
+    }
     // (the last poster's recipe made again, at once, while the search runs)
     const wr = known && this.worker("r");
     if (known && wr) {
@@ -266,12 +314,15 @@ export class TwoLayouts {
       this.next();
       return;
     }
+    run.startedAt = Date.now();
     if (first.done) this.finish(first.value);
     else this.start(run, first.value);
   }
 
   private start(run: Running, options: LayoutOptions) {
     run.step = { options, bSent: false };
+    run.stepNo++;
+    this.progress?.(run.id, { step: run.stepNo, startedAt: run.startedAt ?? Date.now(), lastMs: run.lastMs });
     run.seq = ++this.seq;
     this.worker("a")!.postMessage({ id: run.seq, kind: "step", tree: run.tree, options });
     if (run.speculate) this.sendB(run);
@@ -294,6 +345,12 @@ export class TwoLayouts {
   /** The replayed recipe: shown at once; ready to export when it is as good as the poster it was made from. */
   private replayed(r: LayoutReply) {
     const run = this.running;
+    if (run && r.id === run.draftSeq) {
+      run.draftSeq = undefined;
+      // (shown only while nothing better is: a failed draft is no loss)
+      if (r.ok && r.layout) this.done(run.id, r.layout, undefined, false, true);
+      return;
+    }
     if (!run || r.id !== run.replaySeq) return;
     const trusted = run.trusted;
     if (trusted) {
@@ -301,6 +358,7 @@ export class TwoLayouts {
       // (the same poster as before: final, ready to export, and no search)
       if (r.ok && r.layout && posterRank(r.layout) >= trusted.rank) {
         this.running = null;
+        this.progress?.(run.id, null);
         this.done(run.id, r.layout, undefined, true);
         this.next();
         return;
@@ -366,14 +424,16 @@ export class TwoLayouts {
     // a small change can be the better)
     const best = run.quick && posterRank(run.quick) > posterRank(layout) ? run.quick : layout;
     if (best.recipe) {
-      const entry = { recipe: best.recipe, rank: posterRank(best), inputs: run.inputs };
+      const ms = run.startedAt ? Date.now() - run.startedAt : undefined;
+      const entry = { recipe: best.recipe, rank: posterRank(best), inputs: run.inputs, ms };
       this.recipes.set(run.key, entry);
       try { this.store?.set(run.key, entry); } catch { /* storage full or blocked: kept for this session */ }
       // (and with the family, so it is found wherever the family is opened)
       try {
-        this.family?.save({ key: recipeKey(run.options), recipe: best.recipe, rank: entry.rank, options: run.options, at: Date.now(), inputs: run.inputs });
+        this.family?.save({ key: recipeKey(run.options), recipe: best.recipe, rank: entry.rank, options: run.options, at: Date.now(), inputs: run.inputs, ...(ms !== undefined ? { ms } : {}) });
       } catch { /* not kept: the next time the search runs again */ }
     }
+    this.progress?.(run.id, null);
     this.done(run.id, best, undefined, true);
     this.next();
   }

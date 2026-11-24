@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LayoutOptions, PosterLayout } from "@/lib/layout/botanical";
-import { TwoLayouts, type FamilyRecipes, type RecipeStore, type WorkerLike } from "@/lib/layout/twoLayouts";
+import { TwoLayouts, type FamilyRecipes, type RecipeStore, type SearchProgress, type WorkerLike } from "@/lib/layout/twoLayouts";
 import type { TreeDTO } from "@/lib/types";
 
 /**
@@ -42,9 +42,17 @@ export function usePosterLayout(
   tree: TreeDTO, options: LayoutOptions,
   /** The recipes kept with the family (read when a layout starts; given each new one). */
   family?: FamilyRecipes,
-): { layout: PosterLayout | null; pending: boolean } {
+): {
+  layout: PosterLayout | null; pending: boolean;
+  /** The poster shown is a quick draft (never exported), until the search's comes. */
+  draft: boolean;
+  /** How far the search has got, while it runs. */
+  progress: SearchProgress | null;
+} {
   const [layout, setLayout] = useState<PosterLayout | null>(null);
   const [pending, setPending] = useState(true);
+  const [draft, setDraft] = useState(false);
+  const [progress, setProgress] = useState<SearchProgress | null>(null);
   const runner = useRef<TwoLayouts | null>(null);
   const latest = useRef(0);
   const familyRef = useRef(family);
@@ -54,10 +62,12 @@ export function usePosterLayout(
     if (!runner.current) {
       runner.current = new TwoLayouts(
         () => new Worker(new URL("./layout.worker.ts", import.meta.url)) as unknown as WorkerLike,
-        (id, l, error, final = true) => {
+        (id, l, error, final = true, isDraft = false) => {
           if (id !== latest.current) return;
-          if (l) setLayout(l);
-          else console.error("Layout failed:", error);
+          if (l) {
+            setLayout(l);
+            setDraft(isDraft);
+          } else console.error("Layout failed:", error);
           // (a poster made again from its recipe is shown at once; it may
           // be exported when it is as good as before, else once the search
           // is done)
@@ -66,6 +76,8 @@ export function usePosterLayout(
         browserRecipes,
         // (read through the ref: the family's latest copy, not the first one)
         { get: () => familyRef.current?.get(), save: (r) => familyRef.current?.save(r) },
+        undefined,
+        (id, p) => { if (id === latest.current) setProgress(p); },
       );
     }
     return runner.current;
@@ -79,10 +91,11 @@ export function usePosterLayout(
   const key = JSON.stringify(options);
   useEffect(() => {
     setPending(true);
+    setProgress(null);
     ensure().request({ id: ++latest.current, tree, options });
     // (options is rebuilt on every render: its content is what counts)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, key]);
 
-  return { layout, pending };
+  return { layout, pending, draft, progress };
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { usePosterLayout } from "./usePosterLayout";
 import { useLayoutInput } from "./useLayoutInput";
+import { LayoutStatus } from "./LayoutStatus";
 import { mergeRecipes, type StoredRecipe } from "@/lib/layout/recipes";
 import type { FamilyRecipes } from "@/lib/layout/twoLayouts";
 import { smallestClearPaperOffPage, useReadablePaper } from "./useReadablePaper";
@@ -35,7 +36,7 @@ import { ConflictError, apiRepository, localRepository, type FamilyRepository } 
 import { readProjectFile, withNewIds } from "@/lib/project";
 import { openProjectFile, saveProjectFile } from "../projectFiles";
 import { editingText, fileOf, inDesktop, useDesktopCommands, useDesktopState, type DesktopCommand } from "@/lib/desktop";
-import { exportPoster, type ExportKind } from "../poster/ExportMenu";
+import { NOT_READY, exportIfReady, exportPoster, type ExportKind } from "../poster/ExportMenu";
 import { mergePeople, spouseNamed } from "@/lib/merge";
 import { explainNotDrawn, type NotDrawn, type NotDrawnKind } from "@/lib/notDrawn";
 import { normalizeName } from "@/lib/nasab";
@@ -106,7 +107,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const projectTree = (): TreeDTO => ({
     ...treeRef.current, settings: { ...treeRef.current.settings, layoutRecipes: mergeRecipes(recipes.current, treeRef.current.settings?.layoutRecipes) },
   });
-  const { layout, pending: layoutPending } = usePosterLayout(deferredTree, {
+  const { layout, pending: layoutPending, draft: layoutDraft, progress: layoutProgress } = usePosterLayout(deferredTree, {
     showFemales, seed,
     ...layoutOptionsFor(theme, posterSize),
   }, familyRecipes);
@@ -597,9 +598,12 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     else void travel(dir);
   };
   const exportFromMenu = (kind: ExportKind) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    exportPoster(kind, svg, exportName(tree.name), posterSize).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    // (a draft or an unfinished poster is never exported: the menu's items
+    // are disabled meanwhile, and a command that arrives anyway is refused)
+    const ready = !!layout && !layoutPending;
+    void exportIfReady(ready, svgRef.current, (svg) => exportPoster(kind, svg, exportName(tree.name), posterSize))
+      .then((done) => { if (!done) setError(`Export: ${NOT_READY.toLowerCase()}.`); })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   };
   const importFromMenu = ({ file }: DesktopCommand) => {
     if (!file) return;
@@ -636,6 +640,8 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     undoLabel: history.undo.at(-1)?.label ?? null,
     redoLabel: history.redo.at(-1)?.label ?? null,
     sidebar: sidebarOpen,
+    // (the menu bar's exports, like the button's, wait for the finished poster)
+    posterReady: !!layout && !layoutPending,
   });
 
   return (
@@ -1138,9 +1144,11 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
         </aside>
 
         <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          {/* the layout under way: a slim strip across the canvas's top */}
+          {view === "poster" && <LayoutStatus shown={!!layout} pending={layoutPending} draft={layoutDraft} progress={layoutProgress} />}
           {/* the poster's own controls, stacked in its top corner: full
-              screen's exit, finding a name, and the layout under way */}
-          <div className="pointer-events-none absolute end-4 top-4 z-30 flex flex-col items-end gap-2 [&>*]:pointer-events-auto">
+              screen's exit and finding a name (below the strip while it shows) */}
+          <div className={`pointer-events-none absolute end-4 z-30 flex flex-col items-end gap-2 [&>*]:pointer-events-auto ${view === "poster" && layoutPending ? "top-10" : "top-4"}`}>
           {fullScreen && (
             <div className="flex items-center gap-2 rounded-full border border-parchment-300 bg-white/95 px-2 py-1 shadow">
               <button type="button" className="btn-ghost px-3 py-1 text-sm" onClick={() => setFullScreen(false)} title="Leave full screen (Esc or F)">
@@ -1174,11 +1182,6 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 <Icon name="search" className="h-3.5 w-3.5" /> Find a name
               </button>
             )
-          )}
-          {view === "poster" && layout && layoutPending && (
-            <div className="rounded-full border border-parchment-300 bg-white/90 px-3 py-1 text-xs text-bark-500 shadow" role="status">
-              Updating the poster…
-            </div>
           )}
           </div>
           {personMenu && layout && (() => {
@@ -1239,7 +1242,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             </div>
           ) : (
             <>
-            {layout.tooDense && !showDense && (
+            {layout.tooDense && !showDense && !layoutDraft && (
               <TooDensePanel
                 issues={layout.clarity.issues.length}
                 branch={!!layout.focus}
@@ -1260,7 +1263,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 theme={theme}
                 selectedId={selectedId}
                 lineageIds={lineageIds}
-                showIssues
+                showIssues={!layoutDraft}
                 onSelect={select}
                 onMenu={(id, x, y) => setPersonMenu({ id, x, y })}
                 markedIds={markedIds}
@@ -1301,7 +1304,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
                 </button>
               </div>
             )}
-            {!layout.clarity.ok && !(layout.tooDense && !showDense) && (
+            {!layout.clarity.ok && !(layout.tooDense && !showDense) && !layoutDraft && (
               <ClarityNotice
                 issues={layout.clarity.issues.length}
                 tooDense={layout.tooDense}

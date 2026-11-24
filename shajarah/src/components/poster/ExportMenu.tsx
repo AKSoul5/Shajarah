@@ -37,6 +37,20 @@ export async function exportPoster(
   if (kind === "tiles") await exportTiledPdf(svg, filename, paper, sheet, dpi, onProgress);
 }
 
+/** Why export is not offered while the poster is still being laid out (the button's and the menu bar's). */
+export const NOT_READY = "Available when the poster is finished";
+
+/**
+ * An export asked for from outside the menu (the desktop menu bar): run
+ * only when the poster is final; refused (false) while it is a draft or
+ * still being laid out, so no unfinished poster is ever exported.
+ */
+export async function exportIfReady(ready: boolean, svg: SVGSVGElement | null, run: (svg: SVGSVGElement) => Promise<void>): Promise<boolean> {
+  if (!ready || !svg) return false;
+  await run(svg);
+  return true;
+}
+
 export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText, waiting = false }: Props) {
   const [open, setOpen] = useState(false);
   const [paper, setPaper] = useState<PaperSize>(defaultPaper);
@@ -71,7 +85,9 @@ export function ExportMenu({ svgRef, filename, defaultPaper = "A2", smallText, w
 
   return (
     <div className="relative" ref={menu}>
-      <button type="button" className="btn-primary whitespace-nowrap" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      {/* (disabled until the poster is final: a draft or an unfinished one is never exported) */}
+      <button type="button" className="btn-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50" aria-expanded={open}
+        disabled={waiting && !busy} title={waiting && !busy ? NOT_READY : undefined} onClick={() => setOpen((o) => !o)}>
         Export for print ▾
       </button>
       {open && (

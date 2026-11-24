@@ -104,7 +104,8 @@ describe("the editor lays out both placements of the mother at once", () => {
     const options = { ...optionsOf(tree, "A1"), motherNames: false };
     const [only] = await run([{ id: 1, tree, options }]);
     expect(only.json).toBe(JSON.stringify(computePosterLayout(tree, options)));
-    expect(FakeWorker.made.length).toBe(1);
+    // (one worker lays the search out; the draft shown meanwhile has its own)
+    expect(FakeWorker.made.filter((w) => w.posted.length).length).toBe(1);
   });
 
   it("gives up older requests for the newest", { timeout: 300_000 }, async () => {
