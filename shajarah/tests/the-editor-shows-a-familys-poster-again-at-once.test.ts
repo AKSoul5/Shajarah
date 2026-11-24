@@ -54,10 +54,15 @@ describe("the editor shows a family's poster again at once", () => {
       shown.push({ id, final, layout: l! });
       if (shown.filter((s) => s.id === 2).length >= 2) finished();
     }, store);
-    await new Promise<void>((res) => { finished = res; again.request({ id: 2, tree, options }); });
+    // (the family changed a little since, so the search goes on behind the
+    // recipe's poster; unchanged, the recipe's poster is all there is: see
+    // an-unchanged-family-opens-without-the-search.test.ts)
+    const edited = { ...tree, members: tree.members.map((m, i) => (i === 3 ? { ...m, notes: "a note" } : m)), title: `${tree.title ?? ""} ` };
+    const exportedEdited = computePosterLayout(edited, options);
+    await new Promise<void>((res) => { finished = res; again.request({ id: 2, tree: edited, options }); });
     const second = shown.filter((s) => s.id === 2);
     expect(second[0].final).toBe(true);
-    expect(same(second[0].layout, exported)).toBe(true);
-    expect(same(second[1].layout, exported)).toBe(true);
+    expect(same(second[0].layout, exportedEdited)).toBe(true);
+    expect(same(second[1].layout, exportedEdited)).toBe(true);
   });
 });

@@ -6,6 +6,8 @@
 
 import type { MemberDTO, TreeDTO } from "./types";
 import type { TreeSnapshot } from "./restore";
+import { remapRecipes } from "./layout/recipes";
+import { LAYOUT_ENGINE_VERSION } from "./layout/botanical";
 
 export const PROJECT_FORMAT = "shajarah-project";
 export const PROJECT_VERSION = 1;
@@ -86,7 +88,7 @@ export function withNewIds(s: TreeSnapshot, newId: () => string): TreeSnapshot {
       ...(s.settings.familiesThrough ? { familiesThrough: s.settings.familiesThrough.map(map) } : {}),
       ...(s.settings.hiddenIds ? { hiddenIds: s.settings.hiddenIds.map(map) } : {}) }
     : s.settings;
-  return {
+  const result = {
     ...s,
     settings,
     rootMemberId: opt(s.rootMemberId),
@@ -98,6 +100,15 @@ export function withNewIds(s: TreeSnapshot, newId: () => string): TreeSnapshot {
     citations: s.citations.map((c) => ({ ...c, id: map(c.id), sourceId: map(c.sourceId), memberId: map(c.memberId) })),
     media: s.media.map((x) => ({ ...x, id: map(x.id), memberId: opt(x.memberId), sourceId: opt(x.sourceId) })),
   };
+  // (the poster recipes under the new ids, keyed again: the same posters
+  // come back at once in the family opened; see layout/recipes.ts)
+  if (result.settings?.layoutRecipes) {
+    result.settings = {
+      ...result.settings,
+      layoutRecipes: remapRecipes(result.settings.layoutRecipes, ids, { before: s, after: result, engine: LAYOUT_ENGINE_VERSION }),
+    };
+  }
+  return result;
 }
 
 /**

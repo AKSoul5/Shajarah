@@ -4,6 +4,7 @@ import { applyNasabLines } from "@/lib/nasab";
 import { parseGedcom, planGedcomImport } from "@/lib/gedcom";
 import { undoImportLocally, type ImportReceipt } from "@/lib/imports";
 import { snapshotError } from "@/lib/restore";
+import { keepRecipes, mergeRecipes, type StoredRecipe } from "@/lib/layout/recipes";
 import { applyMergeSources, planMergeSources } from "@/lib/sources";
 import type {
   CreateCitationInput, CreateMarriageInput, CreateMediaInput, CreateMemberInput, CreateSourceInput, UpdateMediaInput,
@@ -26,6 +27,11 @@ export interface FamilyRepository {
   undoImport(receipt: ImportReceipt): Promise<TreeDTO>;
   /** Puts the whole tree back to a snapshot (undo/redo). */
   restore(snapshot: TreeDTO): Promise<TreeDTO>;
+  /**
+   * Keeps the recipes of the family's latest posters with it (see
+   * layout/recipes.ts). Not an edit: no new version, nothing to undo.
+   */
+  saveRecipes(recipes: StoredRecipe[]): Promise<void>;
   createSource(input: CreateSourceInput): Promise<TreeDTO>;
   updateSource(id: string, input: UpdateSourceInput): Promise<TreeDTO>;
   /** Removes a source with its citations and file links. */
@@ -94,6 +100,13 @@ export function apiRepository(treeId: string, initialVersion?: string): FamilyRe
     importGedcom: (text) => call(`/api/trees/${treeId}/import-gedcom`, "POST", { text }),
     undoImport: (receipt) => call(`/api/trees/${treeId}/undo-import`, "POST", receipt),
     restore: ({ id: _id, version: _v, ...snapshot }) => call(`/api/trees/${treeId}/restore`, "POST", snapshot),
+    // (not an edit: no If-Match and no new version, so nothing here goes stale)
+    async saveRecipes(recipes) {
+      const res = await fetch(`/api/trees/${treeId}/recipes`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipes }),
+      });
+      if (!res.ok) throw new Error("The poster's recipe was not kept.");
+    },
     createSource: (input) => call(`/api/trees/${treeId}/sources`, "POST", input),
     updateSource: (id, input) => call(`/api/sources/${id}`, "PATCH", input),
     deleteSource: (id) => call(`/api/sources/${id}`, "DELETE"),
@@ -217,10 +230,16 @@ export function localRepository(initial: TreeDTO): FamilyRepository {
         media: [...tree.media, ...plan.newMedia],
       });
     },
+    async saveRecipes(recipes) {
+      // (kept quietly: the copy the editor holds is not replaced, nothing is laid out again)
+      tree = { ...tree, settings: { ...tree.settings, layoutRecipes: mergeRecipes(tree.settings?.layoutRecipes, recipes) } };
+    },
     async restore(snapshot) {
       const err = snapshotError(snapshot);
       if (err) throw new Error(`Cannot restore: ${err}`);
-      return commit(structuredClone({ ...snapshot, id: tree.id }));
+      // (the family's poster recipes are kept, as on the server)
+      const settings = snapshot.settings ? keepRecipes(tree.settings, snapshot.settings) : snapshot.settings;
+      return commit(structuredClone({ ...snapshot, id: tree.id, settings }));
     },
     async createSource(input) {
       const source = { id: localId(), title: input.title, author: input.author ?? null, publication: input.publication ?? null, notes: input.notes ?? null };
@@ -279,7 +298,7 @@ export function localRepository(initial: TreeDTO): FamilyRepository {
     async updateTree(input) {
       return commit({
         ...tree, ...input,
-        settings: input.settings === undefined ? tree.settings : input.settings,
+        settings: input.settings === undefined ? tree.settings : input.settings && keepRecipes(tree.settings, input.settings),
       } as TreeDTO);
     },
   };

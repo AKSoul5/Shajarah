@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { usePosterLayout } from "./usePosterLayout";
+import { useLayoutInput } from "./useLayoutInput";
+import { mergeRecipes, type StoredRecipe } from "@/lib/layout/recipes";
+import type { FamilyRecipes } from "@/lib/layout/twoLayouts";
 import { smallestClearPaperOffPage, useReadablePaper } from "./useReadablePaper";
 import { ViewMenu } from "./ViewMenu";
 import { UndoControls } from "./UndoControls";
@@ -78,11 +81,35 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   const theme = useMemo(() => resolveTheme(tree.settings), [tree.settings]);
   // Layout is recomputed on every edit, in a worker: the editor stays
   // usable while a large family is laid out (the last poster stays shown).
-  const deferredTree = useDeferredValue(tree);
+  // (every layout sees the family without its poster recipes: one kept
+  // with the family never starts a layout of its own; see useLayoutInput)
+  const deferredTree = useLayoutInput(useDeferredValue(tree));
+  // The recipes of the family's latest posters, kept with the family (see
+  // layout/recipes.ts). Saving one is not an edit: no undo step, no new
+  // version, no new layout; the editor's copy of the family is left as it
+  // is, and a change from the server brings the stored ones in.
+  const recipes = useRef<StoredRecipe[]>(mergeRecipes(initialTree.settings?.layoutRecipes));
+  const seenRecipes = useRef(initialTree.settings?.layoutRecipes);
+  if (tree.settings?.layoutRecipes !== seenRecipes.current) {
+    seenRecipes.current = tree.settings?.layoutRecipes;
+    recipes.current = mergeRecipes(recipes.current, seenRecipes.current);
+  }
+  const familyRecipes = useMemo<FamilyRecipes>(() => ({
+    get: () => recipes.current,
+    save: (r) => {
+      recipes.current = mergeRecipes(recipes.current, [r]);
+      // (quietly: a recipe not kept only means the search runs next time)
+      repo.saveRecipes(recipes.current).catch(() => {});
+    },
+  }), [repo]);
+  /** The family as its project file keeps it: with its latest poster recipes, which its copy here may not have yet. */
+  const projectTree = (): TreeDTO => ({
+    ...treeRef.current, settings: { ...treeRef.current.settings, layoutRecipes: mergeRecipes(recipes.current, treeRef.current.settings?.layoutRecipes) },
+  });
   const { layout, pending: layoutPending } = usePosterLayout(deferredTree, {
     showFemales, seed,
     ...layoutOptionsFor(theme, posterSize),
-  });
+  }, familyRecipes);
   // drawn clean but with names too small: the paper on which it is both
   const readablePaper = useReadablePaper(deferredTree, layoutPending ? null : layout, posterSize, (p) => ({ showFemales, seed, ...layoutOptionsFor(theme, p) }));
   // a clean poster whose smallest names print below the legible size (the
@@ -582,7 +609,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
     setIncomingImport((p) => ({ file: fileOf(file, "text/plain"), seq: (p?.seq ?? 0) + 1 }));
   };
   const saveFromMenu = () => {
-    saveProjectFile(tree).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    saveProjectFile(projectTree()).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   };
   useDesktopCommands({
     "new-family": () => window.location.assign("/#new"),
@@ -862,6 +889,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
           {panel.kind === "gedcom" && (
             <GedcomPanel
               tree={tree}
+              projectTree={projectTree}
               busy={busy}
               filename={exportName(tree.name)}
               onCancel={() => setPanel({ kind: "list" })}
