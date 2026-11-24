@@ -191,6 +191,10 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
   // poster can fill the window
   const [sidebarOpen, setSidebarOpenState] = useState(true);
   const [fullScreen, setFullScreen] = useState(false);
+  // The poster's notices (too dense, ambiguous) start below its corner
+  // controls ("Find a name"; in full screen, Exit and Export above it),
+  // which once sat over the notice's first line.
+  const noticeTop = fullScreen ? "top-28" : "top-16";
   // (the poster's zoom asked for by the desktop menu or its keys; see PosterViewport)
   const [zoomCommand, setZoomCommand] = useState<{ kind: "in" | "out" | "fit"; seq: number } | null>(null);
   useEffect(() => {
@@ -1359,6 +1363,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             )}
             {!layout.clarity.ok && !(layout.tooDense && !showDense) && !layoutDraft && (
               <ClarityNotice
+                below={noticeTop}
                 issues={layout.clarity.issues.length}
                 tooDense={layout.tooDense}
                 paper={posterSize}
@@ -1370,6 +1375,7 @@ export function TreeWorkspace({ initialTree, mode }: Props) {
             {/* (not while the next layout is on its way: it may be another paper's) */}
             {layout.clarity.ok && !layout.legibility.ok && !layoutPending && (
               <LegibilityNotice
+                below={noticeTop}
                 smallestMm={layout.legibility.smallestTextMm}
                 minMm={layout.legibility.minTextMm}
                 paper={posterSize}
@@ -1446,8 +1452,10 @@ function useFrameArtwork(): string | null | undefined {
  * offers the size that fits, or tiled printing when even A0 is too small.
  */
 function LegibilityNotice({
-  smallestMm, minMm, paper, suggestion, fallbacks, onChoose, onShortenSoil,
+  smallestMm, minMm, paper, suggestion, fallbacks, onChoose, onShortenSoil, below,
 }: {
+  /** Where it starts: below the poster's corner controls (see noticeTop). */
+  below: string;
   smallestMm: number;
   minMm: number;
   paper: PaperSize;
@@ -1460,7 +1468,7 @@ function LegibilityNotice({
 }) {
   const [otherWays, setOtherWays] = useState(false);
   return (
-    <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
+    <div className={`absolute end-4 z-10 max-w-sm rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow ${below}`}>
       <p className="font-semibold">Too dense for {paper}</p>
       <p className="mt-1">
         The smallest names would print at {smallestMm.toFixed(1)} mm (minimum {minMm.toFixed(1)} mm).
@@ -1501,9 +1509,11 @@ function LegibilityNotice({
  * spots are circled on the poster; a larger poster usually resolves them.
  */
 function ClarityNotice({
-  issues, tooDense, paper, fallbacks, findSize, onChoose,
+  issues, tooDense, paper, fallbacks, findSize, onChoose, below,
 }: {
   issues: number;
+  /** Where it starts: below the poster's corner controls (see noticeTop). */
+  below: string;
   /** Shown anyway although too dense: the lines are not circled (there are too many). */
   tooDense: boolean;
   paper: PaperSize;
@@ -1514,7 +1524,7 @@ function ClarityNotice({
   const [state, setState] = useState<"idle" | "searching" | PaperSize | "none">("idle");
   useEffect(() => setState("idle"), [issues, paper]);
   return (
-    <div className="absolute end-4 top-4 z-10 max-w-sm rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 shadow">
+    <div className={`absolute end-4 z-10 max-w-sm rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900 shadow ${below}`}>
       <p className="font-semibold">{tooDense ? `Too dense for ${paper}: shown for reference only` : `Some connections are ambiguous on ${paper}`}</p>
       <p className="mt-1">
         {tooDense
