@@ -86,7 +86,15 @@ export function withNewIds(s: TreeSnapshot, newId: () => string): TreeSnapshot {
       ...(s.settings.focusId !== undefined ? { focusId: opt(s.settings.focusId ?? null) } : {}),
       ...(s.settings.centerBranchId !== undefined ? { centerBranchId: opt(s.settings.centerBranchId ?? null) } : {}),
       ...(s.settings.familiesThrough ? { familiesThrough: s.settings.familiesThrough.map(map) } : {}),
-      ...(s.settings.hiddenIds ? { hiddenIds: s.settings.hiddenIds.map(map) } : {}) }
+      ...(s.settings.hiddenIds ? { hiddenIds: s.settings.hiddenIds.map(map) } : {}),
+      // (marriages hidden from the poster, "partner:spouse": both under their
+      // new ids; a pair naming someone no longer in the family is dropped)
+      ...(s.settings.hiddenSpouses ? {
+        hiddenSpouses: s.settings.hiddenSpouses.flatMap((pair) => {
+          const [a, b] = pair.split(":");
+          return a && b && ids.has(a) && ids.has(b) ? [`${ids.get(a)}:${ids.get(b)}`] : [];
+        }),
+      } : {}) }
     : s.settings;
   const result = {
     ...s,

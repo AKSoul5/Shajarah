@@ -156,7 +156,8 @@ citations, and the uploaded photos and documents themselves. **Open a
 project file** on the home page (or in the Files panel) opens one as a new
 family, with new ids, so the same file can be opened any number of times
 (the family's poster recipes come with it, under the new ids, so its
-posters come back at once).
+posters come back at once, and so do the marriages hidden from its poster:
+they once came back on it, their records still naming the old ids).
 Use it to keep copies of a project, move it to another computer, or send
 it to someone to look at. In the demo, an opened file replaces the demo
 family as one undoable step.
