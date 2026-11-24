@@ -2,10 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LayoutOptions, PosterLayout } from "@/lib/layout/botanical";
-import { TwoLayouts, type RecipeStore, type WorkerLike } from "@/lib/layout/twoLayouts";
+import { TwoLayouts, type FamilyRecipes, type RecipeStore, type WorkerLike } from "@/lib/layout/twoLayouts";
 import type { TreeDTO } from "@/lib/types";
 
-/** Recipes kept in the browser's storage, so a family reopened is laid out at once (see TwoLayouts). */
+/**
+ * Recipes kept in the browser's storage too: the family's own copy
+ * (FamilyRecipes) is read first; this one is only found again at the same
+ * address (the desktop app opens on a new one every time it starts).
+ */
 const browserRecipes: RecipeStore = {
   get(key) {
     try {
@@ -34,11 +38,17 @@ const browserRecipes: RecipeStore = {
  * her are laid out side by side in two workers (see TwoLayouts).
  * (Where a worker cannot run, it is laid out on the page, as before.)
  */
-export function usePosterLayout(tree: TreeDTO, options: LayoutOptions): { layout: PosterLayout | null; pending: boolean } {
+export function usePosterLayout(
+  tree: TreeDTO, options: LayoutOptions,
+  /** The recipes kept with the family (read when a layout starts; given each new one). */
+  family?: FamilyRecipes,
+): { layout: PosterLayout | null; pending: boolean } {
   const [layout, setLayout] = useState<PosterLayout | null>(null);
   const [pending, setPending] = useState(true);
   const runner = useRef<TwoLayouts | null>(null);
   const latest = useRef(0);
+  const familyRef = useRef(family);
+  familyRef.current = family;
 
   const ensure = () => {
     if (!runner.current) {
@@ -54,6 +64,8 @@ export function usePosterLayout(tree: TreeDTO, options: LayoutOptions): { layout
           setPending(!final);
         },
         browserRecipes,
+        // (read through the ref: the family's latest copy, not the first one)
+        { get: () => familyRef.current?.get(), save: (r) => familyRef.current?.save(r) },
       );
     }
     return runner.current;

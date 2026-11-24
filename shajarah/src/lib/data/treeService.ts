@@ -7,6 +7,7 @@ import { parseNasab, planNasabImport, splitNasabLines } from "../nasab";
 import { GEDCOM_MAX_PEOPLE, parseGedcom, planGedcomImport } from "../gedcom";
 import { planRestore, snapshotError } from "../restore";
 import { planMergeSources } from "../sources";
+import { keepRecipes, mergeRecipes } from "../layout/recipes";
 import { readProjectFile, withNewIds } from "../project";
 import { restoreTreeSchema } from "../validation";
 import type {
@@ -137,6 +138,20 @@ async function treeOf(kind: "member" | "marriage" | "citation" | "media" | "sour
   return row.treeId;
 }
 
+/**
+ * Keeps the recipes of the family's latest posters (see layout/recipes.ts).
+ * Like pinning, not an edit of the family: its version ("last edited"
+ * time) stays as it is, so no other copy of it is made stale.
+ */
+export async function saveRecipes(treeId: string, recipes: unknown[]): Promise<{ id: string; recipes: number }> {
+  const tree = await prisma.familyTree.findUnique({ where: { id: treeId }, select: { settings: true, updatedAt: true } });
+  if (!tree) throw new DomainError("Tree not found.", 404);
+  const current = (tree.settings as PosterSettings | null) ?? null;
+  const settings = keepRecipes(current, { ...(current ?? {}), layoutRecipes: mergeRecipes(recipes) });
+  await prisma.familyTree.update({ where: { id: treeId }, data: { settings: settings as Prisma.InputJsonValue, updatedAt: tree.updatedAt } });
+  return { id: treeId, recipes: settings.layoutRecipes?.length ?? 0 };
+}
+
 export async function createTree(input: CreateTreeInput): Promise<TreeDTO> {
   const tree = await prisma.familyTree.create({ data: input });
   return getTree(tree.id);
@@ -156,7 +171,10 @@ export async function updateTree(treeId: string, input: UpdateTreeInput, version
         ...(crownBaseId !== undefined ? { crownBaseId } : {}),
         ...(trunkStartId !== undefined ? { trunkStartId } : {}),
         // null clears the settings (a JSON null), undefined leaves them as they are
-        ...(settings !== undefined ? { settings: settings === null ? Prisma.JsonNull : (settings as Prisma.InputJsonValue) } : {}),
+        // (the poster recipes are kept either way: see keepRecipes)
+        ...(settings !== undefined
+          ? { settings: settings === null ? Prisma.JsonNull : (keepRecipes(tree.settings, settings as PosterSettings) as Prisma.InputJsonValue) }
+          : {}),
       },
     });
   });
@@ -564,7 +582,10 @@ export async function restoreTree(treeId: string, input: RestoreTreeInput, versi
           rootMemberId: input.rootMemberId,
           crownBaseId: input.crownBaseId,
           trunkStartId: input.trunkStartId,
-          ...(settings !== undefined ? { settings: settings === null ? Prisma.JsonNull : (settings as Prisma.InputJsonValue) } : {}),
+          // (a snapshot from before a recipe was saved keeps it: see keepRecipes)
+          ...(settings !== undefined
+            ? { settings: settings === null ? Prisma.JsonNull : (keepRecipes(current.settings, settings as PosterSettings) as Prisma.InputJsonValue) }
+            : {}),
         },
       });
     },

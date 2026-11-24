@@ -9,6 +9,8 @@ import { PROJECT_EXTENSION } from "@/lib/project";
 import { saveProjectFile } from "../projectFiles";
 
 interface Props {
+  /** The family as its project file keeps it (with its latest poster recipes); else `tree`. */
+  projectTree?: () => TreeDTO;
   tree: TreeDTO;
   busy: boolean;
   /** Base name for the downloaded file (ASCII). */
@@ -41,7 +43,7 @@ const formatSize = (bytes: number) =>
  * will do before anything is saved. That work runs in a Web Worker: a large
  * file never freezes the editor, and choosing another file cancels it.
  */
-export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, opensAsNew, onCancel, incoming = null }: Props) {
+export function GedcomPanel({ tree, projectTree, busy, filename, onImport, onOpenProject, opensAsNew, onCancel, incoming = null }: Props) {
   const projectInput = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function GedcomPanel({ tree, busy, filename, onImport, onOpenProject, ope
     setSaving(true);
     setSaveError(null);
     try {
-      await saveProjectFile(tree);
+      await saveProjectFile(projectTree?.() ?? tree);
     } catch (e) {
       setSaveError((e as Error).message);
     } finally {

@@ -17,30 +17,29 @@
 
 import { computePosterLayout, pickUpright, posterSteps, uprightNeedsPlain, type LayoutOptions, type LayoutRecipe, type PosterLayout, type PosterSteps } from "./botanical";
 import type { TreeDTO } from "@/lib/types";
+import { findRecipe, fingerprint, recipeKey, type StoredRecipe } from "./recipes";
 
 export type LayoutJob = { id: number; tree: TreeDTO; options: LayoutOptions };
 export type StepRequest =
   | { id: number; kind: "step"; tree: TreeDTO; options: LayoutOptions }
   | { id: number; kind: "replay"; tree: TreeDTO; recipe: LayoutRecipe };
 
-/** Where recipes are kept between sessions (the editor: the browser's storage). */
+/** Where recipes are kept between sessions (the editor: the browser's storage, a fallback to the family's own). */
 export interface RecipeStore {
   get(key: string): { recipe: LayoutRecipe; rank: number } | undefined;
   set(key: string, value: { recipe: LayoutRecipe; rank: number }): void;
 }
 
-/** A short, stable fingerprint of a text (53-bit, cyrb53). */
-export function fingerprint(text: string): string {
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+/**
+ * The recipes kept with the family itself (its settings' layoutRecipes,
+ * see recipes.ts): read first, and given each new one to keep.
+ */
+export interface FamilyRecipes {
+  get(): readonly StoredRecipe[] | undefined;
+  save(recipe: StoredRecipe): void;
 }
+
+export { fingerprint };
 
 /** How good a poster is, for comparing two: clean first, then legible, then the larger names. */
 export function posterRank(l: PosterLayout): number {
@@ -118,6 +117,7 @@ export class TwoLayouts {
     /** `final`: the poster may be exported (a replayed one as good as before, or the search's own). */
     private readonly done: (id: number, layout: PosterLayout | null, error?: string, final?: boolean) => void,
     private readonly store?: RecipeStore,
+    private readonly family?: FamilyRecipes,
   ) {}
 
   /** The newest request starts at once: a search still going for an older one is given up. */
@@ -142,7 +142,24 @@ export class TwoLayouts {
   }
 
   private recipeKey(job: LayoutJob) {
-    return `${job.tree.id}:${fingerprint(JSON.stringify(job.options))}`;
+    return `${job.tree.id}:${recipeKey(job.options)}`;
+  }
+
+  /**
+   * The last poster's recipe for this request: this session's, else the
+   * one kept with the family, else the browser's (the family's is found
+   * wherever it is opened; the browser's only at the same address).
+   */
+  private known(run: { key: string; options: LayoutOptions }) {
+    return this.recipes.get(run.key) ?? this.fromFamily(run.options) ?? this.store?.get(run.key);
+  }
+
+  private fromFamily(options: LayoutOptions) {
+    try {
+      return findRecipe(this.family?.get(), recipeKey(options));
+    } catch {
+      return undefined;
+    }
   }
 
   private worker(which: "a" | "b" | "r"): WorkerLike | null {
@@ -197,7 +214,7 @@ export class TwoLayouts {
     const run: Running = { ...job, steps, step: { options: {}, bSent: false }, seq: 0, speculate, sawUpright: false, key };
     this.running = run;
     // (the last poster's recipe made again, at once, while the search runs)
-    const known = this.recipes.get(key) ?? this.store?.get(key);
+    const known = this.known(run);
     const wr = known && this.worker("r");
     if (known && wr) {
       run.replaySeq = ++this.seq;
@@ -233,7 +250,7 @@ export class TwoLayouts {
     const run = this.running;
     if (!run || r.id !== run.replaySeq || !r.ok || !r.layout) return;
     run.quick = r.layout;
-    const before = this.recipes.get(run.key) ?? this.store?.get(run.key);
+    const before = this.known(run);
     this.done(run.id, r.layout, undefined, !!before && posterRank(r.layout) >= Math.floor(before.rank / 1e6) * 1e6);
   }
 
@@ -290,6 +307,10 @@ export class TwoLayouts {
       const entry = { recipe: best.recipe, rank: posterRank(best) };
       this.recipes.set(run.key, entry);
       try { this.store?.set(run.key, entry); } catch { /* storage full or blocked: kept for this session */ }
+      // (and with the family, so it is found wherever the family is opened)
+      try {
+        this.family?.save({ key: recipeKey(run.options), recipe: best.recipe, rank: entry.rank, options: run.options, at: Date.now() });
+      } catch { /* not kept: the next time the search runs again */ }
     }
     this.done(run.id, best, undefined, true);
     this.next();

@@ -1,6 +1,19 @@
 import { isPaperSize } from "./paper";
 import { z } from "zod";
 import { GEDCOM_MAX_CHARS } from "./gedcom";
+import { MAX_FAMILY_RECIPES, type StoredRecipe } from "./layout/recipes";
+
+/** One stored poster recipe (layout/recipes.ts StoredRecipe); its recipe and options are the layout's own. */
+const layoutRecipeSchema = z.object({
+  key: z.string().min(1).max(64),
+  recipe: z.object({ opts: z.record(z.unknown()) }).passthrough(),
+  rank: z.number().finite(),
+  options: z.record(z.unknown()),
+  at: z.number().finite(),
+}) as unknown as z.ZodType<StoredRecipe>;
+
+/** A family's stored poster recipes (at most MAX_FAMILY_RECIPES). */
+export const layoutRecipesSchema = z.array(layoutRecipeSchema).max(MAX_FAMILY_RECIPES);
 
 const year = z.number().int().min(-5000).max(3000).nullable().optional();
 /** Optional text; empty strings are stored as NULL. */
@@ -70,6 +83,8 @@ export const updateTreeSchema = createTreeSchema.partial().extend({
       seed: z.number().int().optional(),
       theme: themeSchema.optional(),
       pinned: z.boolean().optional(),
+      // (see layout/recipes.ts: written by the editor, never typed by anyone)
+      layoutRecipes: layoutRecipesSchema.optional(),
     })
     .nullable()
     .optional(),

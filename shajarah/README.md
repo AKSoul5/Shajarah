@@ -154,7 +154,9 @@ The **Files** button in the editor's sidebar saves the whole family as one
 `.shajarah` file: everyone, the poster settings and tiers, sources,
 citations, and the uploaded photos and documents themselves. **Open a
 project file** on the home page (or in the Files panel) opens one as a new
-family, with new ids, so the same file can be opened any number of times.
+family, with new ids, so the same file can be opened any number of times
+(the family's poster recipes come with it, under the new ids, so its
+posters come back at once).
 Use it to keep copies of a project, move it to another computer, or send
 it to someone to look at. In the demo, an opened file replaces the demo
 family as one undoable step.
@@ -1523,8 +1525,17 @@ never lost.
   a poster is being laid out starts the next layout at once.
 - **A family's poster comes back at once.** Every poster records how it was
   made (its recipe: the one attempt of the layout's search it came from),
-  and the editor keeps each family's last recipe for each paper and
-  setting, also in the browser's storage. Asked for the poster again, or
+  and each family keeps the recipes of its latest posters (one per paper
+  and setting, the 12 most recent) with itself, in its settings, and in the
+  browser's storage as a fallback. Kept with the family, a recipe is found
+  wherever the family is opened: the desktop app opens on a new address
+  every time it starts, and a recipe kept only in the browser's storage,
+  which belongs to the address, was never found again, so every start ran
+  the whole search (a private 340-person family at 2A0: 217 s, against
+  0.65 s from its recipe). Keeping a recipe is not an edit: nothing to
+  undo, the family's version and "last edited" time stay as they are, and
+  no poster is laid out again for it. It travels in the family's project
+  file, survives an undo, and is left out of GEDCOM. Asked for the poster again, or
   after a change, it first makes the poster again from that recipe, in one
   attempt: the same poster in a fraction of the time (a private 340-person
   family at A0: 0.4 s against 104 s; an invented family on screen, turning

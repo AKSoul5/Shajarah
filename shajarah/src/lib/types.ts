@@ -1,4 +1,5 @@
 import type { PaperSize } from "./paper";
+import type { StoredRecipe } from "./layout/recipes";
 // Plain data-transfer types shared by the API, the editor and the layout
 // engine. They mirror the Prisma models but are free of Prisma runtime types
 // so they can be used in client components.
@@ -136,6 +137,13 @@ export interface PosterSettings {
   theme?: Partial<PosterTheme>;
   /** Kept at the top of the start page's list of families. */
   pinned?: boolean;
+  /**
+   * How the family's last posters were made (one per paper and setting),
+   * so a poster comes back at once wherever the family is opened. Not an
+   * edit and not part of the poster: the layout never sees it (see
+   * layout/recipes.ts).
+   */
+  layoutRecipes?: StoredRecipe[];
 }
 
 export interface TreeDTO {
