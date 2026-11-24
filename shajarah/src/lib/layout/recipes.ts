@@ -31,6 +31,37 @@ export interface StoredRecipe {
   options: LayoutOptions;
   /** When it was saved (ms since 1970): the newest is kept. */
   at: number;
+  /**
+   * What the poster was made from (layoutInputs): the same family, settings
+   * and layout engine give the same poster, so the recipe's poster is final
+   * and the search is not run.
+   */
+  inputs?: string;
+}
+
+/** The family's tree-level fields the layout reads. */
+type LayoutFamily = Pick<TreeDTO, "title" | "lineage" | "rootMemberId" | "crownBaseId" | "trunkStartId" | "soilText" | "settings" | "members" | "marriages">;
+
+/**
+ * A fingerprint of everything a poster is made from: the people and
+ * marriages as the layout reads them, the tiers, the settings the layout
+ * reads (directly or as its options), the options themselves (paper,
+ * design, names shown) and the layout engine's version. Equal fingerprints
+ * give the same poster. (People and marriages in the order of their ids:
+ * the database returns people of one generation and birth order in no
+ * fixed order, and the layout orders siblings itself.)
+ */
+export function layoutInputs(tree: LayoutFamily, options: LayoutOptions, engine: number): string {
+  const st = tree.settings ?? {};
+  const byId = <T extends { id: string }>(rows: readonly T[]) => [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return fingerprint(JSON.stringify([
+    engine,
+    [tree.title, tree.lineage, tree.rootMemberId, tree.crownBaseId, tree.trunkStartId, tree.soilText],
+    [st.seed, st.showFemales, st.focusId, st.centerBranchId, st.familiesThrough, st.hiddenIds, st.hiddenSpouses],
+    byId(tree.members).map((m) => [m.id, m.name, m.laqab, m.gender, m.birthYear, m.deathYear, m.isDeceased, m.birthOrder, m.generation, m.fatherId, m.motherId]),
+    byId(tree.marriages).map((r) => [r.id, r.spouseAId, r.spouseBId, r.startYear, r.endYear]),
+    options,
+  ]));
 }
 
 /** A short, stable fingerprint of a text (53-bit, cyrb53). */
@@ -136,9 +167,18 @@ function remapValue<T>(value: T, ids: ReadonlyMap<string, string>): T {
  * opened as a new family): the ids in each recipe's options are mapped and
  * its key made again from them.
  */
-export function remapRecipes(list: readonly unknown[] | null | undefined, ids: ReadonlyMap<string, string>): StoredRecipe[] {
+export function remapRecipes(
+  list: readonly unknown[] | null | undefined, ids: ReadonlyMap<string, string>,
+  /** The family before and after (with `engine`): a recipe up to date with the family stays up to date with it. */
+  families?: { before: LayoutFamily; after: LayoutFamily; engine: number },
+): StoredRecipe[] {
   return mergeRecipes(list).map((r) => {
+    const { inputs, ...rest } = r;
     const options = remapValue(r.options ?? {}, ids);
-    return { ...r, options, key: recipeKey(options), recipe: { ...r.recipe, opts: remapValue(r.recipe.opts, ids) } };
+    const current = !!inputs && !!families && inputs === layoutInputs(families.before, r.options ?? {}, families.engine);
+    return {
+      ...rest, options, key: recipeKey(options), recipe: { ...r.recipe, opts: remapValue(r.recipe.opts, ids) },
+      ...(current ? { inputs: layoutInputs(families!.after, options, families!.engine) } : {}),
+    };
   });
 }

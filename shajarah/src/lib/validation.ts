@@ -10,6 +10,7 @@ const layoutRecipeSchema = z.object({
   rank: z.number().finite(),
   options: z.record(z.unknown()),
   at: z.number().finite(),
+  inputs: z.string().max(64).optional(),
 }) as unknown as z.ZodType<StoredRecipe>;
 
 /** A family's stored poster recipes (at most MAX_FAMILY_RECIPES). */

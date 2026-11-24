@@ -1532,7 +1532,14 @@ never lost.
   every time it starts, and a recipe kept only in the browser's storage,
   which belongs to the address, was never found again, so every start ran
   the whole search (a private 340-person family at 2A0: 217 s, against
-  0.65 s from its recipe). Keeping a recipe is not an edit: nothing to
+  0.65 s from its recipe). With each recipe the family keeps a fingerprint
+  of everything the poster was made from: the people and marriages as the
+  layout reads them, the tiers, the poster settings, the paper and the
+  layout engine's version. When it matches, nothing has changed since: the
+  recipe's poster is the poster, ready to export at once, and the search is
+  not run at all. After an edit, or in a new version of the app whose
+  layout is different, the recipe's poster is shown at once and the search
+  runs behind it, as below. Keeping a recipe is not an edit: nothing to
   undo, the family's version and "last edited" time stay as they are, and
   no poster is laid out again for it. It travels in the family's project
   file, survives an undo, and is left out of GEDCOM. Asked for the poster again, or

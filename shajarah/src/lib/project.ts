@@ -7,6 +7,7 @@
 import type { MemberDTO, TreeDTO } from "./types";
 import type { TreeSnapshot } from "./restore";
 import { remapRecipes } from "./layout/recipes";
+import { LAYOUT_ENGINE_VERSION } from "./layout/botanical";
 
 export const PROJECT_FORMAT = "shajarah-project";
 export const PROJECT_VERSION = 1;
@@ -102,7 +103,10 @@ export function withNewIds(s: TreeSnapshot, newId: () => string): TreeSnapshot {
   // (the poster recipes under the new ids, keyed again: the same posters
   // come back at once in the family opened; see layout/recipes.ts)
   if (result.settings?.layoutRecipes) {
-    result.settings = { ...result.settings, layoutRecipes: remapRecipes(result.settings.layoutRecipes, ids) };
+    result.settings = {
+      ...result.settings,
+      layoutRecipes: remapRecipes(result.settings.layoutRecipes, ids, { before: s, after: result, engine: LAYOUT_ENGINE_VERSION }),
+    };
   }
   return result;
 }

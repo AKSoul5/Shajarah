@@ -58,6 +58,15 @@ import { mulberry32 } from "./random";
 export type NodeShape = "leaf" | "circle" | "oval" | DesignShape;
 
 /**
+ * The layout engine's version. A family's stored poster recipe is trusted
+ * as its final poster (the whole search skipped) only when it was made by
+ * this version, from the same family and settings (see recipes.ts,
+ * layoutInputs). Raise it by one in every change that changes what a
+ * layout comes out as, so recipes made before are searched again.
+ */
+export const LAYOUT_ENGINE_VERSION = 1;
+
+/**
  * With nodeShape "auto": leaves for a canopy of at most this many names,
  * ovals beyond. Leaves (tilted, pointed) are lovely on a sparse tree; on a
  * dense one they read as a web, and tilted Arabic is hard to read, while

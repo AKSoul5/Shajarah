@@ -99,6 +99,11 @@ Poster:
   at print scale.
 - Names never drop below the legible minimum. A family too large for a
   paper is offered the smallest paper that is actually readable.
+- Any change that changes what a layout comes out as raises
+  `LAYOUT_ENGINE_VERSION` in `botanical.ts` by one, in the same commit. A
+  family's stored poster recipe is trusted as its final poster (the search
+  skipped) only when it was made by the same engine version from the same
+  family and settings; without the bump, families would keep the old poster.
 - A change to layout or design is kept only if no family gets worse.
   `tests/qa/layout-baseline.json` fails the run on any new defect; update
   it (`QA_UPDATE=1`) only after reviewing the report, and say so in the commit.

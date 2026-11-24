@@ -55,8 +55,9 @@ async function layOut(tree: TreeDTO, familyRecipes: FamilyRecipes, id = 1) {
   await new Promise<void>((done) => {
     const runner = new TwoLayouts(() => new FakeWorker(), (_id, l, _e, final = true) => {
       shown.push({ final, layout: l! });
-      if (final && FakeWorker.asked.includes("step")) done();
-      // (a replayed poster ready to export, with the search still running: wait for the search)
+      // (the search's poster, or a recipe's poster that needs no search; a
+      // replayed one with the search still going behind it: wait)
+      if (final && (shown.length > 1 || !FakeWorker.asked.includes("replay") || !FakeWorker.asked.includes("step"))) done();
     }, undefined, familyRecipes);
     runner.request({ id, tree, options: optionsOf(tree) });
   });
