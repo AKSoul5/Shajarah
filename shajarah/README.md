@@ -1375,6 +1375,14 @@ seed always produce the same poster.
    the child's label: a gentle cubic that arrives along the child's ray.
    - Leaf stalks aim at the leaf's centre, and the leaf is drawn over it.
    - Widths follow the pipe model, with fine twigs.
+   - Lines leaving the canopy base's centre (its sons' limbs) leave it in
+     the order their names stand round it, the highest name's line
+     highest, and far enough apart that two medallion radii out their
+     full widths clear each other. A thick limb bent round a name once set
+     out below a thinner brother's line and swept across it just past the
+     medallion (a private 340-person family at 2A0: its one problem, so the
+     poster was never clean). A line moved lower never sets out lower than
+     the way to its own name, so it never dips and then rises to it.
 9. **Relationship-clarity check** (`src/lib/layout/clarity.ts`). Every
    layout is validated against the genealogy:
    - every expected parent → child connection is drawn, from the right
@@ -1394,6 +1402,11 @@ seed always produce the same poster.
       the editor recommends the larger poster.
     - **Never clean:** the remaining spots are listed in
       `layout.clarity.issues` and circled in the editor. They never print.
+    - While a problem is left, the lines are drawn once more at the end,
+      with the spouses' boxes held where the untangling left them: that can
+      bend clear a line the first drawing could not. (With nothing it could
+      move, the untangling used to stop without it, and a line under one of
+      four husbands' boxes stayed on the same 340-person family.)
 11. **Lineage colours** (Refined style; *Style → Ornaments*). Each major
     lineage gets one muted colour: forest green, burgundy, dusty blue,
     ochre, deep teal, plum.

@@ -64,7 +64,7 @@ export type NodeShape = "leaf" | "circle" | "oval" | DesignShape;
  * layoutInputs). Raise it by one in every change that changes what a
  * layout comes out as, so recipes made before are searched again.
  */
-export const LAYOUT_ENGINE_VERSION = 1;
+export const LAYOUT_ENGINE_VERSION = 2;
 
 /**
  * With nodeShape "auto": leaves for a canopy of at most this many names,
@@ -1294,6 +1294,8 @@ function sideLean(l: PosterLayout): number | null {
 }
 /** Generations above the centred branch whose largest sub-branch is held straight on (see the leader). */
 const LEAD_STEPS = 1;
+/** How far out (in canopy-base medallion radii) the lines leaving its centre must clear each other's widths (see orderBaseLines). */
+const BASE_CLEAR = 2;
 /** The trunk's names are at most this many times the canopy's typical name. */
 const TRUNK_TO_CANOPY = 1.15;
 /** A trunk this much past TRUNK_TO_CANOPY is set in proportion. */
@@ -4101,7 +4103,7 @@ function layoutAttemptBody(
   };
   /** Bends the given lines (the ones the clarity check found a problem with) where another shape does better. */
   const uprightKid = (id: string) => { const h = holderOf.get(id); return !!h && uprightHolder(h) && centerIds.has(id); };
-  const refineLines = (targets: Set<string>) => {
+  const refineLinesOnly = (targets: Set<string>) => {
     // every drawn connection, as the clarity check sees it
     const lines = new Map<string, Line>();
     for (const n of growingNodes) {
@@ -4316,7 +4318,7 @@ function layoutAttemptBody(
     const from = holderOf.get(n.id)?.id ?? n.parentId ?? "";
     dottedFrom.set(from, (dottedFrom.get(from) ?? 0) + 1);
   }
-  const buildCurves = () => {
+  const drawCurves = () => {
     const growthDir = new Map<string, Vec>();
     forks.clear();
     placeHolders();
@@ -4537,6 +4539,71 @@ function layoutAttemptBody(
       if (node.angle > 180) node.angle -= 360;
     }
   }
+  // Lines leaving the canopy base's centre (its sons' limbs, a wife's)
+  // leave it in the order their names stand round it, each side's highest
+  // first. Bent round a name, a thick limb could set out below a thinner
+  // brother's line and sweep across it just past the rim (a private
+  // 340-person family at 2A0: its second son's limb across its third son's
+  // line, the poster's one problem). Only a side whose lines set out out of
+  // order is touched; those moved are set far enough apart that at
+  // BASE_CLEAR medallion radii out their full widths clear each other. A
+  // line set out lower is never lower than the way to its own name (it
+  // would dip, then rise to it); the lines above it rise instead. (The
+  // centred son's mother, standing straight up, is the top of both sides
+  // and never moves.)
+  const orderBaseLines = () => {
+    if (!base.data.member) return;
+    type BaseLine = { c: Cubic; w: number; fixed: boolean; set: (c: Cubic) => void };
+    const lines: BaseLine[] = [];
+    for (const n of growingNodes) {
+      const c = curveOf.get(n.id);
+      if (c && len(sub(c.p0, origin)) < 0.5) lines.push({ c, w: nodeWidths(n).w0, fixed: false, set: (x) => curveOf.set(n.id, x) });
+    }
+    for (const h of holders) {
+      const c = holderCurve.get(h.id);
+      if (c && len(sub(c.p0, origin)) < 0.5) lines.push({ c, w: holderWidths(h).w0, fixed: uprightHolder(h), set: (x) => holderCurve.set(h.id, x) });
+    }
+    if (lines.length < 2) return;
+    const clearAt = Math.max(baseOval.rx, baseOval.ry) * BASE_CLEAR;
+    for (const side of [1, -1]) {
+      // (angles above the horizontal, outward on this side)
+      const elev = (v: Vec) => Math.atan2(-v.y, side * v.x);
+      const mine = lines
+        .filter((l) => l.fixed || side * (l.c.p1.x - origin.x) > 0.5)
+        .map((l) => ({ ...l, end: elev(sub(l.c.p1, origin)), start: elev(sub(l.c.c1, l.c.p0)), reach: len(sub(l.c.c1, l.c.p0)) }))
+        .sort((a, b) => b.end - a.end);
+      if (mine.length < 2) continue;
+      const gap = (a: (typeof mine)[number], b: (typeof mine)[number]) => Math.asin(Math.min(0.9, (a.w + b.w) / 2 / clearAt));
+      // (only a side whose lines set out out of order: lines in order, if
+      // closer than the gap, do not cross, and moving them cost one test
+      // poster 2% of its names' size)
+      if (mine.every((l, i) => !i || l.start < mine[i - 1].start)) continue;
+      const want = mine.map((l) => l.start);
+      // each line no higher than the one above allows …
+      for (let i = 1; i < mine.length; i++) {
+        if (!mine[i].fixed) want[i] = Math.min(want[i], want[i - 1] - gap(mine[i - 1], mine[i]));
+      }
+      // … nor lower than its own way to its name: the ones above rise instead
+      for (let i = mine.length - 1; i >= 0; i--) {
+        if (mine[i].fixed) continue;
+        if (want[i] < mine[i].start) want[i] = Math.max(want[i], Math.min(mine[i].start, mine[i].end));
+        if (i < mine.length - 1) want[i] = Math.max(want[i], want[i + 1] + gap(mine[i], mine[i + 1]));
+        want[i] = Math.min(want[i], Math.PI / 2);
+      }
+      mine.forEach((l, i) => {
+        if (l.fixed || Math.abs(want[i] - l.start) < 1e-6) return;
+        l.set({ ...l.c, c1: add(l.c.p0, scale({ x: side * Math.cos(want[i]), y: -Math.sin(want[i]) }, l.reach)) });
+      });
+    }
+  };
+  const buildCurves = () => {
+    drawCurves();
+    orderBaseLines();
+  };
+  const refineLines = (targets: Set<string>) => {
+    refineLinesOnly(targets);
+    orderBaseLines();
+  };
   buildCurves();
 
   // ── 5c. Untangling ───────────────────────────────────────────────────
@@ -4832,6 +4899,33 @@ function layoutAttemptBody(
       }
     }
     if (!fresh) check();
+    else if (issues.length && budget.checks > 0) {
+      // Once more while problems are left, the holders now pinned where the
+      // untangling left them: that can bend clear a line the first drawing,
+      // with the holders still free, could not (with nothing it could
+      // move, the untangling stopped without it, and a line under one of a
+      // woman's four husbands' boxes stayed). Kept only with fewer problems
+      // and no box less clear; else the drawing is put back as it was.
+      const holderTrouble = () => holders.filter((h) => !h.clear).length + holders.reduce((a, h) => a + [...nodes, ...holders]
+        .filter((o) => o !== h && Math.abs(o.x - h.x) < (o.w + h.w) / 2 - 0.5 && Math.abs(o.y - h.y) < (o.h + h.h) / 2 - 0.5).length, 0);
+      const kept = {
+        holders: holders.map((h) => ({ ...h })), curves: new Map(curveOf), holderCurves: new Map(holderCurve),
+        forks: new Map(forks), report: lastReport, trouble: holderTrouble(),
+      };
+      const next = check();
+      if (next.length < issues.length && holderTrouble() <= kept.trouble) issues = next;
+      else {
+        holders.forEach((h, i) => Object.assign(h, kept.holders[i]));
+        curveOf.clear();
+        for (const [k, v] of kept.curves) curveOf.set(k, v);
+        holderCurve.clear();
+        for (const [k, v] of kept.holderCurves) holderCurve.set(k, v);
+        forks.clear();
+        for (const [k, v] of kept.forks) forks.set(k, v);
+        lastReport = kept.report;
+        indexBoxes();
+      }
+    }
   }
   // Verification: overlapping names left after relaxation (fixed obstacles
   // never move, so only pairs with a movable name count).
