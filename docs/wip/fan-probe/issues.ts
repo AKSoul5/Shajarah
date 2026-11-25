@@ -1,0 +1,11 @@
+import { readFileSync } from "node:fs";
+import { replayLayout } from "@/lib/layout/botanical";
+import { makeCase } from "./cases";
+const { key, recipe } = JSON.parse(readFileSync(process.argv[2], "utf8"));
+const c = makeCase(key);
+const l: any = replayLayout(c.tree, recipe);
+const name = new Map<string, string>();
+for (const n of l.nodes) name.set(n.id, n.member?.name ?? n.id);
+for (const s of l.spouses) name.set(s.id, "box:" + (s.name ?? s.member?.name ?? s.id) + "(of " + (name.get(s.partnerId) ?? s.partnerId) + ")");
+const ln = (e: any) => Array.isArray(e) ? `${name.get(e[0]) ?? e[0]}→${name.get(e[1]) ?? e[1]}` : (name.get(e) ?? e);
+for (const i of l.clarity.issues) console.log(i.kind, i.detail ?? "", "|", ln(i.edge), "|", ln(i.other), "|", i.at ? `${i.at.x.toFixed(0)},${i.at.y.toFixed(0)}` : "");

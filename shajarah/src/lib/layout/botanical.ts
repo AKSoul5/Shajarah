@@ -446,7 +446,22 @@ const HONORIFICS = /^(عليه السلام|رضي الله عنه|رحمه ال
  * reported from the type actually used, so a family that only fits by going
  * below the minimum is flagged rather than silently shrunk.
  */
+/** (WIP) Set only while the chosen layout is drawn once more with the finishing steps (BOX_FINAL, LINE_FINAL). */
+let finishing = false;
+
 export function computePosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
+  const l = searchPosterLayout(tree, opts);
+  if (!(BOX_FINAL || LINE_FINAL) || !l.clarity.issues.length || !l.recipe) return l;
+  // (WIP) the chosen layout once more, its lines and spouses' boxes
+  // finished; kept only with fewer problems and its names where they were
+  finishing = true;
+  let done: PosterLayout;
+  try { done = replayLayout(tree, l.recipe); } finally { finishing = false; }
+  const same = done.nodes.length === l.nodes.length && done.nodes.every((n, i) => Math.abs(n.x - l.nodes[i].x) < 0.01 && Math.abs(n.y - l.nodes[i].y) < 0.01);
+  return same && done.clarity.issues.length < l.clarity.issues.length ? { ...l, ...done, recipe: l.recipe } : l;
+}
+
+function searchPosterLayout(tree: TreeDTO, opts: LayoutOptions = {}): PosterLayout {
   const steps = posterSteps(opts);
   let r = steps.next();
   while (!r.done) r = steps.next(keepGuarded(tree, r.value));
@@ -1319,7 +1334,23 @@ const FAN_KEEP_ORDER = !!process.env.FAN_KEEP_ORDER;
 const FAN_RING_ROOM = !!process.env.FAN_RING_ROOM;
 /** WIP switch (option 2, test A): the generation rings' ovals as wide as the page's margins allow, not only as wide as the room above the canopy base. */
 const CANOPY_WIDE = !!process.env.CANOPY_WIDE;
+/**
+ * WIP switch: each ring's families in the order of their fathers (or the
+ * mothers they are drawn through) on the ring inside it, brothers and
+ * sisters in their own order, so a daughter's children stand by her and the
+ * lines between two generations cannot cross (with FAN_ONE_ROW).
+ */
+const FAN_PARENT_ORDER = !!process.env.FAN_PARENT_ORDER;
 const LINE_SEARCH = process.env.LINE_SEARCH !== undefined ? Number(process.env.LINE_SEARCH) : 0;
+/**
+ * WIP switch: the same line search (level 1-4) run once more at the very end
+ * of the released layout, names and boxes where the layout left them, kept
+ * only where the clarity check counts fewer problems.
+ */
+const LINE_FINAL = process.env.LINE_FINAL !== undefined ? Number(process.env.LINE_FINAL) : 0;
+const LINE_LEVEL = Math.max(LINE_SEARCH, LINE_FINAL);
+/** WIP switch: a spouse's box named in a problem left at the end is tried at places round its partner (the names stay); kept only with fewer problems and no box overlapping anything. */
+const BOX_FINAL = !!process.env.BOX_FINAL;
 /** The trunk's names are at most this many times the canopy's typical name. */
 const TRUNK_TO_CANOPY = 1.15;
 /** A trunk this much past TRUNK_TO_CANOPY is set in proportion. */
@@ -2819,6 +2850,14 @@ function layoutAttemptBody(
     for (const d of [...rings.keys()].sort((a, b) => a - b)) {
       const ring = rings.get(d)!;
       ring.sort((a, b) => b.ray! - a.ray!); // anticlockwise from the left
+      if (FAN_ONE_ROW && FAN_PARENT_ORDER && onRing && d !== firstRing) {
+        const at = new Map(ring.map((n, i) => [n.id, i]));
+        const parentRay = (n: LiveNode) => { const p = n.parentId ? byId.get(n.parentId) : undefined; return p && p.ray !== undefined ? p.ray : n.ray!; };
+        ring.sort((a, b) => (a.parentId === b.parentId ? at.get(a.id)! - at.get(b.id)! : parentRay(b) - parentRay(a)));
+        // each family round its parent: their places on the ring start there
+        for (const n of ring) n.ray = parentRay(n);
+      }
+      if (process.env.FAN_DEBUG) for (const n of ring) { const p = n.parentId ? byId.get(n.parentId) : undefined; if (p && through.has(p.id)) console.error(`through-kid ring ${d} idx ${ring.indexOf(n)}/${ring.length} ray ${(n.ray! * 57.3).toFixed(1)} mother ${(p.ray! * 57.3).toFixed(1)}`); }
       // (each ring its own range: see ringLift)
       const lo = Math.PI / 2 - (Math.PI / 2 - ringLift(d)), hi = Math.PI - ringLift(d);
       const radiusAt = (th: number) => r0 + ringT[d] * Math.max(0, reach(th) * 0.95 - r0);
@@ -4298,7 +4337,7 @@ function layoutAttemptBody(
     [0.4, null, 0.12], [0.4, null, -0.12], [0.7, null, 0.22], [0.7, null, -0.22], [0.95, 0.1, 0.3], [0.95, 0.1, -0.3],
     [0.95, 0.1, 0.45], [0.95, 0.1, -0.45],
     // (WIP, LINE_SEARCH 3: a much wider family of shapes, S-bends included)
-    ...(LINE_SEARCH >= 3
+    ...(LINE_LEVEL >= 3
       ? [0.15, 0.4, 0.7, 0.95].flatMap((arrive) => [null, 0.1, 0.5, 0.9].flatMap((follow) =>
         [0.08, 0.15, 0.25, 0.35, 0.5, 0.7].flatMap((b) => [[arrive, follow, b], [arrive, follow, -b], [arrive, follow, b, 1], [arrive, follow, -b, 1]] as [number, number | null, number, number?][])))
       : []),
@@ -4424,7 +4463,7 @@ function layoutAttemptBody(
     for (let pass = 0; pass < (holdUp ? 3 : 2); pass++) {
       let changed = false;
       for (const l of lines.values()) {
-        if (wideLines && LINE_SEARCH >= 3 && !lineSpec.has(l.id) && targets.has(l.id) && holderSpec.has(l.id)) {
+        if (wideLines && LINE_LEVEL >= 3 && !lineSpec.has(l.id) && targets.has(l.id) && holderSpec.has(l.id)) {
           const now = costOf(l, l.pts);
           if (!now) continue;
           let best: { c: Cubic; pts: Vec[]; cost: number } | null = null;
@@ -4456,7 +4495,7 @@ function layoutAttemptBody(
         }
         // (WIP, LINE_SEARCH 3: also lines turning steadily from a chosen
         // direction toward their name, as a family fan's are drawn)
-        if (wideLines && LINE_SEARCH >= 3 && (best?.cost ?? now)) {
+        if (wideLines && LINE_LEVEL >= 3 && (best?.cost ?? now)) {
           const sp = lineSpec.get(l.id)!;
           const direct = Math.atan2(sp.C.y - sp.P.y, sp.C.x - sp.P.x);
           search: for (const pw of [1, 0.6, 2, 3]) for (const deg of [0, 8, -8, 16, -16, 25, -25, 35, -35, 50, -50, 65, -65]) {
@@ -4481,7 +4520,7 @@ function layoutAttemptBody(
     // (WIP, LINE_SEARCH 4) A line still in trouble and each line it
     // conflicts with, bent together: the best few shapes of each, tried in
     // pairs (one bent alone can be no better while the other stays put).
-    if (wideLines && LINE_SEARCH >= 4) {
+    if (wideLines && LINE_LEVEL >= 4) {
       const candidates = (l: Line): Cubic[] => {
         if (holderSpec.has(l.id) && !lineSpec.has(l.id)) return holderShapes(l.id);
         const sp = lineSpec.get(l.id);
@@ -5043,11 +5082,11 @@ function layoutAttemptBody(
         lastReport = k.report;
       };
       let best = start, kept = snap();
-      if (LINE_SEARCH < 1) return best;
+      if (LINE_LEVEL < 1) return best;
       wideLines = true;
       for (let round = 0; round < 8 && best.length; round++) {
         const targets = linesIn(best);
-        if (LINE_SEARCH >= 2) {
+        if (LINE_LEVEL >= 2) {
           const fams = new Set<string>();
           for (const id of targets) { const n = byId.get(id); if (n?.parentId) fams.add(n.parentId); const h = holderOf.get(id); if (h) fams.add(h.id); }
           for (const n of growingNodes) if (fams.has(holderOf.get(n.id)?.id ?? parentIdOf(n))) targets.add(n.id);
@@ -5321,6 +5360,40 @@ function layoutAttemptBody(
         lastReport = kept.report;
         indexBoxes();
       }
+    }
+    // (WIP, BOX_FINAL) a box in trouble tried round its partner
+    if (BOX_FINAL && finishing && !frozenDone) {
+      let cur = validate();
+      const gap = f * 0.4;
+      const overlapsAnything = (h: Holder) => [...nodes, ...holders].some((o) => o !== h
+        && Math.abs(o.x - h.x) < (o.w + h.w) / 2 + gap && Math.abs(o.y - h.y) < (o.h + h.h) / 2 + gap);
+      const named = (h: Holder) => cur.some((i) => [i.edge, i.other].some((e) => (Array.isArray(e) ? e.includes(h.id) : e === h.id)));
+      for (const h of holders) {
+        if (!cur.length) break;
+        if (!named(h)) continue;
+        const P = h.anchorOf;
+        const saved = { x: h.x, y: h.y, pin: h.pin };
+        const R = Math.hypot(h.x - P.x, h.y - P.y);
+        let best = { n: cur.length, x: h.x, y: h.y };
+        for (const r of [R, R * 1.35, R * 1.7]) for (let k = 0; k < 24; k++) {
+          const a = (k * Math.PI) / 12;
+          const x = P.x + Math.cos(a) * r, y = P.y - Math.sin(a) * r;
+          h.x = x; h.y = y; h.pin = { x, y };
+          if (overlapsAnything(h)) continue;
+          indexBoxes();
+          const next = check();
+          if (next.length < best.n) best = { n: next.length, x, y };
+        }
+        if (best.n < cur.length) { h.x = best.x; h.y = best.y; h.pin = { x: best.x, y: best.y }; }
+        else { h.x = saved.x; h.y = saved.y; h.pin = saved.pin; }
+        indexBoxes();
+        cur = check();
+      }
+    }
+    // (WIP, LINE_FINAL) lines alone, once more, where problems are left
+    if (LINE_FINAL && finishing && !frozenDone) {
+      const left = validate();
+      if (left.length) lineSearch(left);
     }
   }
   // Verification: overlapping names left after relaxation (fixed obstacles

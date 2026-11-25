@@ -199,10 +199,50 @@ candidate. The one-row fan still costs name size (4.63 -> 3.20 mm at 2A0
 with everything shown) and leaves 5-21 problems. The wider canopy helps
 only together with the line search, and only on 2A0.
 
+### Session 3 (25 Nov 2026): "fix everything"
+
+**One-row fan, owner's family.** Each ring is in its parents' order
+(`fan-probe/inv.ts`: 0 out-of-order families on every ring;
+`FAN_PARENT_ORDER` changed nothing, the order was already right). The
+problems left come from rings 2 and 3 being packed end to end while the
+parents with children stand in the middle of ring 1 (childless sons on the
+sides): three sisters side by side on ring 2 have their husbands' boxes and
+children side by side far to the left, so the first sister's long line
+passes the others' starting points and any line growing outward from them
+crosses it. Built into the family's shape at one row and 3.2 mm; not
+tuning. Left as a design question.
+
+**Released layout, finished.** Two steps run once on the chosen layout
+(not in every attempt of the search: that made the QA 18 × slower), kept
+only if every name stays where it was and the clarity check counts fewer
+problems:
+
+- `LINE_FINAL=4`: the line search above (wide shapes, the lines to spouses'
+  boxes, pairs).
+- `BOX_FINAL=1`: a spouse's box named in a problem tried at 72 places round
+  its partner (3 distances × 24 directions), never overlapping a name or box.
+  Fixes the forced crossings where a daughter's husband's box (no children
+  shown) stood straight out from her, across her brother's branch to his
+  wife's box.
+
+Owner's family, full layout path (search, then the finishing steps):
+
+| Paper | Spouses | Daughters' families | Released | Lines | Boxes | Both | Time |
+|---|---|---|---|---|---|---|---|
+| 2A0 | on | on | 1 | 0 | 1 | **0** | +4% |
+| 2A0 | on | off | 2 | 2 | 0 | **0** | +11% |
+| A0 | on | off | 2 | 2 | 0 | **0** | +0% |
+| A0 | off | on | 6 | 5 | 4 | **3** | +18% |
+| (the other four cells) | | | 0 | 0 | 0 | 0 | none |
+
+Names, sizes and positions identical to released in every cell. The three
+left (A0, spouses off, daughters on) are lines under names in a part of the
+ring where the names touch: no gap for a line; needs names nudged apart.
+
 ### Switches (all off by default; off, the output equals `main`, checked)
 
 `FAN_ONE_ROW`, `LINES_FROZEN`, `LINE_SEARCH` (0-4), `REFINE_MAX`,
-`UNTANGLE_MAX`, `FAN_KEEP_ORDER`, `FAN_RING_ROOM`, `CANOPY_WIDE`, `HARMONY_ROUNDS`,
+`UNTANGLE_MAX`, `FAN_KEEP_ORDER`, `FAN_RING_ROOM`, `CANOPY_WIDE`, `FAN_PARENT_ORDER`, `LINE_FINAL`, `BOX_FINAL`, `HARMONY_ROUNDS`,
 `HARMONY_PULL`, `SYM_BLEND`, `FAN_DEBUG` (prints each ring's fill).
 Probe scripts: `fan-probe/` (run from `shajarah/` with
 `npx tsx --tsconfig tsconfig.json ../docs/wip/fan-probe/<script>.ts`; they

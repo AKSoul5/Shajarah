@@ -13,6 +13,7 @@ export function metrics(l: any) {
     if (S > 1) { ratio += L / S; cnt++; }
     longest = Math.max(longest, L / fs);
   }
-  return { problems: l.clarity.issues.length, kinds, overlaps: l.overlaps, mm: +l.legibility.smallestTextMm.toFixed(2),
+  const names = createHash("sha1").update(JSON.stringify(l.nodes.map((n: any) => [n.id, n.x.toFixed(2), n.y.toFixed(2)]))).digest("hex").slice(0, 10);
+  return { names, problems: l.clarity.issues.length, kinds, overlaps: l.overlaps, mm: +l.legibility.smallestTextMm.toFixed(2),
     crossingsClear: l.clarity.clearCrossings ?? null, detour: +(ratio / Math.max(1, cnt)).toFixed(3), longest: +longest.toFixed(1), pos };
 }
