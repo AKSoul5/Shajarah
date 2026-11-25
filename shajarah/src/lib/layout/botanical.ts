@@ -1306,6 +1306,18 @@ const HARMONY_ROUNDS = process.env.HARMONY_ROUNDS !== undefined ? Number(process
 const HARMONY_PULL = process.env.HARMONY_PULL !== undefined ? Number(process.env.HARMONY_PULL) : 0.7;
 const REFINE_MAX = process.env.REFINE_MAX !== undefined ? Number(process.env.REFINE_MAX) : 30;
 const UNTANGLE_MAX = process.env.UNTANGLE_MAX !== undefined ? Number(process.env.UNTANGLE_MAX) : 15;
+/**
+ * WIP switch (experiment, phase 1): once the names are placed, nothing moves
+ * them or the spouses' boxes again; only the lines are drawn and searched
+ * (LINE_SEARCH: 0 one refinement pass as released, 1 refinement repeated
+ * until it stops helping, 2 also bends the lines of every family touched).
+ */
+const LINES_FROZEN = !!process.env.LINES_FROZEN;
+/** WIP switch (phase 2a): after the relaxation, each ring is set in one row again in the order it had before (families kept side by side), as near the relaxed places as that allows. */
+const FAN_KEEP_ORDER = !!process.env.FAN_KEEP_ORDER;
+/** WIP switch (phase 2b): a crowded ring moves out and the rings outside it only as far as they must to keep their gap (not all by the same step), so the inner crowded rings get room. */
+const FAN_RING_ROOM = !!process.env.FAN_RING_ROOM;
+const LINE_SEARCH = process.env.LINE_SEARCH !== undefined ? Number(process.env.LINE_SEARCH) : 0;
 /** The trunk's names are at most this many times the canopy's typical name. */
 const TRUNK_TO_CANOPY = 1.15;
 /** A trunk this much past TRUNK_TO_CANOPY is set in proportion. */
@@ -2825,6 +2837,7 @@ function layoutAttemptBody(
           const crowd = pin < 0
             ? (2 * halves.reduce((a, x) => a + x, 0)) / ((hi - lo) * 0.97)
             : Math.max(halves.slice(0, pin + 1).reduce((a, x) => a + x, 0) * 2 - halves[pin], halves.slice(pin).reduce((a, x) => a + x, 0) * 2 - halves[pin]) / ((hi - lo) * 0.97);
+          if (process.env.FAN_DEBUG) console.error(`grow ring ${d} it ${it}: crowd ${crowd.toFixed(2)} t ${ringT.map((x) => x.toFixed(3)).join(",")}`);
           if (crowd <= 1) break;
           const t0 = ringT[d];
           const grown = Math.min(t0 * crowd + 0.01, t0 + 0.5);
@@ -2835,6 +2848,29 @@ function layoutAttemptBody(
             const a = lo + ((hi - lo) * k) / 24;
             const span = reach(a) * 0.95 - r0;
             if (span > 1) tCap = Math.min(tCap, (rMaxOnPage({ w: f * 4, h: f * 1.6 }, a) - r0) / span);
+          }
+          if (process.env.FAN_DEBUG) console.error(`  tCap ${tCap.toFixed(3)} grown ${grown.toFixed(3)}`);
+          if (FAN_RING_ROOM) {
+            // the rings outside move only to keep their least gap
+            const span = Math.max(1, meanCrownReach - r0);
+            const facing = circleRings ? facingRoom(span) : null;
+            const minGap = (e: number) => Math.max((f * 2.6) / span + (holderRoom.has(e) ? (f * 3.2) / span : 0), facing ? facing(e) + (holderRoom.has(e) ? (f * 3.2) / span : 0) : 0);
+            const spread = (t: number) => {
+              const out = [...ringT];
+              out[d] = t;
+              for (let e = d + 1; e < out.length; e++) out[e] = Math.max(out[e], out[e - 1] + minGap(e));
+              return out;
+            };
+            // (no further out than the outermost ring already is, or the page allows)
+            const cap = Math.max(tCap, ringT[ringT.length - 1]);
+            if (process.env.FAN_DEBUG) console.error(`  minGap ${ringT.map((_, e) => (e ? minGap(e).toFixed(3) : "-")).join(",")}`);
+            let okT = t0, tryT = grown;
+            if (spread(tryT)[ringT.length - 1] > cap) {
+              for (let k = 0; k < 30; k++) { const mid = (okT + tryT) / 2; if (spread(mid)[ringT.length - 1] <= cap) okT = mid; else tryT = mid; }
+            } else okT = tryT;
+            if (okT - t0 <= 1e-6) break;
+            ringT = spread(okT);
+            continue;
           }
           const delta = Math.min(grown - t0, tCap - ringT[ringT.length - 1]);
           if (delta <= 1e-6) break;
@@ -2976,6 +3012,7 @@ function layoutAttemptBody(
           const gTarget = groups.map((idx, g) => centreOf(idx) + width[g] / 2);
           const gNeed = (g: number) => width[g - 1] + need(groups[g][0]);
           const gTh = packRing(gTarget, gNeed, lo + width[width.length - 1], hi, -1);
+          if (process.env.FAN_DEBUG) { const total = width.reduce((x, y) => x + y, 0) + groups.slice(1).reduce((x, g) => x + need(g[0]), 0); console.error(`ring ${d}: ${ring.length} names in ${groups.length} families need ${(total * 57.3).toFixed(1)}° of ${((hi - lo) * 57.3).toFixed(1)}° (fill ${(total / (hi - lo)).toFixed(2)})`); }
           groups.forEach((idx, g) => idx.forEach((i, k) => { th[i] = gTh[g] - offs[g][k]; }));
         } else {
           const pinAt = ring.findIndex((n) => centerIds.has(n.id));
@@ -3532,8 +3569,34 @@ function layoutAttemptBody(
     n.y = Math.max(n.y, contentTop + n.h / 2);
     if (n.region !== "crown") n.y = Math.min(n.y, groundY - n.h / 2 - W * 0.01);
   };
+  const rayBefore = new Map(nodes.map((n) => [n, n.ray]));
   relax(nodes, constrain, undefined, onPage);
-  if (onRing && FAN_ONE_ROW) {
+  if (onRing && FAN_ONE_ROW && FAN_KEEP_ORDER) {
+    const rings = new Map<number, LiveNode[]>();
+    for (const n of nodes) if (n.region === "crown" && rayBefore.get(n) !== undefined) rings.set(n.depth, [...(rings.get(n.depth) ?? []), n]);
+    for (const [d, ring] of rings) {
+      ring.sort((a, b) => rayBefore.get(b)! - rayBefore.get(a)!);
+      const relaxed = ring.map((n) => {
+        const a = Math.atan2(origin.y - n.y, n.x - origin.x);
+        const ray = rayBefore.get(n)!;
+        return Math.abs(a - ray) < Math.PI ? a : ray;
+      });
+      const half = (n: LiveNode, th: number) =>
+        (Math.abs((n.w / 2 + (n.pad ?? 0)) * Math.sin(th)) + Math.abs((n.h / 2 + (n.pad ?? 0)) * Math.cos(th)) + corridorFor(f, f)) / Math.max(1, ringRadius(d, th));
+      const lo = ringLift(d), hi = Math.PI - ringLift(d);
+      const needAt = (t: number[]) => (i: number) => half(ring[i - 1], t[i - 1]) + half(ring[i], t[i]);
+      const pin = ring.findIndex((n) => centerIds.has(n.id));
+      let th = packRing(relaxed, needAt(relaxed), Math.min(lo, ...relaxed), Math.max(hi, ...relaxed), pin);
+      th = packRing(relaxed, needAt(th), Math.min(lo, ...relaxed), Math.max(hi, ...relaxed), pin);
+      ring.forEach((n, i) => {
+        const dir = dirOf(th[i]);
+        const r = Math.min(ringRadius(d, th[i]), rMaxOnPage(n, th[i]));
+        n.ray = th[i];
+        n.x = origin.x + dir.x * r;
+        n.y = origin.y + dir.y * r;
+      });
+    }
+  } else if (onRing && FAN_ONE_ROW) {
     for (const n of nodes) {
       if (n.region !== "crown" || n.ray === undefined) continue;
       const a = Math.atan2(origin.y - n.y, n.x - origin.x);
@@ -4225,10 +4288,17 @@ function layoutAttemptBody(
     return hitBoxes.length;
   };
   // [arrive, follow (null: the usual), bow sideways (a share of the length)]
-  const SHAPES: [number, number | null, number][] = [
+  /** (WIP) Whether the line search's wider shapes are in use: only inside lineSearch, so the first drawing is the released one. */
+  let wideLines = false;
+  const SHAPES: [number, number | null, number, number?][] = [
     [0.4, null, 0], [0.7, null, 0], [0.95, null, 0], [0.15, null, 0], [0.4, 0.1, 0], [0.95, 0.1, 0], [0.7, 0.9, 0],
     [0.4, null, 0.12], [0.4, null, -0.12], [0.7, null, 0.22], [0.7, null, -0.22], [0.95, 0.1, 0.3], [0.95, 0.1, -0.3],
     [0.95, 0.1, 0.45], [0.95, 0.1, -0.45],
+    // (WIP, LINE_SEARCH 3: a much wider family of shapes, S-bends included)
+    ...(LINE_SEARCH >= 3
+      ? [0.15, 0.4, 0.7, 0.95].flatMap((arrive) => [null, 0.1, 0.5, 0.9].flatMap((follow) =>
+        [0.08, 0.15, 0.25, 0.35, 0.5, 0.7].flatMap((b) => [[arrive, follow, b], [arrive, follow, -b], [arrive, follow, b, 1], [arrive, follow, -b, 1]] as [number, number | null, number, number?][])))
+      : []),
   ];
   /**
    * A line from P to C leaving along angle `phi`, its angle about P turning
@@ -4262,7 +4332,7 @@ function layoutAttemptBody(
   };
   /** How a line is drawn, for each shape: its inputs, kept from the first drawing. */
   const lineSpec = new Map<string, { P: Vec; C: Vec; gP: Vec; rayDir: Vec; follow: number; reach0: number; leaf: boolean; organicOn: boolean; node: LiveNode }>();
-  const shapeCurve = (id: string, [arrive, followAlt, bow]: [number, number | null, number]): { c: Cubic; e0: Vec } => {
+  const shapeCurve = (id: string, [arrive, followAlt, bow, sBend]: [number, number | null, number, number?]): { c: Cubic; e0: Vec } => {
     const sp = lineSpec.get(id)!;
     const L = len(sub(sp.C, sp.P)) || 1;
     const dv = scale(sub(sp.C, sp.P), 1 / L);
@@ -4270,7 +4340,7 @@ function layoutAttemptBody(
     const s0 = norm(add(scale(sp.gP, follow), scale(dv, 1 - follow)));
     const e0 = norm(add(scale(dv, 1 - arrive), scale(sp.rayDir, arrive)));
     const side = scale({ x: -dv.y, y: dv.x }, L * bow);
-    const raw = { p0: sp.P, c1: add(add(sp.P, scale(s0, L * (sp.leaf ? sp.reach0 - 0.03 : sp.reach0))), side), c2: add(sub(sp.C, scale(e0, L * 0.3)), side), p1: sp.C };
+    const raw = { p0: sp.P, c1: add(add(sp.P, scale(s0, L * (sp.leaf ? sp.reach0 - 0.03 : sp.reach0))), side), c2: sBend ? sub(sub(sp.C, scale(e0, L * 0.3)), side) : add(sub(sp.C, scale(e0, L * 0.3)), side), p1: sp.C };
     return { c: sp.organicOn ? organic(sp.node, raw, followAlt === null ? 1 : followAlt) : raw, e0 };
   };
   /** Bends the given lines (the ones the clarity check found a problem with) where another shape does better. */
@@ -4351,16 +4421,49 @@ function layoutAttemptBody(
     for (let pass = 0; pass < (holdUp ? 3 : 2); pass++) {
       let changed = false;
       for (const l of lines.values()) {
+        if (wideLines && LINE_SEARCH >= 3 && !lineSpec.has(l.id) && targets.has(l.id) && holderSpec.has(l.id)) {
+          const now = costOf(l, l.pts);
+          if (!now) continue;
+          let best: { c: Cubic; pts: Vec[]; cost: number } | null = null;
+          for (const c of holderShapes(l.id)) {
+            const pts = sample(c, 24);
+            const cost = costOf(l, pts);
+            if (cost < (best?.cost ?? now)) best = { c, pts, cost };
+            if (!cost) break;
+          }
+          if (!best) continue;
+          dropLine(l);
+          l.pts = best.pts;
+          l.bb = bbOf(best.pts);
+          addLine(l);
+          holderCurve.set(l.id, best.c);
+          changed = true;
+          continue;
+        }
         if (!lineSpec.has(l.id) || !targets.has(l.id) || (pass === 0 && holdUp && uprightKid(l.id))) continue;
         const now = costOf(l, l.pts);
         if (!now) continue;
         let best: { c: Cubic; pts: Vec[]; cost: number } | null = null;
-        for (const shape of SHAPES.slice(1)) {
+        for (const shape of (wideLines ? SHAPES : SHAPES.slice(0, 15)).slice(1)) {
           const { c } = shapeCurve(l.id, shape);
           const pts = sample(c, 24);
           const cost = costOf(l, pts);
           if (cost < (best?.cost ?? now)) best = { c, pts, cost };
           if (!cost) break;
+        }
+        // (WIP, LINE_SEARCH 3: also lines turning steadily from a chosen
+        // direction toward their name, as a family fan's are drawn)
+        if (wideLines && LINE_SEARCH >= 3 && (best?.cost ?? now)) {
+          const sp = lineSpec.get(l.id)!;
+          const direct = Math.atan2(sp.C.y - sp.P.y, sp.C.x - sp.P.x);
+          search: for (const pw of [1, 0.6, 2, 3]) for (const deg of [0, 8, -8, 16, -16, 25, -25, 35, -35, 50, -50, 65, -65]) {
+            const c = polarCurve(sp.P, sp.C, direct + (deg * Math.PI) / 180, pw);
+            if (!c) continue;
+            const pts = sample(c, 24);
+            const cost = costOf(l, pts);
+            if (cost < (best?.cost ?? now)) best = { c, pts, cost };
+            if (!cost) break search;
+          }
         }
         if (!best) continue;
         dropLine(l);
@@ -4371,6 +4474,61 @@ function layoutAttemptBody(
         changed = true;
       }
       if (!changed && !(holdUp && pass === 0)) break;
+    }
+    // (WIP, LINE_SEARCH 4) A line still in trouble and each line it
+    // conflicts with, bent together: the best few shapes of each, tried in
+    // pairs (one bent alone can be no better while the other stays put).
+    if (wideLines && LINE_SEARCH >= 4) {
+      const candidates = (l: Line): Cubic[] => {
+        if (holderSpec.has(l.id) && !lineSpec.has(l.id)) return holderShapes(l.id);
+        const sp = lineSpec.get(l.id);
+        if (!sp) return [];
+        const out = SHAPES.map((sh) => shapeCurve(l.id, sh).c);
+        const direct = Math.atan2(sp.C.y - sp.P.y, sp.C.x - sp.P.x);
+        for (const pw of [1, 0.6, 2]) for (const deg of [8, -8, 16, -16, 25, -25, 40, -40]) {
+          const c = polarCurve(sp.P, sp.C, direct + (deg * Math.PI) / 180, pw);
+          if (c) out.push(c);
+        }
+        return out;
+      };
+      const setLine = (l: Line, c: Cubic, pts: Vec[]) => {
+        dropLine(l); l.pts = pts; l.bb = bbOf(pts); addLine(l);
+        if (lineSpec.has(l.id)) curveOf.set(l.id, c); else holderCurve.set(l.id, c);
+      };
+      const curOf = (l: Line) => (lineSpec.has(l.id) ? curveOf.get(l.id) : holderCurve.get(l.id))!;
+      const top = (l: Line, k: number) => candidates(l).map((c) => { const pts = sample(c, 24); return { c, pts, cost: costOf(l, pts) }; })
+        .sort((a, b) => a.cost - b.cost).slice(0, k);
+      for (const id of targets) {
+        const l = lines.get(id);
+        if (!l || !costOf(l, l.pts)) continue;
+        // the lines it conflicts with: those whose removal clears some of its cost
+        const near = new Set<string>();
+        for (const k of cellsOf(l.pts)) for (const o of segGrid.get(k) ?? []) if (o !== l.id) near.add(o);
+        for (const oid of near) {
+          const o = lines.get(oid)!;
+          const before = costOf(l, l.pts) + costOf(o, o.pts);
+          if (!before) continue;
+          const savedL = { c: curOf(l), pts: l.pts }, savedO = { c: curOf(o), pts: o.pts };
+          dropLine(o);
+          const freed = costOf(l, l.pts);
+          addLine(o);
+          if (freed >= costOf(l, l.pts)) continue;
+          let best = { cost: before, a: null as null | { c: Cubic; pts: Vec[] }, b: null as null | { c: Cubic; pts: Vec[] } };
+          const ta = [{ ...savedL, cost: 0 }, ...top(l, 14)], tb = [{ ...savedO, cost: 0 }, ...top(o, 14)];
+          pairs: for (const a of ta) {
+            setLine(l, a.c, a.pts);
+            for (const b of tb) {
+              setLine(o, b.c, b.pts);
+              const cost = costOf(l, l.pts) + costOf(o, o.pts);
+              if (cost < best.cost) best = { cost, a, b };
+              if (!cost) break pairs;
+            }
+          }
+          setLine(l, (best.a ?? savedL).c, (best.a ?? savedL).pts);
+          setLine(o, (best.b ?? savedO).c, (best.b ?? savedO).pts);
+          if (!costOf(l, l.pts)) break;
+        }
+      }
     }
     // A line from the rim of the base's oval still crossing a brother's (a
     // childless son's thin line, set out towards his name, crossed by a
@@ -4405,7 +4563,7 @@ function layoutAttemptBody(
         const P = add(origin, scale(d, 0.8 / Math.hypot(d.x / baseOval.rx, d.y / baseOval.ry)));
         sp.P = P;
         sp.gP = norm(sub(sp.node, P));
-        for (const shape of SHAPES) {
+        for (const shape of wideLines ? SHAPES : SHAPES.slice(0, 15)) {
           const { c } = shapeCurve(l.id, shape);
           const pts = sample(c, 24);
           const cost = costOf(l, pts);
@@ -4490,7 +4648,31 @@ function layoutAttemptBody(
     const from = holderOf.get(n.id)?.id ?? n.parentId ?? "";
     dottedFrom.set(from, (dottedFrom.get(from) ?? 0) + 1);
   }
+  /** (WIP, LINE_SEARCH 3) How each partner's line to a spouse's box was drawn, so it can be bent like the others. */
+  const holderSpec = new Map<string, { P: Vec; S: Vec; gP: Vec; dir: Vec; up: boolean; reach0: number }>();
+  const holderShapes = (id: string): Cubic[] => {
+    const sp = holderSpec.get(id);
+    if (!sp || sp.up) return [];
+    const L = len(sub(sp.S, sp.P)) || 1;
+    const dv = scale(sub(sp.S, sp.P), 1 / L);
+    const out: Cubic[] = [];
+    for (const follow of [0, 0.25, 0.5, 0.8]) for (const arrive of [0, 0.4, 0.8]) for (const b of [0, 0.08, -0.08, 0.18, -0.18, 0.3, -0.3, 0.45, -0.45]) for (const sb of [false, true]) {
+      if (sb && !b) continue;
+      const s0 = norm(add(scale(sp.gP, follow), scale(dv, 1 - follow)));
+      const e0 = norm(add(scale(dv, 1 - arrive), scale(sp.dir, arrive)));
+      const side = scale({ x: -dv.y, y: dv.x }, L * b);
+      const c2 = sub(sp.S, scale(e0, L * 0.3));
+      out.push({ p0: sp.P, c1: add(add(sp.P, scale(s0, L * sp.reach0)), side), c2: sb ? sub(c2, side) : add(c2, side), p1: sp.S });
+    }
+    const direct = Math.atan2(sp.S.y - sp.P.y, sp.S.x - sp.P.x);
+    for (const pw of [1, 0.6, 2]) for (const deg of [8, -8, 16, -16, 25, -25, 40, -40]) {
+      const c = polarCurve(sp.P, sp.S, direct + (deg * Math.PI) / 180, pw);
+      if (c) out.push(c);
+    }
+    return out;
+  };
   const drawCurves = () => {
+    holderSpec.clear();
     const growthDir = new Map<string, Vec>();
     forks.clear();
     placeHolders();
@@ -4516,6 +4698,7 @@ function layoutAttemptBody(
           const s0 = up ? dv : norm(add(scale(gP, follow), scale(dv, 1 - follow)));
           const e0 = up ? dv : norm(add(scale(dv, 0.6), scale(holder.dir, 0.4)));
           holderCurve.set(holder.id, organic({ ...node, parentId: null }, { p0: Ph, c1: add(Ph, scale(s0, L * reach0)), c2: sub(S, scale(e0, L * 0.3)), p1: S }));
+          holderSpec.set(holder.id, { P: Ph, S, gP, dir: holder.dir, up, reach0 });
           growthDir.set(holder.id, e0);
         }
         P = { x: holder.x, y: holder.y };
@@ -4843,6 +5026,38 @@ function layoutAttemptBody(
       }
       return out;
     };
+    // Phase 1 (WIP): the lines alone, the names and boxes where they stand.
+    // Each round bends every line named in a problem (and, at LINE_SEARCH 2,
+    // every line of the families they belong to) and is kept only when the
+    // clarity check itself counts fewer problems; the best drawing stands.
+    let frozenDone = false;
+    const lineSearch = (start: ReturnType<typeof validate>) => {
+      const snap = () => ({ curves: new Map(curveOf), holderCurves: new Map(holderCurve), forks: new Map(forks), report: lastReport });
+      const restore = (k: ReturnType<typeof snap>) => {
+        curveOf.clear(); for (const [a, b] of k.curves) curveOf.set(a, b);
+        holderCurve.clear(); for (const [a, b] of k.holderCurves) holderCurve.set(a, b);
+        forks.clear(); for (const [a, b] of k.forks) forks.set(a, b);
+        lastReport = k.report;
+      };
+      let best = start, kept = snap();
+      if (LINE_SEARCH < 1) return best;
+      wideLines = true;
+      for (let round = 0; round < 8 && best.length; round++) {
+        const targets = linesIn(best);
+        if (LINE_SEARCH >= 2) {
+          const fams = new Set<string>();
+          for (const id of targets) { const n = byId.get(id); if (n?.parentId) fams.add(n.parentId); const h = holderOf.get(id); if (h) fams.add(h.id); }
+          for (const n of growingNodes) if (fams.has(holderOf.get(n.id)?.id ?? parentIdOf(n))) targets.add(n.id);
+        }
+        refineLines(targets);
+        const next = validate();
+        if (next.length < best.length) { best = next; kept = snap(); }
+        else { restore(kept); break; }
+      }
+      restore(kept);
+      wideLines = false;
+      return best;
+    };
     const overlapsAny = (n: LiveNode) =>
       [...nodes, ...holders].some((o) => o !== n && Math.abs(o.x - n.x) < (o.w + n.w) / 2 && Math.abs(o.y - n.y) < (o.h + n.h) / 2);
     const nodeById = (id: string) => growingNodes.find((n) => n.id === id);
@@ -4895,7 +5110,7 @@ function layoutAttemptBody(
     // holder or name: a daughter's four husbands between her and her
     // children's row once stood one above another)
     const cramped = (h: Holder) => !h.clear || h.lined === false || behind(h);
-    for (let round = 0; round < 3 && holders.some(cramped); round++) {
+    for (let round = 0; !LINES_FROZEN && round < 3 && holders.some(cramped); round++) {
       for (const h of holders.filter(cramped)) {
         for (const k of h.kids) {
           const saved = { x: k.x, y: k.y };
@@ -4905,13 +5120,18 @@ function layoutAttemptBody(
       }
       placeHolders();
     }
+    if (LINES_FROZEN) for (const h of holders) h.pin = { x: h.x, y: h.y };
     let issues = check();
+    if (LINES_FROZEN) {
+      issues = lineSearch(issues);
+      frozenDone = true;
+    }
     // the holders stay where they are while names are moved (only a move
     // of a holder itself places it elsewhere)
     for (const h of holders) h.pin = { x: h.x, y: h.y };
     // only near-clean layouts are untangled; many issues mean crowding,
     // which more room (the caller's retry) solves
-    if (issues.length > UNTANGLE_MAX) issues = [];
+    if (issues.length > UNTANGLE_MAX || frozenDone) issues = [];
     // (an issue no move could fix is not tried again)
     const sig = (i: (typeof issues)[number]) => `${i.kind}|${i.edge?.join(">")}|${Array.isArray(i.other) ? i.other.join(">") : i.other}`;
     const failed = new Set<string>();
@@ -5010,7 +5230,7 @@ function layoutAttemptBody(
     // still read worse than none: on a clean drawing, the names at each end
     // are tried a little further out or along their ring, kept only while
     // the drawing stays clean with fewer crossings.
-    if (budget.crossings && !issues.length && budget.checks > 0) {
+    if (!frozenDone && budget.crossings && !issues.length && budget.checks > 0) {
       if (!fresh || !lastReport) check();
       let report = lastReport!;
       const seen = new Set<string>();
@@ -5070,7 +5290,8 @@ function layoutAttemptBody(
         }
       }
     }
-    if (!fresh) check();
+    if (frozenDone) { /* the line search's drawing stands */ }
+    else if (!fresh) check();
     else if (issues.length && budget.checks > 0) {
       // Once more while problems are left, the holders now pinned where the
       // untangling left them: that can bend clear a line the first drawing,

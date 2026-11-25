@@ -1,0 +1,10 @@
+import { writeFileSync, mkdirSync } from "node:fs";
+import { computePosterLayout } from "@/lib/layout/botanical";
+import { makeCase } from "./cases";
+import { metrics } from "./metrics";
+const key = process.argv[2], out = process.argv[3];
+const c = makeCase(key);
+const l = computePosterLayout(c.tree, c.opts);
+mkdirSync(out, { recursive: true });
+writeFileSync(`${out}/${key.replace(/\|/g, "_")}.json`, JSON.stringify({ key, recipe: l.recipe, m: metrics(l) }));
+console.log(JSON.stringify({ key, people: c.tree.members.length, ...metrics(l) }));
