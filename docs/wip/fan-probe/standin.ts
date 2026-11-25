@@ -16,7 +16,7 @@ export function standIn(seed: number, extraSons = 12, size = 300, wifeShare = 0.
     members.push(m); return m;
   };
   const rootKids = members.filter((m) => m.fatherId === root.id).length;
-  for (let i = 0; i < extraSons; i++) mk(["سالم","مبارك","زيد","هاشم","وليد","نايف","طلال","بندر","غازي","جابر","عادل","رائد"][i % 12], false, root.id, null, rootKids + i);
+  for (let i = 0; i < extraSons; i++) mk(["سالم","مبارك","زيد","هاشم","وليد","شادي","طلال","بندر","غازي","جابر","عادل","رائد"][i % 12], false, root.id, null, rootKids + i);
   // daughters two generations below the root (2nd ring)
   const fathers = new Set(members.map((m) => m.fatherId));
   const sons = members.filter((m) => m.fatherId === root.id && fathers.has(m.id));
