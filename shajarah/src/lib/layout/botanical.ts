@@ -1296,6 +1296,16 @@ function sideLean(l: PosterLayout): number | null {
 const LEAD_STEPS = 1;
 /** How far out (in canopy-base medallion radii) the lines leaving its centre must clear each other's widths (see orderBaseLines). */
 const BASE_CLEAR = 2;
+/** WIP switch (experiment): one row per ring, families round their fathers, pulled toward an even fan. */
+const FAN_ONE_ROW = !!process.env.FAN_ONE_ROW;
+/** How far each ring past the first is pulled toward an even fan either side of the middle. */
+const SYM_BLEND = process.env.SYM_BLEND !== undefined ? Number(process.env.SYM_BLEND) : 0.3;
+/** WIP switch: how many problems a drawing may have and still have its lines re-bent / names untangled. */
+/** WIP: rounds of fathers over families / families round fathers, and how far a father moves toward his children's middle each round. */
+const HARMONY_ROUNDS = process.env.HARMONY_ROUNDS !== undefined ? Number(process.env.HARMONY_ROUNDS) : 3;
+const HARMONY_PULL = process.env.HARMONY_PULL !== undefined ? Number(process.env.HARMONY_PULL) : 0.7;
+const REFINE_MAX = process.env.REFINE_MAX !== undefined ? Number(process.env.REFINE_MAX) : 30;
+const UNTANGLE_MAX = process.env.UNTANGLE_MAX !== undefined ? Number(process.env.UNTANGLE_MAX) : 15;
 /** The trunk's names are at most this many times the canopy's typical name. */
 const TRUNK_TO_CANOPY = 1.15;
 /** A trunk this much past TRUNK_TO_CANOPY is set in proportion. */
@@ -1390,6 +1400,64 @@ export function replayLayout(tree: TreeDTO, r: LayoutRecipe): PosterLayout {
   const l = layoutAttempt(tree, r.opts, r.fontScale, r.final, r.strict, r.dense, { ...r.budget });
   l.clarity = validateRelationships(l, tree);
   return l;
+}
+
+/**
+ * Names on one ring, in order (angles decreasing), moved as little as
+ * possible (least squares) so that each stands at least `need(i)` after the
+ * one before it: one row. `pin` holds its angle; the others are packed out
+ * from it on either side. A ring with less room than its names need between
+ * `lo` and `hi` is evened out over it (the overlap left is counted).
+ */
+export function packRing(target: number[], need: (i: number) => number, lo: number, hi: number, pin = -1): number[] {
+  const n = target.length;
+  if (!n) return [];
+  const side = (from: number, to: number, start?: number): number[] => {
+    const idx = Array.from({ length: to - from + 1 }, (_, k) => from + k);
+    const c: number[] = [];
+    let acc = 0;
+    for (let k = 0; k < idx.length; k++) { if (k) acc += need(idx[k]); c.push(acc); }
+    const a = idx.map((i, k) => target[i] + c[k]);
+    const blocks: { sum: number; len: number }[] = [];
+    for (const v of a) {
+      blocks.push({ sum: v, len: 1 });
+      while (blocks.length > 1 && blocks[blocks.length - 1].sum / blocks[blocks.length - 1].len > blocks[blocks.length - 2].sum / blocks[blocks.length - 2].len) {
+        const b = blocks.pop()!;
+        blocks[blocks.length - 1].sum += b.sum;
+        blocks[blocks.length - 1].len += b.len;
+      }
+    }
+    const z: number[] = [];
+    for (const b of blocks) for (let k = 0; k < b.len; k++) z.push(b.sum / b.len);
+    let out = z.map((v, k) => v - c[k]);
+    if (start !== undefined) { const shift = start - out[0]; out = out.map((v) => v + shift); }
+    return out;
+  };
+  let th: number[];
+  if (pin < 0) {
+    th = side(0, n - 1);
+    const span = th[0] - th[n - 1];
+    if (span > hi - lo) { const k = (hi - lo) / Math.max(span, 1e-9); th = th.map((v) => hi - (th[0] - v) * k); }
+    else if (th[0] > hi) th = th.map((v) => v - (th[0] - hi));
+    else if (th[n - 1] < lo) th = th.map((v) => v + (lo - th[n - 1]));
+    return th;
+  }
+  th = [...target];
+  if (pin < n - 1) {
+    let r = side(pin, n - 1, target[pin]).slice(1);
+    const last = r[r.length - 1];
+    if (last < lo) { const span = target[pin] - last, room = target[pin] - lo; if (room > 0) r = r.map((v) => target[pin] - (target[pin] - v) * (room / span)); }
+    r.forEach((v, k) => { th[pin + 1 + k] = v; });
+  }
+  if (pin > 0) {
+    const rev = target.slice(0, pin + 1).reverse().map((v) => -v);
+    let l = packRing(rev, (k) => need(pin - k + 1), -Infinity, Infinity, 0).slice(1).map((v) => -v);
+    const first = l[l.length - 1];
+    if (first > hi) { const span = first - target[pin], room = hi - target[pin]; if (room > 0) l = l.map((v) => target[pin] + (v - target[pin]) * (room / span)); }
+    l.forEach((v, k) => { th[pin - 1 - k] = v; });
+  }
+  th[pin] = target[pin];
+  return th;
 }
 
 function layoutAttemptBody(
@@ -2886,6 +2954,36 @@ function layoutAttemptBody(
           }
         }
       }
+      if (onRing && FAN_ONE_ROW) {
+        const needAt = (t: number[]) => (i: number) => half(ring[i - 1], t[i - 1]) + half(ring[i], t[i]);
+        if (d !== firstRing && ring.length > 1) {
+          // Whole families as units: each father's children side by side in
+          // one row, centred on him where he stands; only whole families
+          // shift along the ring, in order, as little as they must.
+          const need = needAt(th);
+          const groups: number[][] = [];
+          ring.forEach((n, i) => {
+            const last = groups[groups.length - 1];
+            if (last && ring[last[0]].parentId === n.parentId) last.push(i); else groups.push([i]);
+          });
+          const offs = groups.map((idx) => { let acc = 0; return idx.map((i, k) => (k ? (acc += need(i)) : 0)); });
+          const width = offs.map((o) => o[o.length - 1]);
+          const centreOf = (idx: number[]) => {
+            const father = byId.get(ring[idx[0]].parentId ?? "");
+            return father && father.ray !== undefined ? father.ray : idx.reduce((a, i) => a + th[i], 0) / idx.length;
+          };
+          // (a family's first name's angle, for its centre to stand on its father)
+          const gTarget = groups.map((idx, g) => centreOf(idx) + width[g] / 2);
+          const gNeed = (g: number) => width[g - 1] + need(groups[g][0]);
+          const gTh = packRing(gTarget, gNeed, lo + width[width.length - 1], hi, -1);
+          groups.forEach((idx, g) => idx.forEach((i, k) => { th[i] = gTh[g] - offs[g][k]; }));
+        } else {
+          const pinAt = ring.findIndex((n) => centerIds.has(n.id));
+          let packed = packRing(th, needAt(th), lo, hi, pinAt);
+          packed = packRing(th, needAt(packed), lo, hi, pinAt);
+          for (let i = 0; i < th.length; i++) th[i] = packed[i];
+        }
+      }
       ringLoad = Math.max(ringLoad, ring.reduce((a, n, i) => a + 2 * half(n, th[i]), 0) / (hi - lo));
       ring.forEach((n, i) => {
         n.ray = th[i];
@@ -2903,6 +3001,68 @@ function layoutAttemptBody(
         n.x = n.tx = p.x;
         n.y = n.ty = p.y;
       });
+    }
+  }
+  // One row per ring, the families round their fathers and the fathers over
+  // their families: a father is moved toward the middle of his children,
+  // his ring packed again in one row, and the children set round him again,
+  // a few times over, so each family's lines run out from its father rather
+  // than slanting across a neighbour's (WIP: see FAN_ONE_ROW).
+  if (onRing && FAN_ONE_ROW) {
+    const live = nodes.filter((n) => n.region === "crown" && n.ray !== undefined);
+    const rings = new Map<number, LiveNode[]>();
+    for (const n of live) rings.set(n.depth, [...(rings.get(n.depth) ?? []), n]);
+    for (const ring of rings.values()) ring.sort((a, b) => b.ray! - a.ray!);
+    const depths = [...rings.keys()].sort((a, b) => a - b);
+    const first = depths[0];
+    const kidsOf = new Map<string, LiveNode[]>();
+    for (const n of live) if (n.parentId) kidsOf.set(n.parentId, [...(kidsOf.get(n.parentId) ?? []), n]);
+    const halfOn = (d: number) => (n: LiveNode, th: number) =>
+      (Math.abs((n.w / 2 + (n.pad ?? 0)) * Math.sin(th)) + Math.abs((n.h / 2 + (n.pad ?? 0)) * Math.cos(th)) + corridorFor(fl, f)) / Math.max(1, ringRadius(d, th));
+    const pack = (d: number, target: number[]) => {
+      const ring = rings.get(d)!;
+      const half = halfOn(d);
+      const lo = ringLift(d), hi = Math.PI - ringLift(d);
+      const needAt = (t: number[]) => (i: number) => half(ring[i - 1], t[i - 1]) + half(ring[i], t[i]);
+      const pin = d === first ? ring.findIndex((n) => centerIds.has(n.id)) : -1;
+      let th = packRing(target, needAt(target), lo, hi, pin);
+      th = packRing(target, needAt(th), lo, hi, pin);
+      ring.forEach((n, i) => { n.ray = th[i]; });
+    };
+    for (let round = 0; round < HARMONY_ROUNDS; round++) {
+      // fathers over their families (outermost first)
+      for (const d of [...depths].reverse()) {
+        const ring = rings.get(d)!;
+        const target = ring.map((n) => {
+          const kids = kidsOf.get(n.id);
+          if (!kids?.length) return n.ray!;
+          const mean = kids.reduce((a, k) => a + k.ray!, 0) / kids.length;
+          return n.ray! + (mean - n.ray!) * HARMONY_PULL;
+        });
+        pack(d, target);
+      }
+      // families round their fathers (innermost first)
+      for (const d of depths) {
+        if (d === first) continue;
+        const ring = rings.get(d)!;
+        const half = halfOn(d);
+        const target = ring.map((n) => n.ray!);
+        const groups = new Map<string, number[]>();
+        ring.forEach((n, i) => { const k = n.parentId ?? n.id; groups.set(k, [...(groups.get(k) ?? []), i]); });
+        for (const [pid, idx] of groups) {
+          const father = byId.get(pid);
+          if (!father || father.ray === undefined) continue;
+          const widths = idx.map((i, k) => (k ? half(ring[i - 1], target[i - 1]) + half(ring[i], target[i]) : 0));
+          let at = father.ray + widths.reduce((a, x) => a + x, 0) / 2;
+          idx.forEach((i, k) => { at -= widths[k]; target[i] = at; });
+        }
+        pack(d, target);
+      }
+    }
+    for (const n of live) {
+      const p = add(origin, scale(dirOf(n.ray!), Math.min(ringRadius(n.depth, n.ray!), rMaxOnPage(n, n.ray!))));
+      n.x = n.tx = p.x;
+      n.y = n.ty = p.y;
     }
   }
 
@@ -3373,6 +3533,18 @@ function layoutAttemptBody(
     if (n.region !== "crown") n.y = Math.min(n.y, groundY - n.h / 2 - W * 0.01);
   };
   relax(nodes, constrain, undefined, onPage);
+  if (onRing && FAN_ONE_ROW) {
+    for (const n of nodes) {
+      if (n.region !== "crown" || n.ray === undefined) continue;
+      const a = Math.atan2(origin.y - n.y, n.x - origin.x);
+      const th = Math.abs(a - n.ray) < Math.PI ? a : n.ray;
+      const dir = dirOf(th);
+      const r = Math.min(ringRadius(n.depth, th), rMaxOnPage(n, th));
+      n.ray = th;
+      n.x = origin.x + dir.x * r;
+      n.y = origin.y + dir.y * r;
+    }
+  }
 
   // Line widths (the pipe model, with fine twigs: a single leaf's stalk is
   // only 1.5 × the minimum line, so neighbouring twigs stay clearly apart).
@@ -4659,7 +4831,7 @@ function layoutAttemptBody(
         return validate();
       }
       let out = validate();
-      if (out.length && out.length <= 30) {
+      if (out.length && out.length <= REFINE_MAX) {
         const targets = linesIn(out);
         refineLines(targets);
         // a holder a bent line now passes under is placed again
@@ -4739,7 +4911,7 @@ function layoutAttemptBody(
     for (const h of holders) h.pin = { x: h.x, y: h.y };
     // only near-clean layouts are untangled; many issues mean crowding,
     // which more room (the caller's retry) solves
-    if (issues.length > 15) issues = [];
+    if (issues.length > UNTANGLE_MAX) issues = [];
     // (an issue no move could fix is not tried again)
     const sig = (i: (typeof issues)[number]) => `${i.kind}|${i.edge?.join(">")}|${Array.isArray(i.other) ? i.other.join(">") : i.other}`;
     const failed = new Set<string>();
