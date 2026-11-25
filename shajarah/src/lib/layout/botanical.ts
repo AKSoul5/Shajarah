@@ -1317,6 +1317,8 @@ const LINES_FROZEN = !!process.env.LINES_FROZEN;
 const FAN_KEEP_ORDER = !!process.env.FAN_KEEP_ORDER;
 /** WIP switch (phase 2b): a crowded ring moves out and the rings outside it only as far as they must to keep their gap (not all by the same step), so the inner crowded rings get room. */
 const FAN_RING_ROOM = !!process.env.FAN_RING_ROOM;
+/** WIP switch (option 2, test A): the generation rings' ovals as wide as the page's margins allow, not only as wide as the room above the canopy base. */
+const CANOPY_WIDE = !!process.env.CANOPY_WIDE;
 const LINE_SEARCH = process.env.LINE_SEARCH !== undefined ? Number(process.env.LINE_SEARCH) : 0;
 /** The trunk's names are at most this many times the canopy's typical name. */
 const TRUNK_TO_CANOPY = 1.15;
@@ -2181,6 +2183,7 @@ function layoutAttemptBody(
   }
   const top0 = contentTop + Math.max(0, slack) / 2;
   crown = { cx: W / 2, cy: top0 + ry, rx, ry, exponent: 2.4 };
+  if (process.env.FAN_DEBUG) console.error(`canopy W ${W.toFixed(0)} H ${H.toFixed(0)} rx ${rx.toFixed(0)} rxMax ${rxMax.toFixed(0)} ry ${ry.toFixed(0)} avail ${avail.toFixed(0)} slack ${slack.toFixed(0)} total ${totalFor(f, plan).toFixed(0)} trunk ${shownTrunk.length} f ${f.toFixed(2)} circle ${circleRings}`);
   origin = { x: W / 2, y: crown.cy + 0.8 * ry };
   // (rings that are circles are as tall as they are wide: on tall paper the
   // canopy rises to the header and the trunk grows into the height left)
@@ -2278,7 +2281,7 @@ function layoutAttemptBody(
   const circleR = Math.min(origin.y - contentTop, W / 2 - margin);
   // (each ring an oval round the canopy base, RING_ASPECT times taller than
   // wide where the page has the height; the same shape at every generation)
-  const ovalA = circleR;
+  const ovalA = CANOPY_WIDE ? W / 2 - margin : circleR;
   const ovalB = Math.min(origin.y - contentTop, circleR * RING_ASPECT);
   const reach = circleRings ? (theta: number) => (ovalA * ovalB) / Math.hypot(ovalB * Math.cos(theta), ovalA * Math.sin(theta)) : lift <= 0 ? outline : (theta: number) => {
     const c = Math.abs(Math.cos(theta)), sn = Math.abs(Math.sin(theta));

@@ -158,10 +158,51 @@ row. The levers left are a design decision, not tuning:
 4. Two rows on an over-full ring only, families kept whole and in order
    (the released behaviour, made orderly).
 
+### Option 2 tested on the owner's family (25 Nov 2026, owner's choice)
+
+The owner supplied his family's file for this test. It was used only in a
+scratch folder outside the repository; nothing from it is committed. Figures
+only below.
+
+On the real family the canopy uses ~30% of the page's height (the 34-name
+trunk and its side families take more than half). With circle rings, each
+ring's half-width is capped by the room above the canopy base (~800 units)
+instead of the page's half-width (960). Only ring 2 overflows (1.18).
+
+- `CANOPY_WIDE` (test A): the rings' ovals as wide as the page's margins,
+  height unchanged. Every ring then fits (ring 2: 1.18 -> 0.96). Measured
+  alone (fresh search, line search off): **no gain**, 46 -> 50 problems
+  spouses off, 31 -> 37 on. Families are hardly mixed on this poster (3 splits
+  on one ring), so overflow is not its main cause.
+- Line search alone (names frozen, present canopy): 26 -> 13 (spouses off),
+  29 -> 16 (on).
+- Both: **8 and 9 problems** at 3.20 mm, none forced by order; almost all in
+  the daughters' families, on lines to and from their husbands' boxes, and in
+  a bundle of long lines sweeping to the far left of the fan.
+
+Matrix, owner's family, classic design, fresh searches (wide + line search
+applied to the chosen layout):
+
+| Paper | Spouses | Daughters' families | Released | Wide + lines |
+|---|---|---|---|---|
+| 2A0 | off | off | 0 · 6.40 mm | 1 · 4.84 mm |
+| 2A0 | off | on | 0 · 4.63 mm | 8 · 3.20 mm |
+| 2A0 | on | off | 2 · 4.76 mm | 6 · 4.76 mm |
+| 2A0 | on | on | 1 · 4.63 mm | 9 · 3.20 mm |
+| A0 | off | off | 0 · 4.70 mm | 0 · 3.20 mm |
+| A0 | off | on | 6 · 3.58 mm | 12 · 3.26 mm |
+| A0 | on | off | 2 · 3.26 mm | 5 · 3.31 mm |
+| A0 | on | on | 0 · 3.26 mm | 21 · 3.89 mm |
+
+**Verdict:** worse than released in every cell but none; not a default
+candidate. The one-row fan still costs name size (4.63 -> 3.20 mm at 2A0
+with everything shown) and leaves 5-21 problems. The wider canopy helps
+only together with the line search, and only on 2A0.
+
 ### Switches (all off by default; off, the output equals `main`, checked)
 
 `FAN_ONE_ROW`, `LINES_FROZEN`, `LINE_SEARCH` (0-4), `REFINE_MAX`,
-`UNTANGLE_MAX`, `FAN_KEEP_ORDER`, `FAN_RING_ROOM`, `HARMONY_ROUNDS`,
+`UNTANGLE_MAX`, `FAN_KEEP_ORDER`, `FAN_RING_ROOM`, `CANOPY_WIDE`, `HARMONY_ROUNDS`,
 `HARMONY_PULL`, `SYM_BLEND`, `FAN_DEBUG` (prints each ring's fill).
 Probe scripts: `fan-probe/` (run from `shajarah/` with
 `npx tsx --tsconfig tsconfig.json ../docs/wip/fan-probe/<script>.ts`; they
