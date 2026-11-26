@@ -1332,6 +1332,16 @@ const LINES_FROZEN = !!process.env.LINES_FROZEN;
 const FAN_KEEP_ORDER = !!process.env.FAN_KEEP_ORDER;
 /** WIP switch (with FAN_KEEP_ORDER): each generation spread evenly over one symmetrical arc, in family order, the gaps between names all equal. */
 const FAN_EVEN = !!process.env.FAN_EVEN;
+/**
+ * WIP switch (released layout): each family's brothers and sisters set side
+ * by side on one arc. Those with families of their own stay where they are
+ * (the branches do not move); the others come onto their arc and close up
+ * beside them, as little moved as their order allows. A family is left as
+ * it was if any of its names would overlap another.
+ */
+const ALIGN_SIBS = !!process.env.ALIGN_SIBS;
+/** WIP switch: the generation rings round (circles as tall as today's ovals), names still kept inside the page's margins, so the shallow generations on the sides curve out into the room there instead of turning down toward the trunk. */
+const RING_ROUND = !!process.env.RING_ROUND;
 /** WIP switch (phase 2b): a crowded ring moves out and the rings outside it only as far as they must to keep their gap (not all by the same step), so the inner crowded rings get room. */
 const FAN_RING_ROOM = !!process.env.FAN_RING_ROOM;
 /** WIP switch (option 2, test A): the generation rings' ovals as wide as the page's margins allow, not only as wide as the room above the canopy base. */
@@ -2315,7 +2325,7 @@ function layoutAttemptBody(
   const circleR = Math.min(origin.y - contentTop, W / 2 - margin);
   // (each ring an oval round the canopy base, RING_ASPECT times taller than
   // wide where the page has the height; the same shape at every generation)
-  const ovalA = CANOPY_WIDE ? W / 2 - margin : circleR;
+  const ovalA = RING_ROUND ? Math.min(origin.y - contentTop, circleR * RING_ASPECT) : CANOPY_WIDE ? W / 2 - margin : circleR;
   const ovalB = Math.min(origin.y - contentTop, circleR * RING_ASPECT);
   const reach = circleRings ? (theta: number) => (ovalA * ovalB) / Math.hypot(ovalB * Math.cos(theta), ovalA * Math.sin(theta)) : lift <= 0 ? outline : (theta: number) => {
     const c = Math.abs(Math.cos(theta)), sn = Math.abs(Math.sin(theta));
@@ -3662,6 +3672,83 @@ function layoutAttemptBody(
       n.x = origin.x + dir.x * r;
       n.y = origin.y + dir.y * r;
     }
+  }
+  if (onRing && process.env.FAN_DEBUG) {
+    for (const n of nodes) {
+      if (n.region !== "crown") continue;
+      let th = Math.atan2(origin.y - n.y, n.x - origin.x); if (th < -Math.PI / 2) th += 2 * Math.PI;
+      if (th < 2.3) continue;
+      const r = Math.hypot(n.x - origin.x, n.y - origin.y);
+      console.error(`left ${n.member.name} d${n.depth} at ${(th * 57.3).toFixed(0)}° r ${r.toFixed(0)} ring ${ringRadius(n.depth, th).toFixed(0)} page-max ${rMaxOnPage(n, th).toFixed(0)}`);
+    }
+    console.error(`rings: ovalA ${ovalA.toFixed(0)} ovalB ${ovalB.toFixed(0)} W ${W.toFixed(0)} origin ${origin.x.toFixed(0)},${origin.y.toFixed(0)}`);
+  }
+  if (onRing && ALIGN_SIBS && !FAN_ONE_ROW) {
+    const hasKids = new Set(nodes.map((n) => n.parentId).filter(Boolean) as string[]);
+    const pad = f * 0.5;
+    const angOf = (n: LiveNode) => { const a = Math.atan2(origin.y - n.y, n.x - origin.x); return a < -Math.PI / 2 ? a + 2 * Math.PI : a; };
+    const fams = new Map<string, LiveNode[]>();
+    for (const n of nodes) if (n.region === "crown" && n.parentId) fams.set(n.parentId, [...(fams.get(n.parentId) ?? []), n]);
+    let aligned = 0, kept = 0;
+    for (const [, all] of fams) {
+      if (all.length < 2 || new Set(all.map((n) => n.depth)).size > 1) continue;
+      const d = all[0].depth;
+      const sibs = [...all].sort((a, b) => angOf(b) - angOf(a)); // left to right
+      const fixed = sibs.filter((n) => hasKids.has(n.id));
+      if (fixed.length === sibs.length) continue;
+      const ratio = (n: LiveNode) => Math.hypot(n.x - origin.x, n.y - origin.y) / Math.max(1, ringRadius(d, angOf(n)));
+      const ref = (fixed.length ? fixed : sibs).map(ratio).sort((a, b) => a - b);
+      const k = ref[ref.length >> 1];
+      const rAt = (th: number) => k * ringRadius(d, th);
+      const half = (n: LiveNode, th: number) => (Math.abs((n.w / 2 + pad) * Math.sin(th)) + Math.abs((n.h / 2 + pad) * Math.cos(th))) / Math.max(1, rAt(th));
+      // order kept, least weighted movement (pool adjacent violators); a sibling with a family does not move
+      const target = sibs.map(angOf);
+      let th = [...target];
+      for (let round = 0; round < 3; round++) {
+        const need = sibs.map((n, i) => (i ? half(sibs[i - 1], th[i - 1]) + half(n, th[i]) : 0));
+        const off: number[] = []; // offset of each from the first of its block
+        type Block = { from: number; to: number; w: number; sum: number };
+        const blocks: Block[] = [];
+        for (let i = 0; i < sibs.length; i++) {
+          const w = hasKids.has(sibs[i].id) ? 1e6 : 1;
+          let b: Block = { from: i, to: i, w, sum: w * target[i] };
+          off[i] = 0;
+          blocks.push(b);
+          // merge while the block's start is closer than its need to the previous block's end
+          for (;;) {
+            const prev = blocks[blocks.length - 2];
+            if (!prev) break;
+            const pos = (x: Block) => x.sum / x.w; // angle of the block's first name
+            const prevEnd = pos(prev) - off[prev.to];
+            if (prevEnd - pos(b) >= need[b.from] - 1e-9) break;
+            // join: offsets of b's names counted from prev's first
+            const shift = off[prev.to] + need[b.from];
+            for (let j = b.from; j <= b.to; j++) off[j] += shift;
+            let sum = 0, w2 = 0;
+            for (let j = prev.from; j <= b.to; j++) { const wj = hasKids.has(sibs[j].id) ? 1e6 : 1; sum += wj * (target[j] + off[j]); w2 += wj; }
+            b = { from: prev.from, to: b.to, w: w2, sum };
+            blocks.splice(blocks.length - 2, 2, b);
+          }
+        }
+        for (const b of blocks) for (let j = b.from; j <= b.to; j++) th[j] = b.sum / b.w - off[j];
+      }
+      const saved = sibs.map((n) => ({ x: n.x, y: n.y, ray: n.ray }));
+      const span = Math.max(...target) - Math.min(...target);
+      let ok = true;
+      sibs.forEach((n, i) => {
+        if (hasKids.has(n.id)) return;
+        const dir = dirOf(th[i]);
+        const r = Math.min(rAt(th[i]), rMaxOnPage(n, th[i]));
+        n.x = origin.x + dir.x * r; n.y = origin.y + dir.y * r; n.ray = th[i];
+        if (Math.abs(th[i] - target[i]) > Math.max(span, half(n, th[i]) * 4)) ok = false;
+      });
+      const mine = new Set(sibs);
+      if (ok) ok = !sibs.some((n) => !hasKids.has(n.id) && nodes.some((o) => !mine.has(o) && o !== n
+        && Math.abs(o.x - n.x) < (o.w + n.w) / 2 + pad && Math.abs(o.y - n.y) < (o.h + n.h) / 2 + pad));
+      if (ok) ok = !sibs.some((a, i) => sibs.some((b, j) => j > i && Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2));
+      if (!ok) { sibs.forEach((n, i) => { n.x = saved[i].x; n.y = saved[i].y; n.ray = saved[i].ray; }); kept++; } else aligned++;
+    }
+    if (process.env.FAN_DEBUG) console.error(`align siblings: ${aligned} families set on one arc, ${kept} left as they were`);
   }
 
   // Line widths (the pipe model, with fine twigs: a single leaf's stalk is
