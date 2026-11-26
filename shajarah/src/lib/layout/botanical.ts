@@ -1330,6 +1330,8 @@ const UNTANGLE_MAX = process.env.UNTANGLE_MAX !== undefined ? Number(process.env
 const LINES_FROZEN = !!process.env.LINES_FROZEN;
 /** WIP switch (phase 2a): after the relaxation, each ring is set in one row again in the order it had before (families kept side by side), as near the relaxed places as that allows. */
 const FAN_KEEP_ORDER = !!process.env.FAN_KEEP_ORDER;
+/** WIP switch (with FAN_KEEP_ORDER): each generation spread evenly over one symmetrical arc, in family order, the gaps between names all equal. */
+const FAN_EVEN = !!process.env.FAN_EVEN;
 /** WIP switch (phase 2b): a crowded ring moves out and the rings outside it only as far as they must to keep their gap (not all by the same step), so the inner crowded rings get room. */
 const FAN_RING_ROOM = !!process.env.FAN_RING_ROOM;
 /** WIP switch (option 2, test A): the generation rings' ovals as wide as the page's margins allow, not only as wide as the room above the canopy base. */
@@ -1442,6 +1444,7 @@ function layoutAttempt(
  * often a clean poster at once (see twoLayouts.ts).
  */
 export function replayLayout(tree: TreeDTO, r: LayoutRecipe): PosterLayout {
+  if (process.env.FINISH_REPLAY) finishing = true; // (WIP) probes: draw a recipe with the finishing steps
   const l = layoutAttempt(tree, r.opts, r.fontScale, r.final, r.strict, r.dense, { ...r.budget });
   l.clarity = validateRelationships(l, tree);
   return l;
@@ -3630,6 +3633,16 @@ function layoutAttemptBody(
       const pin = ring.findIndex((n) => centerIds.has(n.id));
       let th = packRing(relaxed, needAt(relaxed), Math.min(lo, ...relaxed), Math.max(hi, ...relaxed), pin);
       th = packRing(relaxed, needAt(th), Math.min(lo, ...relaxed), Math.max(hi, ...relaxed), pin);
+      if (FAN_EVEN) {
+        // the whole arc, symmetrical about the middle, every gap the same
+        for (let round = 0; round < 3; round++) {
+          const h = ring.map((n, i) => half(n, th[i]));
+          const used = h.reduce((a, b) => a + 2 * b, 0) - h[0] - h[h.length - 1];
+          const gap = ring.length > 1 ? (hi - lo - h[0] - h[h.length - 1] - used) / (ring.length - 1) : 0;
+          let at = ring.length > 1 ? hi - h[0] : Math.PI / 2;
+          th = ring.map((_, i) => { if (i) at -= h[i - 1] + h[i] + gap; return at; });
+        }
+      }
       ring.forEach((n, i) => {
         const dir = dirOf(th[i]);
         const r = Math.min(ringRadius(d, th[i]), rMaxOnPage(n, th[i]));
